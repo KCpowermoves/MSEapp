@@ -21,19 +21,22 @@ interface Props {
   filenameSuffix?: string;
 }
 
-const COMPRESSION_OPTIONS = {
-  maxSizeMB: 1.5,
-  maxWidthOrHeight: 1600,
-  initialQuality: 0.78,
-  useWebWorker: true,
-  preserveExif: true,
-  fileType: "image/jpeg" as const,
-};
+function compressionOptions(file: File) {
+  const isJpeg = file.type === "image/jpeg" || file.type === "image/jpg";
+  return {
+    maxSizeMB: 1.5,
+    maxWidthOrHeight: 1600,
+    initialQuality: 0.78,
+    useWebWorker: false,
+    preserveExif: isJpeg,
+    fileType: "image/jpeg" as const,
+  };
+}
 
 const THUMB_OPTIONS = {
   maxSizeMB: 0.05,
   maxWidthOrHeight: 256,
-  useWebWorker: true,
+  useWebWorker: false,
   fileType: "image/jpeg" as const,
 };
 
@@ -54,10 +57,23 @@ export function PhotoCapture({
     setBusy(true);
     setError(null);
     try {
-      const [compressed, thumb] = await Promise.all([
-        imageCompression(file, COMPRESSION_OPTIONS),
-        imageCompression(file, THUMB_OPTIONS),
-      ]);
+      let compressed: Blob;
+      try {
+        compressed = await imageCompression(file, compressionOptions(file));
+      } catch (e1) {
+        console.warn("Compression with EXIF preserve failed, retrying:", e1);
+        compressed = await imageCompression(file, {
+          ...compressionOptions(file),
+          preserveExif: false,
+        });
+      }
+      let thumb: Blob;
+      try {
+        thumb = await imageCompression(file, THUMB_OPTIONS);
+      } catch (e2) {
+        console.warn("Thumb compression failed, using compressed as thumb:", e2);
+        thumb = compressed;
+      }
       const thumbnailUrl = URL.createObjectURL(thumb);
       const filename = filenameSuffix
         ? `${filenameSuffix}.jpg`
@@ -69,7 +85,18 @@ export function PhotoCapture({
         filename,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't process photo");
+      console.error("Photo processing failed:", e, "input file:", {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      });
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+          ? e
+          : "Couldn't process photo. Try a different file.";
+      setError(message);
     } finally {
       setBusy(false);
     }
