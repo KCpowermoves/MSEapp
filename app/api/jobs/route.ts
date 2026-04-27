@@ -29,6 +29,8 @@ export async function POST(request: Request) {
   const customerName = String(body.customerName ?? "").trim();
   const siteAddress = String(body.siteAddress ?? "").trim();
   const territory = body.utilityTerritory as UtilityTerritory;
+  const selfSold = Boolean(body.selfSold);
+  const soldBy = String(body.soldBy ?? "").trim();
   if (!customerName || !siteAddress) {
     return NextResponse.json(
       { error: "Customer name and site address are required" },
@@ -41,11 +43,19 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  if (selfSold && !soldBy) {
+    return NextResponse.json(
+      { error: "Pick who sold this job" },
+      { status: 400 }
+    );
+  }
   try {
     const job = await createJob({
       customerName,
       siteAddress,
       utilityTerritory: territory,
+      selfSold,
+      soldBy,
       createdBy: session.name,
     });
     return NextResponse.json(job);

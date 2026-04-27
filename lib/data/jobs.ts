@@ -10,7 +10,7 @@ import { ageInDays, nowIso } from "@/lib/utils";
 import type { Job, UtilityTerritory } from "@/lib/types";
 
 function rowToJob(row: string[]): Job {
-  const driveFolderId = String(row[8] ?? "");
+  const driveFolderId = String(row[10] ?? "");
   return {
     jobId: String(row[0] ?? ""),
     createdDate: String(row[1] ?? ""),
@@ -19,12 +19,14 @@ function rowToJob(row: string[]): Job {
     siteAddress: String(row[4] ?? ""),
     utilityTerritory: (row[5] as UtilityTerritory) || "BGE",
     status: (row[6] as Job["status"]) || "Active",
+    selfSold: String(row[7] ?? "").toUpperCase() === "TRUE",
+    soldBy: String(row[8] ?? ""),
     driveFolderUrl: driveFolderId
       ? `https://drive.google.com/drive/folders/${driveFolderId}`
       : "",
     driveFolderId,
-    createdBy: String(row[9] ?? ""),
-    notes: String(row[10] ?? ""),
+    createdBy: String(row[11] ?? ""),
+    notes: String(row[12] ?? ""),
   };
 }
 
@@ -50,6 +52,8 @@ export async function createJob(opts: {
   customerName: string;
   siteAddress: string;
   utilityTerritory: UtilityTerritory;
+  selfSold: boolean;
+  soldBy: string;
   createdBy: string;
   notes?: string;
 }): Promise<Job> {
@@ -73,6 +77,8 @@ export async function createJob(opts: {
     opts.siteAddress,
     opts.utilityTerritory,
     "Active",
+    opts.selfSold ? "TRUE" : "FALSE",
+    opts.selfSold ? opts.soldBy : "",
     hyperlink,
     folder.id,
     opts.createdBy,
@@ -87,6 +93,8 @@ export async function createJob(opts: {
     siteAddress: opts.siteAddress,
     utilityTerritory: opts.utilityTerritory,
     status: "Active",
+    selfSold: opts.selfSold,
+    soldBy: opts.selfSold ? opts.soldBy : "",
     driveFolderUrl: folder.url,
     driveFolderId: folder.id,
     createdBy: opts.createdBy,

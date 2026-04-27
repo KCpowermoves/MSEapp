@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "seed": "node seed/init-sheet.mjs",
+    "reset-data": "node scripts/reset-data.mjs",
     "test:google": "node scripts/test-google.mjs",
     "add-tech": "node scripts/add-tech.mjs"
   },

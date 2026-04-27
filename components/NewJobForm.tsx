@@ -4,23 +4,28 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { CrewPicker } from "@/components/CrewPicker";
 import { cn } from "@/lib/utils";
 import type { UtilityTerritory } from "@/lib/types";
 
 const TERRITORIES: UtilityTerritory[] = ["BGE", "PEPCO", "Delmarva", "SMECO"];
 
-export function NewJobForm() {
+export function NewJobForm({ activeTechs }: { activeTechs: string[] }) {
   const router = useRouter();
   const [customerName, setCustomerName] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [territory, setTerritory] = useState<UtilityTerritory | null>(null);
+  const [selfSold, setSelfSold] = useState(false);
+  const [soldBy, setSoldBy] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const sellerOk = !selfSold || (selfSold && soldBy);
   const canSubmit =
     customerName.trim().length > 0 &&
     siteAddress.trim().length > 0 &&
     territory !== null &&
+    sellerOk &&
     !submitting;
 
   const submit = async () => {
@@ -35,6 +40,8 @@ export function NewJobForm() {
           customerName: customerName.trim(),
           siteAddress: siteAddress.trim(),
           utilityTerritory: territory,
+          selfSold,
+          soldBy: selfSold ? soldBy : "",
         }),
       });
       if (!res.ok) {
@@ -105,6 +112,61 @@ export function NewJobForm() {
             ))}
           </div>
         </Field>
+
+        <div className="rounded-2xl bg-mse-light/60 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-mse-navy">
+                Self-sold job
+              </div>
+              <div className="text-xs text-mse-muted">
+                Did a tech sign this customer up?
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelfSold((v) => !v);
+                if (selfSold) setSoldBy(null);
+              }}
+              role="switch"
+              aria-checked={selfSold}
+              className={cn(
+                "relative w-14 h-8 rounded-full transition-colors shrink-0",
+                selfSold ? "bg-mse-gold" : "bg-mse-light"
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-card transition-transform",
+                  selfSold ? "translate-x-6" : ""
+                )}
+              />
+            </button>
+          </div>
+
+          {selfSold && (
+            <div className="animate-fade-in pt-1">
+              <div className="text-xs font-semibold text-mse-navy mb-2">
+                Sold by <span className="text-mse-red">*</span>
+              </div>
+              {activeTechs.length === 0 ? (
+                <div className="text-sm text-mse-muted">
+                  No active techs in the system.
+                </div>
+              ) : (
+                <CrewPicker
+                  options={activeTechs}
+                  value={soldBy}
+                  onChange={setSoldBy}
+                />
+              )}
+              <div className="text-xs text-mse-muted mt-2">
+                Sales bonus stacks per unit on this job.
+              </div>
+            </div>
+          )}
+        </div>
 
         {error && (
           <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">

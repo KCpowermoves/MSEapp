@@ -22,11 +22,6 @@ const SERVICES: { id: ServiceType; label: string; sub: string }[] = [
     sub: "separate trip · $30",
   },
   { id: "Endo Cube", label: "Endo Cube", sub: "$20 each" },
-  {
-    id: "Standalone Small Job",
-    label: "Standalone trip",
-    sub: "$100 + per-item rate",
-  },
 ];
 
 export function AddServiceForm({ job }: { job: Job }) {

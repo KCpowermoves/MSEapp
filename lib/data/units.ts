@@ -17,11 +17,11 @@ import type {
 } from "@/lib/types";
 
 const PHOTO_COL: Record<PhotoSlot, string> = {
-  pre: "I",
-  post: "J",
-  clean: "K",
-  nameplate: "L",
-  filter: "M",
+  pre: "G",
+  post: "H",
+  clean: "I",
+  nameplate: "J",
+  filter: "K",
 };
 
 function rowToUnit(row: string[]): UnitServiced {
@@ -32,19 +32,17 @@ function rowToUnit(row: string[]): UnitServiced {
     unitNumberOnJob: Number(row[3] ?? 0),
     unitType: (row[4] as UnitType) || "PTAC",
     unitSubType: (row[5] as UnitSubType) || "Standard tune-up",
-    selfSold: String(row[6] ?? "").toUpperCase() === "TRUE",
-    soldBy: String(row[7] ?? ""),
-    prePhotoUrl: String(row[8] ?? ""),
-    postPhotoUrl: String(row[9] ?? ""),
-    cleanPhotoUrl: String(row[10] ?? ""),
-    nameplatePhotoUrl: String(row[11] ?? ""),
-    filterPhotoUrl: String(row[12] ?? ""),
-    make: String(row[13] ?? ""),
-    model: String(row[14] ?? ""),
-    serial: String(row[15] ?? ""),
-    notes: String(row[16] ?? ""),
-    loggedBy: String(row[17] ?? ""),
-    loggedAt: String(row[18] ?? ""),
+    prePhotoUrl: String(row[6] ?? ""),
+    postPhotoUrl: String(row[7] ?? ""),
+    cleanPhotoUrl: String(row[8] ?? ""),
+    nameplatePhotoUrl: String(row[9] ?? ""),
+    filterPhotoUrl: String(row[10] ?? ""),
+    make: String(row[11] ?? ""),
+    model: String(row[12] ?? ""),
+    serial: String(row[13] ?? ""),
+    notes: String(row[14] ?? ""),
+    loggedBy: String(row[15] ?? ""),
+    loggedAt: String(row[16] ?? ""),
   };
 }
 
@@ -84,8 +82,6 @@ export async function createUnit(opts: {
   unitNumberOnJob: number;
   unitType: UnitType;
   unitSubType: UnitSubType;
-  selfSold: boolean;
-  soldBy: string;
   make: string;
   model: string;
   serial: string;
@@ -101,8 +97,6 @@ export async function createUnit(opts: {
     opts.unitNumberOnJob,
     opts.unitType,
     opts.unitSubType,
-    opts.selfSold ? "TRUE" : "FALSE",
-    opts.soldBy,
     "",
     "",
     "",
@@ -123,8 +117,6 @@ export async function createUnit(opts: {
     unitNumberOnJob: opts.unitNumberOnJob,
     unitType: opts.unitType,
     unitSubType: opts.unitSubType,
-    selfSold: opts.selfSold,
-    soldBy: opts.soldBy,
     prePhotoUrl: "",
     postPhotoUrl: "",
     cleanPhotoUrl: "",

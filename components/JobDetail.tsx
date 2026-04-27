@@ -50,8 +50,13 @@ export function JobDetail({
             {job.customerName}
           </h1>
           <div className="text-sm text-mse-muted truncate">{job.siteAddress}</div>
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             <TerritoryPill territory={job.utilityTerritory} />
+            {job.selfSold && job.soldBy && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-mse-gold/15 text-mse-navy">
+                Self-sold · {job.soldBy}
+              </span>
+            )}
             <span className="text-xs text-mse-muted font-mono">{job.jobId}</span>
           </div>
         </div>
@@ -160,14 +165,13 @@ export function JobDetail({
 }
 
 function UnitRow({ unit }: { unit: UnitServiced }) {
-  const filled = [
+  const requiredFilled = [
     unit.prePhotoUrl,
     unit.postPhotoUrl,
     unit.cleanPhotoUrl,
     unit.nameplatePhotoUrl,
-    unit.filterPhotoUrl,
   ].filter(Boolean).length;
-  const allUploaded = filled === 5;
+  const allUploaded = requiredFilled === 4;
   return (
     <li className="bg-white rounded-2xl border border-mse-light p-3 flex items-center gap-3 shadow-card">
       {allUploaded ? (
@@ -181,7 +185,6 @@ function UnitRow({ unit }: { unit: UnitServiced }) {
         </div>
         <div className="text-xs text-mse-muted truncate">
           {unit.unitSubType}
-          {unit.selfSold && unit.soldBy ? ` · sold by ${unit.soldBy}` : ""}
         </div>
       </div>
       <div
@@ -190,7 +193,7 @@ function UnitRow({ unit }: { unit: UnitServiced }) {
           allUploaded ? "bg-mse-gold/15 text-mse-navy" : "bg-mse-light text-mse-muted"
         )}
       >
-        {filled}/5
+        {requiredFilled}/4
       </div>
     </li>
   );

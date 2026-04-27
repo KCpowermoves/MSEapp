@@ -58,40 +58,29 @@ function buildRows(input: AttributionInput): AttribRow[] {
         notes: `Unit-${String(u.unitNumberOnJob).padStart(3, "0")} ${u.unitType} (${dispatch.crewSplit})`,
       });
     }
-    if (u.selfSold && u.soldBy) {
+    if (job.selfSold && job.soldBy) {
       const fullBonus = SALES_BONUS[u.unitType];
       rows.push({
         date,
         dispatchId: dispatch.dispatchId,
-        techName: u.soldBy,
+        techName: job.soldBy,
         lineItem: "Sales (paid)",
         amount: fullBonus * 0.5,
-        notes: `Unit-${String(u.unitNumberOnJob).padStart(3, "0")} ${u.unitType} self-sold (50% paid)`,
+        notes: `Unit-${String(u.unitNumberOnJob).padStart(3, "0")} ${u.unitType} on self-sold job (50% paid)`,
       });
       rows.push({
         date,
         dispatchId: dispatch.dispatchId,
-        techName: u.soldBy,
+        techName: job.soldBy,
         lineItem: "Sales (pending)",
         amount: fullBonus * 0.5,
-        notes: `Unit-${String(u.unitNumberOnJob).padStart(3, "0")} ${u.unitType} self-sold (50% pending utility reimbursement)`,
+        notes: `Unit-${String(u.unitNumberOnJob).padStart(3, "0")} ${u.unitType} on self-sold job (50% pending utility reimbursement)`,
       });
     }
   }
 
   for (const s of services) {
-    const isStandalone = s.serviceType === "Standalone Small Job";
-    const perItem = isStandalone ? 0 : SERVICE_PAY[s.serviceType];
-    if (isStandalone) {
-      rows.push({
-        date,
-        dispatchId: dispatch.dispatchId,
-        techName: s.loggedBy,
-        lineItem: "Standalone Trip",
-        amount: SERVICE_PAY["Standalone Small Job"],
-        notes: `Standalone trip (${s.quantity} item${s.quantity === 1 ? "" : "s"})`,
-      });
-    }
+    const perItem = SERVICE_PAY[s.serviceType] ?? 0;
     if (s.quantity > 0 && perItem > 0) {
       rows.push({
         date,

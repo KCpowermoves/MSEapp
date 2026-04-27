@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -34,6 +34,7 @@ interface Props {
   dispatchId: string;
   units: UnitServiced[];
   services: AdditionalService[];
+  activeTechs: string[];
 }
 
 export function SubmitDispatchForm({
@@ -41,19 +42,32 @@ export function SubmitDispatchForm({
   dispatchId,
   units,
   services,
+  activeTechs,
 }: Props) {
   const router = useRouter();
-  const { crew } = useTodaysCrew(job.jobId);
+  const { crew, setCrew, hydrated } = useTodaysCrew(job.jobId);
   const [crewSplit, setCrewSplit] = useState<CrewSplit>("Solo");
-  const [driver, setDriver] = useState<string | null>(
-    crew.length === 1 ? crew[0] : null
-  );
+  const [driver, setDriver] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-select split based on crew size and seed driver to first crew member
+  useEffect(() => {
+    if (!hydrated) return;
+    if (crew.length === 1) setCrewSplit("Solo");
+    else if (crew.length === 2) setCrewSplit("50-50");
+    else if (crew.length >= 3) setCrewSplit("33-33-33");
+    if (crew.length === 1) setDriver(crew[0]);
+    else if (crew.length > 1 && (!driver || !crew.includes(driver))) {
+      setDriver(crew[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crew.join(","), hydrated]);
+
   const cSize = crewSize(crewSplit);
   const totals = useMemo(
-    () => computePayPreview({ job, units, services, crewSplit, driver, crew }),
+    () =>
+      computePayPreview({ job, units, services, crewSplit, driver, crew }),
     [job, units, services, crewSplit, driver, crew]
   );
 
@@ -62,17 +76,14 @@ export function SubmitDispatchForm({
       u.prePhotoUrl &&
       u.postPhotoUrl &&
       u.cleanPhotoUrl &&
-      u.nameplatePhotoUrl &&
-      u.filterPhotoUrl
+      u.nameplatePhotoUrl
   );
 
   const crewSizeMatches = crew.length === cSize;
-  const driverPicked = crewSplit === "Solo" || (driver && crew.includes(driver));
+  const driverPicked =
+    crewSplit === "Solo" || (driver !== null && crew.includes(driver));
   const canSubmit =
-    crew.length > 0 &&
-    crewSizeMatches &&
-    driverPicked &&
-    !submitting;
+    crew.length > 0 && crewSizeMatches && driverPicked && !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -120,9 +131,10 @@ export function SubmitDispatchForm({
           {units.length} unit{units.length === 1 ? "" : "s"} ·{" "}
           {services.length} service{services.length === 1 ? "" : "s"} ·{" "}
           {job.utilityTerritory}
+          {job.selfSold && job.soldBy ? ` · self-sold by ${job.soldBy}` : ""}
         </div>
-        {!allPhotosUploaded && (
-          <div className="mt-3 text-xs text-mse-red bg-mse-red/5 border border-mse-red/20 rounded-lg px-3 py-2">
+        {!allPhotosUploaded && units.length > 0 && (
+          <div className="mt-3 text-xs text-mse-navy bg-mse-gold/15 border border-mse-gold/30 rounded-lg px-3 py-2">
             Some photos haven&apos;t finished uploading yet. You can still
             submit — they&apos;ll keep uploading in the background. Photos
             Complete will flip to TRUE when they all land.
@@ -131,27 +143,22 @@ export function SubmitDispatchForm({
       </section>
 
       <Field label="Crew on site" required>
-        {crew.length === 0 ? (
-          <div className="text-sm text-mse-red">
-            Set today&apos;s crew on the job page first.{" "}
-            <Link
-              href={`/jobs/${encodeURIComponent(job.jobId)}`}
-              className="underline font-semibold"
-            >
-              Go back
-            </Link>
+        {activeTechs.length === 0 ? (
+          <div className="text-sm text-mse-muted">
+            No active techs in the system. Add some via the Sheet.
           </div>
         ) : (
-          <ul className="flex flex-wrap gap-2">
-            {crew.map((name) => (
-              <li
-                key={name}
-                className="px-3 h-9 inline-flex items-center rounded-full bg-mse-navy text-white text-sm font-medium"
-              >
-                {name}
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="text-xs text-mse-muted mb-2">
+              Pick everyone who was on site today.
+            </div>
+            <CrewPicker
+              multi
+              options={activeTechs}
+              value={crew}
+              onChange={setCrew}
+            />
+          </>
         )}
       </Field>
 
@@ -193,13 +200,9 @@ export function SubmitDispatchForm({
         )}
       </Field>
 
-      {crewSplit !== "Solo" && (
+      {crewSplit !== "Solo" && crew.length > 1 && (
         <Field label="Who drove?" required>
-          <CrewPicker
-            options={crew}
-            value={driver}
-            onChange={setDriver}
-          />
+          <CrewPicker options={crew} value={driver} onChange={setDriver} />
           <div className="text-xs text-mse-muted mt-2">
             {isTravelTerritory(job.utilityTerritory)
               ? `${job.utilityTerritory} territory — driver gets the $40 travel bonus.`
@@ -222,7 +225,7 @@ export function SubmitDispatchForm({
           ))}
           {totals.lines.length === 0 && (
             <li className="text-mse-muted text-center py-2">
-              No pay yet — add a unit or service.
+              No pay yet — pick a crew and add a unit or service.
             </li>
           )}
         </ul>
@@ -330,15 +333,15 @@ function computePayPreview(opts: {
         amount: perTech,
       });
     }
-    if (u.selfSold && u.soldBy) {
+    if (job.selfSold && job.soldBy) {
       const fullBonus = SALES_BONUS[u.unitType];
       lines.push({
-        tech: u.soldBy,
+        tech: job.soldBy,
         label: `Sales bonus (paid) · ${u.unitType}`,
         amount: fullBonus * 0.5,
       });
       lines.push({
-        tech: u.soldBy,
+        tech: job.soldBy,
         label: `Sales bonus (pending) · ${u.unitType}`,
         amount: fullBonus * 0.5,
       });
@@ -346,17 +349,12 @@ function computePayPreview(opts: {
   }
 
   for (const s of services) {
-    if (s.serviceType === "Standalone Small Job") {
-      lines.push({
-        tech: s.loggedBy,
-        label: `Standalone trip · qty ${s.quantity}`,
-        amount: SERVICE_PAY["Standalone Small Job"],
-      });
-    } else {
+    const rate = SERVICE_PAY[s.serviceType] ?? 0;
+    if (rate > 0 && s.quantity > 0) {
       lines.push({
         tech: s.loggedBy,
         label: `${s.serviceType} · qty ${s.quantity}`,
-        amount: SERVICE_PAY[s.serviceType] * s.quantity,
+        amount: rate * s.quantity,
       });
     }
   }

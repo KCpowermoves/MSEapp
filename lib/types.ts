@@ -40,6 +40,8 @@ export interface Job {
   siteAddress: string;
   utilityTerritory: UtilityTerritory;
   status: JobStatus;
+  selfSold: boolean;
+  soldBy: string;
   driveFolderUrl: string;
   driveFolderId: string;
   createdBy: string;
@@ -66,8 +68,6 @@ export interface UnitServiced {
   unitNumberOnJob: number;
   unitType: UnitType;
   unitSubType: UnitSubType;
-  selfSold: boolean;
-  soldBy: string;
   prePhotoUrl: string;
   postPhotoUrl: string;
   cleanPhotoUrl: string;

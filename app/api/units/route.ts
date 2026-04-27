@@ -31,8 +31,6 @@ export async function POST(request: Request) {
   const jobId = String(body.jobId ?? "");
   const unitType = body.unitType as UnitType;
   const unitSubType = body.unitSubType as UnitSubType;
-  const selfSold = Boolean(body.selfSold);
-  const soldBy = String(body.soldBy ?? "").trim();
   const make = String(body.make ?? "").trim();
   const model = String(body.model ?? "").trim();
   const serial = String(body.serial ?? "").trim();
@@ -47,12 +45,6 @@ export async function POST(request: Request) {
   if (!UNIT_SUB_TYPES.includes(unitSubType)) {
     return NextResponse.json({ error: "Pick a sub-type" }, { status: 400 });
   }
-  if (selfSold && !soldBy) {
-    return NextResponse.json(
-      { error: "Pick who sold the unit" },
-      { status: 400 }
-    );
-  }
 
   try {
     const dispatch = await ensureDraftDispatch(jobId);
@@ -63,8 +55,6 @@ export async function POST(request: Request) {
       unitNumberOnJob: unitNumber,
       unitType,
       unitSubType,
-      selfSold,
-      soldBy: selfSold ? soldBy : "",
       make,
       model,
       serial,

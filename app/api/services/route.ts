@@ -8,7 +8,6 @@ const SERVICE_TYPES: ServiceType[] = [
   "Thermostat (regular)",
   "Thermostat (scheduled)",
   "Endo Cube",
-  "Standalone Small Job",
 ];
 
 export async function POST(request: Request) {

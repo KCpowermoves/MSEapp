@@ -99,14 +99,13 @@ function unitHasAllPhotos(u: {
   postPhotoUrl: string;
   cleanPhotoUrl: string;
   nameplatePhotoUrl: string;
-  filterPhotoUrl: string;
 }): boolean {
+  // Filter photo is optional per the latest spec
   return Boolean(
     u.prePhotoUrl &&
       u.postPhotoUrl &&
       u.cleanPhotoUrl &&
-      u.nameplatePhotoUrl &&
-      u.filterPhotoUrl
+      u.nameplatePhotoUrl
   );
 }
 

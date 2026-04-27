@@ -48,6 +48,8 @@ const TABS = [
       "Site Address",
       "Utility Territory",
       "Status",
+      "Self-Sold",
+      "Sold By",
       "Drive Folder URL",
       "Drive Folder ID",
       "Created By",
@@ -56,6 +58,7 @@ const TABS = [
     validations: [
       { col: "F", values: ["BGE", "PEPCO", "Delmarva", "SMECO"] },
       { col: "G", values: ["Active", "Closed"] },
+      { col: "H", values: ["TRUE", "FALSE"] },
     ],
     frozenRows: 1,
   },
@@ -88,8 +91,6 @@ const TABS = [
       "Unit Number on Job",
       "Unit Type",
       "Unit Sub-type",
-      "Self-Sold",
-      "Sold By",
       "Pre Photo URL",
       "Post Photo URL",
       "Clean Photo URL",
@@ -105,7 +106,6 @@ const TABS = [
     validations: [
       { col: "E", values: ["PTAC", "Standard 3-20", "Mid-Large 20-50", "Large 50+"] },
       { col: "F", values: ["Standard tune-up", "Water-source heat pump", "VRV-VRF", "Other building tune-up"] },
-      { col: "G", values: ["TRUE", "FALSE"] },
     ],
     frozenRows: 1,
   },
@@ -123,7 +123,7 @@ const TABS = [
       "Logged At",
     ],
     validations: [
-      { col: "D", values: ["Thermostat (regular)", "Thermostat (scheduled)", "Endo Cube", "Standalone Small Job"] },
+      { col: "D", values: ["Thermostat (regular)", "Thermostat (scheduled)", "Endo Cube"] },
     ],
     frozenRows: 1,
   },
@@ -139,7 +139,7 @@ const TABS = [
       "Notes",
     ],
     validations: [
-      { col: "E", values: ["Install", "Sales (paid)", "Sales (pending)", "Service", "Standalone Trip", "Daily Stipend", "Travel Bonus"] },
+      { col: "E", values: ["Install", "Sales (paid)", "Sales (pending)", "Service", "Daily Stipend", "Travel Bonus"] },
     ],
     frozenRows: 1,
   },
@@ -171,7 +171,6 @@ const PAY_RATES_DATA = [
   ["Service Pay", "Thermostat (regular)", 25, "during regular HVAC visit"],
   ["Service Pay", "Thermostat (scheduled)", 30, "scheduling required"],
   ["Service Pay", "Endo Cube", 20, "per unit"],
-  ["Service Pay", "Standalone Small Job", 100, "trip fee, stacks with per-item rate"],
   ["Crew Size", "Solo", 1, ""],
   ["Crew Size", "50-50", 2, ""],
   ["Crew Size", "33-33-33", 3, ""],
@@ -208,11 +207,15 @@ async function ensureTab(meta, tab) {
 
 async function setHeaders(tab) {
   if (!tab.headers.length) return;
+  // Pad row 1 out to column Z so any stale headers from older schemas
+  // get blanked out when columns are removed.
+  const padded = [...tab.headers];
+  while (padded.length < 26) padded.push("");
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${tab.name}!A1`,
+    range: `${tab.name}!A1:Z1`,
     valueInputOption: "RAW",
-    requestBody: { values: [tab.headers] },
+    requestBody: { values: [padded] },
   });
 }
 
@@ -312,7 +315,6 @@ async function setPayCalcLayout(sheetId) {
       "Sales (paid)",
       "Sales (pending)",
       "Service Pay",
-      "Standalone Trip",
       "Daily Stipend",
       "Travel Bonus",
       "Total",
@@ -320,9 +322,9 @@ async function setPayCalcLayout(sheetId) {
   ];
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: "Pay Calc!A3",
+    range: "Pay Calc!A3:Z3",
     valueInputOption: "USER_ENTERED",
-    requestBody: { values: colHeaders },
+    requestBody: { values: [[...colHeaders[0], "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]] },
   });
 
   const rows = [];
@@ -337,21 +339,21 @@ async function setPayCalcLayout(sheetId) {
       sumifs("Sales (paid)"),
       sumifs("Sales (pending)"),
       sumifs("Service"),
-      sumifs("Standalone Trip"),
       sumifs("Daily Stipend"),
       sumifs("Travel Bonus"),
-      `=IF($A${r}="", "", SUM(B${r}:H${r}))`,
+      `=IF($A${r}="", "", SUM(B${r}:G${r}))`,
+      "",
     ]);
   }
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: "Pay Calc!A4",
+    range: "Pay Calc!A4:I13",
     valueInputOption: "USER_ENTERED",
     requestBody: { values: rows },
   });
 
   // Format the header row 3
-  await setHeaderFormatting(sheetId, 9);
+  await setHeaderFormatting(sheetId, 8);
   // Bold + light gray for the period filter row
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: SHEET_ID,

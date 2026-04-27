@@ -5,42 +5,37 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronDown, Loader2 } from "lucide-react";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
-import { CrewPicker } from "@/components/CrewPicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
-import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { enqueuePhoto } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
 import type { Job, PhotoSlot, UnitSubType, UnitType } from "@/lib/types";
 
-const SUB_TYPES: { id: UnitSubType; label: string }[] = [
-  { id: "Standard tune-up", label: "Standard tune-up" },
+// "Standard tune-up" is the implicit default — the picker only shows
+// alternative sub-types. None selected = standard.
+const ALT_SUB_TYPES: { id: UnitSubType; label: string }[] = [
   { id: "Water-source heat pump", label: "Water-source heat pump" },
   { id: "VRV-VRF", label: "VRV / VRF" },
   { id: "Other building tune-up", label: "Other building tune-up" },
 ];
 
-const PHOTO_SLOTS: { slot: PhotoSlot; label: string; hint: string }[] = [
-  { slot: "pre", label: "Pre-service", hint: "Before you start" },
-  { slot: "post", label: "Post-service", hint: "After tune-up" },
-  { slot: "clean", label: "Clean", hint: "Coils + cabinet clean" },
-  { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label" },
-  { slot: "filter", label: "Filter", hint: "New filter installed" },
+const PHOTO_SLOTS: {
+  slot: PhotoSlot;
+  label: string;
+  hint: string;
+  required: boolean;
+}[] = [
+  { slot: "pre", label: "Pre-service", hint: "Before you start", required: true },
+  { slot: "post", label: "Post-service", hint: "After tune-up", required: true },
+  { slot: "clean", label: "Clean", hint: "Coils + cabinet clean", required: true },
+  { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
+  { slot: "filter", label: "Filter", hint: "New filter installed (optional)", required: false },
 ];
 
-export function AddUnitForm({
-  job,
-  activeTechs,
-}: {
-  job: Job;
-  activeTechs: string[];
-}) {
+export function AddUnitForm({ job }: { job: Job }) {
   const router = useRouter();
-  const { crew } = useTodaysCrew(job.jobId);
   const [unitType, setUnitType] = useState<UnitType | null>(null);
   const [subType, setSubType] = useState<UnitSubType>("Standard tune-up");
-  const [selfSold, setSelfSold] = useState(false);
-  const [soldBy, setSoldBy] = useState<string | null>(null);
   const [photos, setPhotos] = useState<Record<PhotoSlot, CapturedPhoto | null>>({
     pre: null,
     post: null,
@@ -56,11 +51,15 @@ export function AddUnitForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sellerOptions = crew.length > 0 ? crew : activeTechs;
-  const allPhotosReady = PHOTO_SLOTS.every((p) => photos[p.slot] !== null);
-  const sellerOk = !selfSold || (selfSold && soldBy);
+  const requiredPhotosReady = PHOTO_SLOTS.filter((p) => p.required).every(
+    (p) => photos[p.slot] !== null
+  );
+  const requiredCount = PHOTO_SLOTS.filter((p) => p.required).length;
+  const filledRequired = PHOTO_SLOTS.filter(
+    (p) => p.required && photos[p.slot]
+  ).length;
   const canSubmit =
-    unitType !== null && subType !== null && allPhotosReady && sellerOk && !submitting;
+    unitType !== null && subType !== null && requiredPhotosReady && !submitting;
 
   const setSlot = (slot: PhotoSlot) => (next: CapturedPhoto | null) => {
     setPhotos((prev) => ({ ...prev, [slot]: next }));
@@ -78,8 +77,6 @@ export function AddUnitForm({
           jobId: job.jobId,
           unitType,
           unitSubType: subType,
-          selfSold,
-          soldBy: selfSold ? soldBy : "",
           make,
           model,
           serial,
@@ -129,19 +126,32 @@ export function AddUnitForm({
         <h1 className="text-2xl font-bold text-mse-navy">Add unit</h1>
       </div>
 
+      {job.selfSold && job.soldBy && (
+        <div className="rounded-xl bg-mse-gold/15 border border-mse-gold/30 px-4 py-3 text-sm text-mse-navy">
+          Self-sold by <span className="font-bold">{job.soldBy}</span> — every
+          unit on this job credits their sales bonus.
+        </div>
+      )}
+
       <Field label="Unit type" required>
         <UnitTypePicker value={unitType} onChange={setUnitType} />
       </Field>
 
       <Field label="Sub-type">
-        <div className="grid grid-cols-2 gap-2">
-          {SUB_TYPES.map((s) => {
+        <div className="text-xs text-mse-muted mb-2">
+          Standard HVAC tune-up by default. Tap below only if this unit is
+          one of the alternative types.
+        </div>
+        <div className="grid grid-cols-1 gap-2">
+          {ALT_SUB_TYPES.map((s) => {
             const active = subType === s.id;
             return (
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setSubType(s.id)}
+                onClick={() =>
+                  setSubType(active ? "Standard tune-up" : s.id)
+                }
                 className={cn(
                   "h-12 rounded-xl text-sm font-medium px-3 transition-[background-color,border-color,transform]",
                   "active:scale-95",
@@ -157,50 +167,6 @@ export function AddUnitForm({
         </div>
       </Field>
 
-      <Field label="Self-sold">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setSelfSold((v) => !v);
-              if (selfSold) setSoldBy(null);
-            }}
-            role="switch"
-            aria-checked={selfSold}
-            className={cn(
-              "relative w-14 h-8 rounded-full transition-colors",
-              selfSold ? "bg-mse-gold" : "bg-mse-light"
-            )}
-          >
-            <span
-              className={cn(
-                "absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-card transition-transform",
-                selfSold ? "translate-x-6" : ""
-              )}
-            />
-          </button>
-          <span className="text-sm text-mse-muted">
-            {selfSold ? "Yes — pick the seller below" : "No"}
-          </span>
-        </div>
-      </Field>
-
-      {selfSold && (
-        <Field label="Sold by" required>
-          {sellerOptions.length === 0 ? (
-            <div className="text-sm text-mse-muted">
-              Add today&apos;s crew on the job page first.
-            </div>
-          ) : (
-            <CrewPicker
-              options={sellerOptions}
-              value={soldBy}
-              onChange={setSoldBy}
-            />
-          )}
-        </Field>
-      )}
-
       <Field label="Photos" required>
         <div className="space-y-2">
           {PHOTO_SLOTS.map((p) => (
@@ -208,7 +174,7 @@ export function AddUnitForm({
               key={p.slot}
               label={p.label}
               hint={p.hint}
-              required
+              required={p.required}
               value={photos[p.slot]}
               onChange={setSlot(p.slot)}
             />
@@ -294,7 +260,7 @@ export function AddUnitForm({
                 Saving...
               </span>
             ) : (
-              `Save unit${allPhotosReady ? "" : ` · ${PHOTO_SLOTS.filter((p) => photos[p.slot]).length}/5 photos`}`
+              `Save unit${requiredPhotosReady ? "" : ` · ${filledRequired}/${requiredCount} required photos`}`
             )}
           </button>
         </div>
