@@ -59,9 +59,9 @@ export default function LoginPage() {
         <Image
           src="/logo.png"
           alt="MSE"
-          width={88}
-          height={88}
-          className="rounded-2xl shadow-elevated"
+          width={96}
+          height={96}
+          className="rounded-full shadow-elevated"
           priority
         />
         <div className="text-white text-2xl font-bold tracking-tight">

@@ -26,9 +26,9 @@ export function AppShell({
             <Image
               src="/logo.png"
               alt="MSE"
-              width={28}
-              height={28}
-              className="rounded-md"
+              width={32}
+              height={32}
+              className="rounded-full"
             />
             <span className="font-bold tracking-tight">MSE Field</span>
           </Link>
