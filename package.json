@@ -11,7 +11,9 @@
     "seed": "node seed/init-sheet.mjs",
     "reset-data": "node scripts/reset-data.mjs",
     "test:google": "node scripts/test-google.mjs",
-    "add-tech": "node scripts/add-tech.mjs"
+    "add-tech": "node scripts/add-tech.mjs",
+    "verify-drive": "node scripts/verify-drive.mjs",
+    "e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

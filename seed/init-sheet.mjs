@@ -293,12 +293,14 @@ async function setPayCalcLayout(sheetId) {
   // Row 1: pay-period filter inputs
   // Row 3: column headers
   // Rows 4-13: tech rows (up to 10 active techs supported by default)
+  // Default to trailing 7 days so today's submissions are visible.
+  // Errol can override the dates in B1 / D1 anytime.
   const periodHeader = [
     [
       "Pay Period Start",
-      "=DATE(YEAR(TODAY()), MONTH(TODAY()), DAY(TODAY()) - WEEKDAY(TODAY(), 2) + 1 - 7)",
+      "=TODAY()-7",
       "Pay Period End",
-      "=DATE(YEAR(TODAY()), MONTH(TODAY()), DAY(TODAY()) - WEEKDAY(TODAY(), 2))",
+      "=TODAY()",
     ],
   ];
   await sheets.spreadsheets.values.update({
@@ -330,7 +332,7 @@ async function setPayCalcLayout(sheetId) {
   const rows = [];
   for (let i = 0; i < 10; i++) {
     const r = i + 4;
-    const techRef = `IFERROR(INDEX(FILTER(Techs!B:B, Techs!D:D=TRUE), ${i + 1}), "")`;
+    const techRef = `IFERROR(INDEX(FILTER(Techs!B:B, Techs!D:D="TRUE"), ${i + 1}), "")`;
     const sumifs = (lineItem) =>
       `=IF($A${r}="", "", SUMIFS('Pay Attribution'!F:F, 'Pay Attribution'!D:D, $A${r}, 'Pay Attribution'!E:E, "${lineItem}", 'Pay Attribution'!B:B, ">="&$B$1, 'Pay Attribution'!B:B, "<="&$D$1))`;
     rows.push([

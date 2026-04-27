@@ -19,12 +19,42 @@ import {
 } from "@/lib/pay-rates";
 import type { CrewSplit, Dispatch } from "@/lib/types";
 
+// Sheets may return dates as ISO strings, US-locale strings, or serial
+// numbers (days since 1899-12-30) depending on cell formatting and the
+// valueInputOption used to write them. Normalize all three to YYYY-MM-DD.
+function normalizeDate(raw: unknown): string {
+  if (raw === null || raw === undefined || raw === "") return "";
+  if (typeof raw === "number") return serialToIso(raw);
+  const s = String(raw).trim();
+  if (/^-?\d+(\.\d+)?$/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n) && n > 25000 && n < 100000) return serialToIso(n);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) {
+    const [, mo, d, y] = m;
+    return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  const dt = new Date(s);
+  if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+  return s;
+}
+
+function serialToIso(serial: number): string {
+  // Sheets epoch: 1899-12-30 (preserves the Lotus 1-2-3 leap-year bug)
+  const ms = (serial - 25569) * 86_400_000;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
 function rowToDispatch(row: string[]): Dispatch {
   const techsCsv = String(row[3] ?? "");
   return {
     dispatchId: String(row[0] ?? ""),
     jobId: String(row[1] ?? ""),
-    dispatchDate: String(row[2] ?? ""),
+    dispatchDate: normalizeDate(row[2]),
     techsOnSite: techsCsv ? techsCsv.split(",").map((s) => s.trim()).filter(Boolean) : [],
     crewSplit: (row[4] as CrewSplit) || "Solo",
     driver: String(row[5] ?? ""),
@@ -67,18 +97,11 @@ export async function ensureDraftDispatch(
   if (existing) return existing;
 
   const dispatchId = await nextDispatchId();
-  await appendRow(TABS.dispatches, [
-    dispatchId,
-    jobId,
-    today,
-    "",
-    "Solo",
-    "",
-    0,
-    0,
-    "FALSE",
-    "",
-  ]);
+  await appendRow(
+    TABS.dispatches,
+    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", ""],
+    "RAW"
+  );
   await bumpLastActivity(jobId);
   return {
     dispatchId,
@@ -140,16 +163,17 @@ export async function submitDispatch(opts: {
   if (!rowIndex) throw new Error("Dispatch row missing");
 
   const techsCsv = opts.techsOnSite.join(", ");
-  await updateCell(`${TABS.dispatches}!D${rowIndex}`, techsCsv);
-  await updateCell(`${TABS.dispatches}!E${rowIndex}`, opts.crewSplit);
-  await updateCell(`${TABS.dispatches}!F${rowIndex}`, opts.driver);
-  await updateCell(`${TABS.dispatches}!G${rowIndex}`, dailyStipend);
-  await updateCell(`${TABS.dispatches}!H${rowIndex}`, travelBonus);
+  await updateCell(`${TABS.dispatches}!D${rowIndex}`, techsCsv, "RAW");
+  await updateCell(`${TABS.dispatches}!E${rowIndex}`, opts.crewSplit, "RAW");
+  await updateCell(`${TABS.dispatches}!F${rowIndex}`, opts.driver, "RAW");
+  await updateCell(`${TABS.dispatches}!G${rowIndex}`, dailyStipend, "RAW");
+  await updateCell(`${TABS.dispatches}!H${rowIndex}`, travelBonus, "RAW");
   await updateCell(
     `${TABS.dispatches}!I${rowIndex}`,
-    photosComplete ? "TRUE" : "FALSE"
+    photosComplete ? "TRUE" : "FALSE",
+    "RAW"
   );
-  await updateCell(`${TABS.dispatches}!J${rowIndex}`, nowIso());
+  await updateCell(`${TABS.dispatches}!J${rowIndex}`, nowIso(), "RAW");
 
   await writeAttributions({
     dispatch: { ...dispatch, ...opts, dailyDrivingStipend: dailyStipend, travelDispatchBonus: travelBonus, photosComplete },

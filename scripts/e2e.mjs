@@ -1,14 +1,19 @@
 #!/usr/bin/env node
-// End-to-end test harness — exercises the full happy path against
-// localhost:3000 using Puppeteer. Captures network traffic, console
+// End-to-end test harness — exercises multiple realistic scenarios
+// against localhost:3000 using Puppeteer + verifies the resulting
+// Sheet state via the Google API. Captures network traffic, console
 // output, and per-step screenshots so failures are debuggable.
 //
-// Run: node scripts/e2e.mjs [baseUrl] [pin]
+// Run: npm run e2e [-- baseUrl pin]
 
 import puppeteer from "puppeteer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { google } from "googleapis";
+import { config } from "dotenv";
+
+config({ path: ".env.local" });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
@@ -18,24 +23,447 @@ fs.mkdirSync(screenshotsDir, { recursive: true });
 const BASE = process.argv[2] || "http://localhost:3000";
 const PIN = process.argv[3] || "1234";
 
-const log = (...args) => console.log(...args);
 const ok = (msg) => console.log(`  \x1b[32m✓\x1b[0m ${msg}`);
 const fail = (msg) => console.log(`  \x1b[31m✗\x1b[0m ${msg}`);
 const step = (msg) => console.log(`\n\x1b[1m${msg}\x1b[0m`);
 
+let failures = 0;
+function expect(condition, msg) {
+  if (condition) ok(msg);
+  else {
+    fail(msg);
+    failures++;
+  }
+}
+
+// Tiny valid JPEG (~750 bytes) that browser-image-compression can
+// process without choking. Used as a stand-in for camera capture.
 function makeJpegBuffer() {
-  // Minimal valid JPEG (1×1 white pixel) — enough for the camera input
-  // and for browser-image-compression to process without error.
   return Buffer.from(
     "ffd8ffe000104a46494600010100000100010000ffdb004300080606070605080707070909080a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c2837292c30313434341f27393d38323c2e333432ffdb0043010909090c0b0c180d0d1832211c2132323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232ffc00011080001000103012200021101031101ffc4001f0000010501010101010100000000000000000102030405060708090a0bffc400b5100002010303020403050504040000017d01020300041105122131410613516107227114328191a1082342b1c11552d1f02433627282090a161718191a25262728292a3435363738393a434445464748494a535455565758595a636465666768696a737475767778797a838485868788898a92939495969798999aa2a3a4a5a6a7a8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae1e2e3e4e5e6e7e8e9eaf1f2f3f4f5f6f7f8f9faffc4001f0100030101010101010101010000000000000102030405060708090a0bffc400b51100020102040403040705040400010277000102031104052131061241510761711322328108144291a1b1c109233352f0156272d10a162434e125f11718191a262728292a35363738393a434445464748494a535455565758595a636465666768696a737475767778797a82838485868788898a92939495969798999aa2a3a4a5a6a7a8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae2e3e4e5e6e7e8e9eaf2f3f4f5f6f7f8f9faffda000c03010002110311003f00fbfca28a2800a28a2800a28a2800a28a2800a28a2800a28a2800a28a2800a28a2800a28a2800a28a2800a28a2800a28a2800a28a2803ffd9",
     "hex"
   );
 }
 
+const TMP_FILE = path.join(screenshotsDir, "_test.jpg");
+fs.writeFileSync(TMP_FILE, makeJpegBuffer());
+
 async function shot(page, name) {
-  const file = path.join(screenshotsDir, `${name}.png`);
-  await page.screenshot({ path: file, fullPage: true });
+  await page.screenshot({
+    path: path.join(screenshotsDir, `${name}.png`),
+    fullPage: true,
+  });
 }
+
+async function clickByText(page, tag, text) {
+  return page.evaluate(
+    (t, txt) => {
+      const el = Array.from(document.querySelectorAll(t)).find(
+        (e) => e.textContent.trim() === txt || e.textContent.trim().startsWith(txt)
+      );
+      if (el) {
+        el.click();
+        return true;
+      }
+      return false;
+    },
+    tag,
+    text
+  );
+}
+
+// Click a CrewPicker chip only if it isn't already selected (so we
+// don't accidentally toggle multi-select OFF). Selected chips have
+// the bg-mse-navy class and a check icon.
+async function ensureChipSelected(page, name) {
+  return page.evaluate((n) => {
+    const btn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent.trim() === n
+    );
+    if (!btn) return false;
+    const isSelected = btn.className.includes("bg-mse-navy");
+    if (!isSelected) btn.click();
+    return true;
+  }, name);
+}
+
+async function waitForUrlChange(page, fromUrl, ms = 12000) {
+  return page
+    .waitForFunction(
+      (b) => location.pathname !== new URL(b).pathname,
+      { timeout: ms },
+      fromUrl
+    )
+    .catch(() => false);
+}
+
+async function login(page) {
+  step("Login");
+  await page.goto(`${BASE}/login`, { waitUntil: "networkidle2" });
+  await page.evaluate(() =>
+    fetch("/api/auth", { method: "GET" }).catch(() => {})
+  );
+  await new Promise((r) => setTimeout(r, 400));
+  for (const digit of PIN) {
+    await clickByText(page, "button", digit);
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
+  expect(page.url().endsWith("/jobs"), `landed on /jobs (got ${page.url()})`);
+}
+
+async function createJob(page, opts) {
+  step(`Create job: ${opts.customer} (${opts.territory})${opts.selfSold ? " · self-sold" : ""}`);
+  await page.goto(`${BASE}/jobs/new`, { waitUntil: "networkidle2" });
+  await page.type('input[type="text"]', opts.customer);
+  await page.type("textarea", opts.address);
+  await clickByText(page, "button", opts.territory);
+  if (opts.selfSold) {
+    // Click the toggle — it's the only role="switch" on the page
+    await page.evaluate(() => {
+      const sw = document.querySelector('[role="switch"]');
+      sw?.click();
+    });
+    await new Promise((r) => setTimeout(r, 200));
+    // Pick the seller from the chip list
+    await clickByText(page, "button", opts.soldBy);
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  const before = page.url();
+  await clickByText(page, "button", "Create job");
+  await waitForUrlChange(page, before);
+  await new Promise((r) => setTimeout(r, 1500));
+  const jobId = decodeURIComponent(page.url().split("/").pop());
+  expect(jobId.startsWith("JOB-"), `job created (${jobId})`);
+  return jobId;
+}
+
+async function setCrew(page, jobId, members) {
+  await page.goto(`${BASE}/jobs/${encodeURIComponent(jobId)}`, {
+    waitUntil: "networkidle2",
+  });
+  await new Promise((r) => setTimeout(r, 800));
+  for (const m of members) {
+    await ensureChipSelected(page, m);
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
+
+async function addUnit(page, jobId, unitType, subType = null) {
+  step(`Add ${unitType} unit${subType ? ` (${subType})` : ""}`);
+  await page.goto(
+    `${BASE}/jobs/${encodeURIComponent(jobId)}/units/new`,
+    { waitUntil: "networkidle2" }
+  );
+  await new Promise((r) => setTimeout(r, 400));
+  // Pick unit type
+  const typeLabel = unitType.startsWith("Standard")
+    ? "Standard"
+    : unitType.startsWith("Mid")
+    ? "Mid-Large"
+    : unitType.startsWith("Large")
+    ? "Large"
+    : "PTAC";
+  await clickByText(page, "button", typeLabel);
+  if (subType) await clickByText(page, "button", subType);
+
+  // Capture 4 required photos one at a time, waiting for "Captured"
+  const inputs = await page.$$('input[type="file"]');
+  for (let i = 0; i < 4; i++) {
+    const before = await page.evaluate(
+      () => (document.body.innerText.match(/Captured/g) || []).length
+    );
+    await inputs[i].uploadFile(TMP_FILE);
+    await page
+      .waitForFunction(
+        (b) =>
+          (document.body.innerText.match(/Captured/g) || []).length > b,
+        { timeout: 8000 },
+        before
+      )
+      .catch(() => {});
+  }
+  const captured = await page.evaluate(
+    () => (document.body.innerText.match(/Captured/g) || []).length
+  );
+  expect(captured >= 4, `4 required photos captured (${captured})`);
+
+  const before = page.url();
+  await clickByText(page, "button", "Save unit");
+  await waitForUrlChange(page, before);
+  await new Promise((r) => setTimeout(r, 1500));
+  ok(`unit saved`);
+}
+
+async function addService(page, jobId, serviceType, quantity = 1) {
+  step(`Add service: ${serviceType} × ${quantity}`);
+  await page.goto(
+    `${BASE}/jobs/${encodeURIComponent(jobId)}/services/new`,
+    { waitUntil: "networkidle2" }
+  );
+  await new Promise((r) => setTimeout(r, 400));
+  // Service type label is shortened in UI
+  const label =
+    serviceType === "Thermostat (regular)"
+      ? "Thermostat"
+      : serviceType === "Thermostat (scheduled)"
+      ? "Thermostat (scheduled)"
+      : "Endo Cube";
+  await clickByText(page, "button", label);
+  // Bump qty
+  for (let i = 1; i < quantity; i++) {
+    await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll("button"));
+      const plus = btns.find((b) => {
+        const svg = b.querySelector("svg");
+        return svg && b.className.includes("bg-mse-navy") && !b.textContent.trim();
+      });
+      plus?.click();
+    });
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const before = page.url();
+  await clickByText(page, "button", "Save service");
+  await waitForUrlChange(page, before);
+  await new Promise((r) => setTimeout(r, 1200));
+  ok("service saved");
+}
+
+async function waitForUploadQueue(page, ms = 120_000) {
+  step("Wait for upload queue to drain");
+  const start = Date.now();
+  let depth = -1;
+  while (Date.now() - start < ms) {
+    depth = await page.evaluate(async () => {
+      const dbReq = indexedDB.open("mse-field-upload-queue");
+      return new Promise((resolve) => {
+        dbReq.onsuccess = () => {
+          const db = dbReq.result;
+          if (!db.objectStoreNames.contains("photos")) return resolve(0);
+          const tx = db.transaction("photos", "readonly");
+          const req = tx.objectStore("photos").count();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(-1);
+        };
+        dbReq.onerror = () => resolve(-1);
+      });
+    });
+    if (depth === 0) break;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (depth !== 0) {
+    // Dump remaining queue items for debugging
+    const items = await page.evaluate(async () => {
+      const dbReq = indexedDB.open("mse-field-upload-queue");
+      return new Promise((resolve) => {
+        dbReq.onsuccess = () => {
+          const db = dbReq.result;
+          if (!db.objectStoreNames.contains("photos")) return resolve([]);
+          const tx = db.transaction("photos", "readonly");
+          const req = tx.objectStore("photos").getAll();
+          req.onsuccess = () =>
+            resolve(
+              req.result.map((p) => ({
+                id: p.id,
+                slot: p.photoSlot,
+                status: p.status,
+                attempts: p.attempts,
+                error: p.lastError,
+                ageSec: Math.round((Date.now() - p.capturedAt) / 1000),
+              }))
+            );
+          req.onerror = () => resolve([]);
+        };
+        dbReq.onerror = () => resolve([]);
+      });
+    });
+    console.log("  stuck items:", JSON.stringify(items, null, 2));
+  }
+  expect(depth === 0, `upload queue drained (final depth ${depth})`);
+}
+
+async function submitDispatch(page, jobId, opts) {
+  step(`Submit dispatch (${opts.split}, driver: ${opts.driver ?? "—"})`);
+  await page.goto(
+    `${BASE}/jobs/${encodeURIComponent(jobId)}/submit`,
+    { waitUntil: "networkidle2" }
+  );
+  await new Promise((r) => setTimeout(r, 800));
+
+  // Server redirects /submit → /jobs/{jobId} when no draft dispatch
+  // exists. Detect that and report a real failure.
+  if (!page.url().endsWith("/submit")) {
+    fail(
+      `submit page redirected to ${page.url()} — no draft dispatch found for job ${jobId}`
+    );
+    failures++;
+    return;
+  }
+
+  // Crew picker — make sure each crew member is selected (idempotent).
+  for (const c of opts.crew) await ensureChipSelected(page, c);
+  await new Promise((r) => setTimeout(r, 200));
+
+  // Pay split
+  const splitLabel =
+    opts.split === "Solo"
+      ? "Solo"
+      : opts.split === "50-50"
+      ? "50 / 50"
+      : "Three-way";
+  await clickByText(page, "button", splitLabel);
+  await new Promise((r) => setTimeout(r, 200));
+
+  // Driver (only if not Solo)
+  if (opts.split !== "Solo" && opts.driver) {
+    await clickByText(page, "button", opts.driver);
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  // Watch for /api/dispatches POST so we know submit actually fired
+  const dispatchPromise = page.waitForResponse(
+    (r) => r.url().includes("/api/dispatches") && r.request().method() === "POST",
+    { timeout: 12000 }
+  );
+
+  const before = page.url();
+  await clickByText(page, "button", "Submit");
+  let dispatchRes;
+  try {
+    dispatchRes = await dispatchPromise;
+  } catch {
+    fail(`Submit button click did not fire POST /api/dispatches`);
+    failures++;
+    return;
+  }
+  expect(
+    dispatchRes.status() === 200,
+    `POST /api/dispatches returned ${dispatchRes.status()}`
+  );
+  await waitForUrlChange(page, before);
+  await new Promise((r) => setTimeout(r, 1500));
+  expect(page.url().endsWith("/jobs?submitted=1"), "redirected to /jobs?submitted=1");
+}
+
+// === Sheet verification ===
+
+const auth = new google.auth.JWT({
+  email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+  key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+  scopes: [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+  ],
+});
+const sheets = google.sheets({ version: "v4", auth });
+const drive = google.drive({ version: "v3", auth });
+
+async function readTab(tab) {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: `${tab}!A2:ZZ`,
+  });
+  return res.data.values ?? [];
+}
+
+async function verifySheetState(expected) {
+  step("Verify Sheet state");
+  const [jobs, dispatches, units, services, payAttr] = await Promise.all([
+    readTab("Jobs"),
+    readTab("Dispatches"),
+    readTab("Units Serviced"),
+    readTab("Additional Services"),
+    readTab("Pay Attribution"),
+  ]);
+  expect(
+    jobs.length === expected.jobs,
+    `Jobs: expected ${expected.jobs}, got ${jobs.length}`
+  );
+  expect(
+    dispatches.length === expected.dispatches,
+    `Dispatches: expected ${expected.dispatches}, got ${dispatches.length}`
+  );
+  expect(
+    units.length === expected.units,
+    `Units Serviced: expected ${expected.units}, got ${units.length}`
+  );
+  expect(
+    services.length === expected.services,
+    `Additional Services: expected ${expected.services}, got ${services.length}`
+  );
+  expect(
+    payAttr.length >= expected.minPayAttr,
+    `Pay Attribution: expected ≥ ${expected.minPayAttr}, got ${payAttr.length}`
+  );
+
+  // Spot-check that every Submitted dispatch has photosComplete = TRUE
+  // and a real driver field
+  const submitted = dispatches.filter((d) => d[9]); // J = submittedAt
+  for (const d of submitted) {
+    if (d[8] !== "TRUE") {
+      fail(`dispatch ${d[0]} not photos-complete`);
+      failures++;
+    }
+  }
+  if (submitted.length === expected.dispatches) {
+    ok(`all ${submitted.length} dispatches submitted with photos-complete`);
+  }
+
+  // Verify that every unit has 4 photo URLs in the right cells
+  for (const u of units) {
+    // cols G, H, I, J, K = pre, post, clean, nameplate, filter
+    const [pre, post, clean, name] = [u[6], u[7], u[8], u[9]];
+    if (!(pre && post && clean && name)) {
+      fail(`unit ${u[0]} missing required photo URLs`);
+      failures++;
+    }
+  }
+  if (units.length > 0) ok(`every unit has all 4 required photo URLs`);
+
+  return { jobs, dispatches, units, services, payAttr };
+}
+
+async function verifyDriveState(expectedJobs) {
+  step("Verify Shared Drive state");
+  const root = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+  const res = await drive.files.list({
+    q: `'${root}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'`,
+    fields: "files(id,name)",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    pageSize: 50,
+  });
+  const folders = res.data.files ?? [];
+  expect(
+    folders.length >= expectedJobs,
+    `Drive root has ≥ ${expectedJobs} job folders (got ${folders.length})`
+  );
+  // Sample one job folder and verify a Unit-001 subfolder + photos
+  if (folders.length > 0) {
+    const sub = await drive.files.list({
+      q: `'${folders[0].id}' in parents and trashed=false`,
+      fields: "files(id,name,mimeType)",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+    const units = (sub.data.files ?? []).filter((f) =>
+      f.name.startsWith("Unit-")
+    );
+    expect(units.length > 0, `${folders[0].name} contains a Unit folder`);
+    if (units.length > 0) {
+      const photos = await drive.files.list({
+        q: `'${units[0].id}' in parents and trashed=false and mimeType contains 'image/'`,
+        fields: "files(id,name,size)",
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+      const count = (photos.data.files ?? []).length;
+      expect(count >= 4, `${units[0].name} has ≥ 4 photos (got ${count})`);
+    }
+  }
+}
+
+// === Main ===
 
 async function main() {
   const browser = await puppeteer.launch({
@@ -46,284 +474,182 @@ async function main() {
   await page.setViewport({ width: 390, height: 844, isMobile: true, deviceScaleFactor: 2 });
 
   const networkLog = [];
-  const consoleLog = [];
-
   page.on("response", async (res) => {
     const url = new URL(res.url());
     if (url.pathname.startsWith("/api/")) {
       let body = "";
       try {
-        body = (await res.text()).slice(0, 400);
+        body = (await res.text()).slice(0, 300);
       } catch {}
       networkLog.push({
         method: res.request().method(),
-        url: url.pathname + url.search,
+        url: url.pathname,
         status: res.status(),
         body,
       });
     }
   });
-  page.on("console", (msg) => {
-    consoleLog.push(`[${msg.type()}] ${msg.text()}`);
-  });
-  page.on("pageerror", (err) => {
-    consoleLog.push(`[pageerror] ${err.message}`);
-  });
-
-  let failed = false;
-  const setFail = (m) => {
-    failed = true;
-    fail(m);
-  };
+  page.on("pageerror", (err) =>
+    console.log(`  \x1b[33m[pageerror]\x1b[0m ${err.message}`)
+  );
 
   try {
-    step("1. Open login screen");
-    await page.goto(`${BASE}/login`, { waitUntil: "networkidle2" });
-    await shot(page, "01-login");
-    const hasKeypad = await page.$("button");
-    hasKeypad ? ok("login keypad rendered") : setFail("no keypad");
+    await login(page);
+    await shot(page, "01-after-login");
 
-    step(`2. Enter PIN ${PIN}`);
-    // Warm up the API route so first compile doesn't make us miss the
-    // navigation window (Next dev compiles routes lazily).
-    await page.evaluate(() =>
-      fetch("/api/auth", { method: "GET" }).catch(() => {})
+    // ============================================================
+    // SCENARIO 1 — Solo BGE job, single PTAC, default sub-type
+    // ============================================================
+    console.log("\n\x1b[36m═══ Scenario 1: Solo BGE job, 1 PTAC unit ═══\x1b[0m");
+    const job1 = await createJob(page, {
+      customer: "BGE Solo Test",
+      address: "100 Main St, Baltimore MD 21201",
+      territory: "BGE",
+      selfSold: false,
+    });
+    await setCrew(page, job1, ["Kevin Lee"]);
+    await addUnit(page, job1, "PTAC");
+    await waitForUploadQueue(page);
+    await submitDispatch(page, job1, {
+      crew: ["Kevin Lee"],
+      split: "Solo",
+    });
+    await shot(page, "scenario-1-end");
+
+    // ============================================================
+    // SCENARIO 2 — Self-sold Delmarva job, 2 units (different types)
+    // + 1 service, travel bonus + sales bonus
+    // ============================================================
+    console.log("\n\x1b[36m═══ Scenario 2: Self-sold Delmarva, 2 units + thermostat ═══\x1b[0m");
+    const job2 = await createJob(page, {
+      customer: "Delmarva Self-Sold",
+      address: "200 Bay Ave, Salisbury MD 21801",
+      territory: "Delmarva",
+      selfSold: true,
+      soldBy: "Kevin Lee",
+    });
+    await setCrew(page, job2, ["Kevin Lee"]);
+    await addUnit(page, job2, "Standard 3-20");
+    await addUnit(page, job2, "Mid-Large 20-50", "Water-source heat pump");
+    await addService(page, job2, "Thermostat (regular)", 2);
+    await waitForUploadQueue(page);
+    await submitDispatch(page, job2, {
+      crew: ["Kevin Lee"],
+      split: "Solo",
+    });
+    await shot(page, "scenario-2-end");
+
+    // ============================================================
+    // VERIFICATION
+    // ============================================================
+    const sheetState = await verifySheetState({
+      jobs: 2,
+      dispatches: 2,
+      units: 3, // 1 from scenario 1 + 2 from scenario 2
+      services: 1,
+      minPayAttr: 10, // multiple line items
+    });
+    await verifyDriveState(2);
+
+    // Pay math: scenario 1 = $10 install + $10 stipend = $20
+    //           scenario 2 = ($50 + $75) install
+    //                      + ($30 + $50) * 0.5 sales paid = $40
+    //                      + ($30 + $50) * 0.5 sales pending = $40
+    //                      + 2 × $25 thermostat = $50
+    //                      + $10 stipend
+    //                      + $40 travel bonus
+    //                      = $305
+    // Total: $325
+    step("Verify Pay Attribution math");
+    const sumByLineItem = {};
+    for (const r of sheetState.payAttr) {
+      const item = r[4];
+      const amt = Number(r[5]);
+      if (Number.isFinite(amt)) sumByLineItem[item] = (sumByLineItem[item] ?? 0) + amt;
+    }
+    console.log("  by line item:", sumByLineItem);
+    const expectedInstall = 10 + 50 + 75; // 135
+    const expectedSalesPaid = (30 + 50) * 0.5; // 40
+    const expectedSalesPending = (30 + 50) * 0.5; // 40
+    const expectedService = 2 * 25; // 50
+    const expectedStipend = 2 * 10; // 20
+    const expectedTravel = 40;
+    expect(
+      Math.abs((sumByLineItem.Install ?? 0) - expectedInstall) < 0.01,
+      `Install pay: expected ${expectedInstall}, got ${sumByLineItem.Install}`
     );
-    await new Promise((r) => setTimeout(r, 400));
-    for (const digit of PIN) {
-      await page.evaluate((d) => {
-        const btn = Array.from(document.querySelectorAll("button")).find(
-          (b) => b.textContent.trim() === d
-        );
-        btn?.click();
-      }, digit);
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
-    await shot(page, "02-jobs-home");
-    if (!page.url().endsWith("/jobs")) {
-      setFail(`expected /jobs, got ${page.url()}`);
-      throw new Error("login failed");
-    }
-    ok(`landed on ${page.url()}`);
-
-    step("3. Create new job");
-    const newJobLink = await page.$('a[href="/jobs/new"]');
-    await newJobLink.click();
-    await page.waitForNavigation({ waitUntil: "networkidle2" });
-    await shot(page, "03-new-job-form");
-
-    const customer = `E2E ${Date.now()}`;
-    await page.type('input[type="text"]', customer);
-    await page.type("textarea", "1234 Test Rd, Towson MD 21204");
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll("button")).find(
-        (b) => b.textContent.trim() === "Delmarva"
-      );
-      btn?.click();
-    });
-    await new Promise((r) => setTimeout(r, 200));
-    await shot(page, "04-new-job-filled");
-
-    // Submit
-    const beforeUrl = page.url();
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll("button")).find(
-        (b) => b.textContent.trim() === "Create job"
-      );
-      btn?.click();
-    });
-    await page.waitForFunction(
-      (b) => location.pathname !== new URL(b).pathname,
-      { timeout: 12000 },
-      beforeUrl
+    expect(
+      Math.abs((sumByLineItem["Sales (paid)"] ?? 0) - expectedSalesPaid) < 0.01,
+      `Sales (paid): expected ${expectedSalesPaid}, got ${sumByLineItem["Sales (paid)"]}`
     );
-    await new Promise((r) => setTimeout(r, 1500));
-    await shot(page, "05-job-detail");
-    const jobId = page.url().split("/").pop();
-    ok(`job created: ${decodeURIComponent(jobId)}`);
-
-    step("4. Set Today's crew + Add unit");
-    await page.evaluate(() => {
-      // Today's crew is a CrewPicker, find Kevin Lee chip
-      const btn = Array.from(document.querySelectorAll("button")).find(
-        (b) => b.textContent.trim() === "Kevin Lee"
-      );
-      btn?.click();
-    });
-    await new Promise((r) => setTimeout(r, 300));
-    await shot(page, "06-crew-set");
-
-    // Click Add unit
-    await page.evaluate(() => {
-      const link = Array.from(document.querySelectorAll("a")).find(
-        (a) => a.textContent.includes("Add unit")
-      );
-      link?.click();
-    });
-    await page.waitForNavigation({ waitUntil: "networkidle2" });
-    await shot(page, "07-add-unit-form");
-
-    step("5. Fill unit form + capture 4 photos");
-    // Unit type: PTAC
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll("button")).find(
-        (b) => b.textContent.trim().startsWith("PTAC")
-      );
-      btn?.click();
-    });
-
-    // Capture each photo by uploading a JPEG buffer to each file input
-    const buffer = makeJpegBuffer();
-    const tmpFile = path.join(screenshotsDir, "_test.jpg");
-    fs.writeFileSync(tmpFile, buffer);
-
-    const inputs = await page.$$('input[type="file"]');
-    log(`  found ${inputs.length} file inputs`);
-    // Upload to first 4 (pre, post, clean, nameplate — required ones).
-    // After each upload wait for the slot's "Captured" label to appear
-    // before moving on, otherwise rapid React state updates can stomp
-    // each other.
-    for (let i = 0; i < Math.min(4, inputs.length); i++) {
-      const beforeCount = await page.evaluate(
-        () => (document.body.innerText.match(/Captured/g) || []).length
-      );
-      await inputs[i].uploadFile(tmpFile);
-      await page
-        .waitForFunction(
-          (b) => (document.body.innerText.match(/Captured/g) || []).length > b,
-          { timeout: 8000 },
-          beforeCount
-        )
-        .catch(() => {});
-      log(`    uploaded photo ${i + 1}/4`);
-    }
-    // Final verification: 4 slots should show "Captured"
-    const capturedCount = await page.evaluate(
-      () => (document.body.innerText.match(/Captured/g) || []).length
+    expect(
+      Math.abs((sumByLineItem["Sales (pending)"] ?? 0) - expectedSalesPending) < 0.01,
+      `Sales (pending): expected ${expectedSalesPending}, got ${sumByLineItem["Sales (pending)"]}`
     );
-    log(`  ${capturedCount} slots captured`);
-    await shot(page, "08-photos-captured");
-    if (capturedCount < 4) {
-      setFail(`only ${capturedCount}/4 required photos captured`);
-      throw new Error("photo capture race");
-    }
-
-    step("6. Save unit");
-    const beforeUrl2 = page.url();
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll("button")).find(
-        (b) => b.textContent.trim().startsWith("Save unit")
-      );
-      btn?.click();
-    });
-    await page.waitForFunction(
-      (b) => location.pathname !== new URL(b).pathname,
-      { timeout: 12000 },
-      beforeUrl2
+    expect(
+      Math.abs((sumByLineItem.Service ?? 0) - expectedService) < 0.01,
+      `Service pay: expected ${expectedService}, got ${sumByLineItem.Service}`
     );
-    await new Promise((r) => setTimeout(r, 1000));
-    await shot(page, "09-after-save-unit");
+    expect(
+      Math.abs((sumByLineItem["Daily Stipend"] ?? 0) - expectedStipend) < 0.01,
+      `Daily stipend: expected ${expectedStipend}, got ${sumByLineItem["Daily Stipend"]}`
+    );
+    expect(
+      Math.abs((sumByLineItem["Travel Bonus"] ?? 0) - expectedTravel) < 0.01,
+      `Travel bonus: expected ${expectedTravel}, got ${sumByLineItem["Travel Bonus"]}`
+    );
 
-    step("7. Wait for upload queue to drain (up to 60s)");
-    let queueDepth = -1;
-    const start = Date.now();
-    while (Date.now() - start < 60_000) {
-      queueDepth = await page.evaluate(async () => {
-        const dbReq = indexedDB.open("mse-field-upload-queue");
-        return new Promise((resolve) => {
-          dbReq.onsuccess = () => {
-            const db = dbReq.result;
-            if (!db.objectStoreNames.contains("photos"))
-              return resolve(0);
-            const tx = db.transaction("photos", "readonly");
-            const store = tx.objectStore("photos");
-            const req = store.count();
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => resolve(-1);
-          };
-          dbReq.onerror = () => resolve(-1);
-        });
-      });
-      if (queueDepth === 0) break;
-      log(`    queue depth: ${queueDepth}`);
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-    if (queueDepth === 0) {
-      ok("upload queue drained");
-    } else {
-      setFail(`upload queue stuck at ${queueDepth} after 60s`);
-    }
-
-    step("8. Reload job detail and verify unit + photos");
-    await page.goto(`${BASE}/jobs/${jobId}`, { waitUntil: "networkidle2" });
-    await new Promise((r) => setTimeout(r, 1500));
-    await shot(page, "10-job-detail-after-upload");
-    const allUploaded = await page.evaluate(() => {
-      const text = document.body.innerText;
-      return /4\/4/.test(text);
+    // Verify Pay Calc tab actually rolls up correctly
+    step("Verify Pay Calc rollup for Kevin Lee");
+    const payCalc = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: "Pay Calc!A4:H4",
+      valueRenderOption: "UNFORMATTED_VALUE",
     });
-    if (allUploaded) ok("unit shows 4/4 photos");
-    else setFail("unit doesn't show 4/4 photos");
-
-    step("9. Submit dispatch");
-    await page.evaluate(() => {
-      const link = Array.from(document.querySelectorAll("a")).find(
-        (a) => a.textContent.trim() === "Submit dispatch"
-      );
-      link?.click();
-    });
-    await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 8000 }).catch(() => {});
-    await new Promise((r) => setTimeout(r, 1000));
-    await shot(page, "11-submit-dispatch-form");
-
-    // Click Submit
-    const beforeUrl3 = page.url();
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll("button")).find(
-        (b) => b.textContent.trim() === "Submit"
-      );
-      btn?.click();
-    });
-    await page.waitForFunction(
-      (b) => location.pathname !== new URL(b).pathname,
-      { timeout: 8000 },
-      beforeUrl3
-    ).catch(() => {});
-    await new Promise((r) => setTimeout(r, 1500));
-    await shot(page, "12-after-dispatch-submit");
-    if (page.url().includes("/jobs")) ok("dispatch submitted, returned to /jobs");
-    else setFail(`unexpected url after submit: ${page.url()}`);
+    const row = payCalc.data.values?.[0] ?? [];
+    console.log(
+      `  Pay Calc row 4: tech=${row[0]} install=${row[1]} salesPaid=${row[2]} salesPending=${row[3]} service=${row[4]} stipend=${row[5]} travel=${row[6]} total=${row[7]}`
+    );
+    expect(row[0] === "Kevin Lee", `tech name in Pay Calc row 4 = "Kevin Lee"`);
+    const expectedTotal =
+      expectedInstall +
+      expectedSalesPaid +
+      expectedSalesPending +
+      expectedService +
+      expectedStipend +
+      expectedTravel;
+    expect(
+      Math.abs(Number(row[7]) - expectedTotal) < 0.01,
+      `Pay Calc total: expected ${expectedTotal}, got ${row[7]}`
+    );
   } catch (e) {
-    setFail(`exception: ${e.message}`);
+    fail(`harness crashed: ${e.message}`);
     console.error(e);
+    failures++;
   }
 
   console.log("\n=== API CALLS ===");
   for (const r of networkLog) {
-    const status = r.status >= 400 ? `\x1b[31m${r.status}\x1b[0m` : `\x1b[32m${r.status}\x1b[0m`;
-    console.log(`  ${r.method} ${r.url} → ${status}`);
-    if (r.status >= 400 && r.body) console.log(`    body: ${r.body}`);
+    const status =
+      r.status >= 400
+        ? `\x1b[31m${r.status}\x1b[0m`
+        : `\x1b[32m${r.status}\x1b[0m`;
+    console.log(`  ${r.method.padEnd(6)} ${r.url.padEnd(20)} → ${status}`);
+    if (r.status >= 400 && r.body) console.log(`    ${r.body}`);
   }
-
-  console.log("\n=== CONSOLE ===");
-  const interesting = consoleLog.filter(
-    (l) => !l.includes("[verbose]") && !l.includes("[debug]")
-  );
-  for (const l of interesting.slice(0, 50)) console.log(`  ${l}`);
-  if (interesting.length > 50)
-    console.log(`  ... and ${interesting.length - 50} more`);
 
   await browser.close();
 
   console.log(
-    `\n\x1b[1m${failed ? "\x1b[31mFAILED" : "\x1b[32mPASSED"}\x1b[0m`
+    `\n\x1b[1m${
+      failures === 0 ? "\x1b[32mALL CHECKS PASSED" : `\x1b[31m${failures} CHECKS FAILED`
+    }\x1b[0m`
   );
   console.log(`Screenshots: ${screenshotsDir}`);
-  process.exit(failed ? 1 : 0);
+  process.exit(failures === 0 ? 0 : 1);
 }
 
 main().catch((e) => {
-  console.error("Harness crashed:", e);
+  console.error("Fatal:", e);
   process.exit(1);
 });

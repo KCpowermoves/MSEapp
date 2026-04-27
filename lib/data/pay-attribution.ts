@@ -131,14 +131,13 @@ export async function writeAttributions(
   let i = 1;
   for (const r of rows) {
     const id = `ATTR-${input.dispatch.dispatchId}-${String(i++).padStart(3, "0")}`;
-    await appendRow(TABS.payAttribution, [
-      id,
-      r.date,
-      r.dispatchId,
-      r.techName,
-      r.lineItem,
-      r.amount,
-      r.notes,
-    ]);
+    // USER_ENTERED so dates are stored as date serials, matching how the
+    // Pay Calc filter cells (B1/D1 = TODAY()-7, TODAY()) get serialized.
+    // SUMIFS then compares serial-to-serial, no string conversion drama.
+    await appendRow(
+      TABS.payAttribution,
+      [id, r.date, r.dispatchId, r.techName, r.lineItem, r.amount, r.notes],
+      "USER_ENTERED"
+    );
   }
 }

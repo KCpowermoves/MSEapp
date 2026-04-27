@@ -16,6 +16,9 @@ let started = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inFlight = 0;
 
+const UPLOAD_TIMEOUT_MS = 45_000;
+const STUCK_UPLOAD_THRESHOLD_MS = 90_000;
+
 async function uploadOne(item: QueuedPhoto) {
   await markUploading(item.id);
   const formData = new FormData();
@@ -26,17 +29,27 @@ async function uploadOne(item: QueuedPhoto) {
   if (item.photoSlot && item.photoSlot !== "service") {
     formData.append("slot", item.photoSlot);
   }
-  const res = await fetch("/api/upload", { method: "POST", body: formData });
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const data = await res.json();
-      if (data?.error) msg = data.error;
-    } catch {}
-    await markFailed(item.id, msg);
-    return;
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), UPLOAD_TIMEOUT_MS);
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const data = await res.json();
+        if (data?.error) msg = data.error;
+      } catch {}
+      await markFailed(item.id, msg);
+      return;
+    }
+    await removePhoto(item.id);
+  } finally {
+    clearTimeout(timeoutId);
   }
-  await removePhoto(item.id);
 }
 
 async function tick() {
@@ -46,7 +59,19 @@ async function tick() {
   }
   try {
     const pending = await listPending();
-    const drainable = pending
+    // Reset items stuck in "uploading" state (page navigated mid-flight,
+    // browser killed the fetch silently, etc.) so they get retried.
+    const now = Date.now();
+    for (const p of pending) {
+      if (
+        p.status === "uploading" &&
+        now - (p.capturedAt ?? 0) > STUCK_UPLOAD_THRESHOLD_MS
+      ) {
+        await markFailed(p.id, "Upload stuck — retrying");
+      }
+    }
+    const fresh = await listPending();
+    const drainable = fresh
       .filter((p) => p.status !== "uploading")
       .filter((p) => (p.attempts ?? 0) < 6)
       .slice(0, MAX_CONCURRENCY - inFlight);
@@ -61,7 +86,7 @@ async function tick() {
         });
     }
     // Schedule retries on items that failed (back-off-style)
-    for (const p of pending.filter((x) => x.status === "failed")) {
+    for (const p of fresh.filter((x) => x.status === "failed")) {
       const ageSec = (Date.now() - p.capturedAt) / 1000;
       const backoffSec = Math.min(300, 30 * Math.pow(2, (p.attempts ?? 1) - 1));
       if (ageSec >= backoffSec) {
@@ -69,7 +94,6 @@ async function tick() {
       }
     }
   } catch (e) {
-    // swallow — try again next tick
     console.warn("upload worker tick error", e);
   } finally {
     schedule();
