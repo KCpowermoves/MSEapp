@@ -84,6 +84,12 @@ async function main() {
     hasKeypad ? ok("login keypad rendered") : setFail("no keypad");
 
     step(`2. Enter PIN ${PIN}`);
+    // Warm up the API route so first compile doesn't make us miss the
+    // navigation window (Next dev compiles routes lazily).
+    await page.evaluate(() =>
+      fetch("/api/auth", { method: "GET" }).catch(() => {})
+    );
+    await new Promise((r) => setTimeout(r, 400));
     for (const digit of PIN) {
       await page.evaluate((d) => {
         const btn = Array.from(document.querySelectorAll("button")).find(
@@ -91,9 +97,9 @@ async function main() {
         );
         btn?.click();
       }, digit);
-      await new Promise((r) => setTimeout(r, 80));
+      await new Promise((r) => setTimeout(r, 200));
     }
-    await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 8000 });
+    await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
     await shot(page, "02-jobs-home");
     if (!page.url().endsWith("/jobs")) {
       setFail(`expected /jobs, got ${page.url()}`);
