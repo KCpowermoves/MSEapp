@@ -7,7 +7,17 @@ export async function POST(request: Request) {
   if (typeof pin !== "string" || !/^\d{4}$/.test(pin)) {
     return NextResponse.json({ error: "Enter a 4-digit PIN" }, { status: 400 });
   }
-  const tech = await validatePin(pin);
+  let tech;
+  try {
+    tech = await validatePin(pin);
+  } catch (e) {
+    console.error("Auth backend error:", e);
+    const message = e instanceof Error ? e.message : "Backend error";
+    return NextResponse.json(
+      { error: `Setup error: ${message}` },
+      { status: 500 }
+    );
+  }
   if (!tech) {
     return NextResponse.json({ error: "Wrong PIN" }, { status: 401 });
   }
