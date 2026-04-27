@@ -21,14 +21,18 @@ interface Props {
   filenameSuffix?: string;
 }
 
-function compressionOptions(file: File) {
-  const isJpeg = file.type === "image/jpeg" || file.type === "image/jpg";
+function compressionOptions() {
+  // preserveExif disabled — the EXIF parser in browser-image-compression
+  // throws uncaught DataView errors on JPEGs without complete EXIF
+  // segments (camera roll exports, screenshots, downloaded images, etc.),
+  // leaving the capture stuck in busy state. Server-side timestamp in
+  // the Sheet's "Logged At" column is the canonical record instead.
   return {
     maxSizeMB: 1.5,
     maxWidthOrHeight: 1600,
     initialQuality: 0.78,
     useWebWorker: false,
-    preserveExif: isJpeg,
+    preserveExif: false,
     fileType: "image/jpeg" as const,
   };
 }
@@ -57,16 +61,7 @@ export function PhotoCapture({
     setBusy(true);
     setError(null);
     try {
-      let compressed: Blob;
-      try {
-        compressed = await imageCompression(file, compressionOptions(file));
-      } catch (e1) {
-        console.warn("Compression with EXIF preserve failed, retrying:", e1);
-        compressed = await imageCompression(file, {
-          ...compressionOptions(file),
-          preserveExif: false,
-        });
-      }
+      const compressed = await imageCompression(file, compressionOptions());
       let thumb: Blob;
       try {
         thumb = await imageCompression(file, THUMB_OPTIONS);

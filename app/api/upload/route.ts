@@ -54,47 +54,55 @@ export async function POST(request: Request) {
 
   const rootFolderId = job.driveFolderId || (await ensureJobFolderId(job));
 
-  if (unitId) {
-    if (!PHOTO_SLOTS.includes(slot as PhotoSlot)) {
-      return NextResponse.json(
-        { error: "Invalid photo slot" },
-        { status: 400 }
+  try {
+    if (unitId) {
+      if (!PHOTO_SLOTS.includes(slot as PhotoSlot)) {
+        return NextResponse.json(
+          { error: "Invalid photo slot" },
+          { status: 400 }
+        );
+      }
+      const unit = await getUnit(unitId);
+      if (!unit) {
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      }
+      const unitFolder = await getOrCreateFolder(
+        unitFolderName(unit.unitNumberOnJob, unit.unitType),
+        rootFolderId
       );
+      const numStr = String(unit.unitNumberOnJob).padStart(3, "0");
+      const filename = `${numStr}_${slot}.jpg`;
+      const uploaded = await uploadImage({
+        folderId: unitFolder.id,
+        filename,
+        mimeType,
+        body: buffer,
+      });
+      await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
+      return NextResponse.json({ url: uploaded.url });
     }
-    const unit = await getUnit(unitId);
-    if (!unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-    }
-    const unitFolder = await getOrCreateFolder(
-      unitFolderName(unit.unitNumberOnJob, unit.unitType),
-      rootFolderId
-    );
-    const numStr = String(unit.unitNumberOnJob).padStart(3, "0");
-    const filename = `${numStr}_${slot}.jpg`;
-    const uploaded = await uploadImage({
-      folderId: unitFolder.id,
-      filename,
-      mimeType,
-      body: buffer,
-    });
-    await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
-    return NextResponse.json({ url: uploaded.url });
-  }
 
-  if (serviceId) {
-    const servicesFolder = await getOrCreateFolder(
-      "Additional-Services",
-      rootFolderId
-    );
-    const filename = `Service_${serviceId}_${Date.now()}.jpg`;
-    const uploaded = await uploadImage({
-      folderId: servicesFolder.id,
-      filename,
-      mimeType,
-      body: buffer,
-    });
-    await appendServicePhotoUrl(serviceId, uploaded.url);
-    return NextResponse.json({ url: uploaded.url });
+    if (serviceId) {
+      const servicesFolder = await getOrCreateFolder(
+        "Additional-Services",
+        rootFolderId
+      );
+      const filename = `Service_${serviceId}_${Date.now()}.jpg`;
+      const uploaded = await uploadImage({
+        folderId: servicesFolder.id,
+        filename,
+        mimeType,
+        body: buffer,
+      });
+      await appendServicePhotoUrl(serviceId, uploaded.url);
+      return NextResponse.json({ url: uploaded.url });
+    }
+  } catch (e) {
+    const inner = e as { cause?: { message?: string }; message?: string };
+    const message =
+      inner?.cause?.message ?? inner?.message ?? "Drive upload failed";
+    console.error("Upload error:", e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   return NextResponse.json(

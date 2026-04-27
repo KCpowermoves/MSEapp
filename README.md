@@ -33,12 +33,20 @@ You'll need ~30 minutes the first time. Have a Google account ready that owns th
 4. From the URL, copy the Sheet ID. The URL looks like:
    `https://docs.google.com/spreadsheets/d/`**`1aBcDeF...xyz`**`/edit` — the bold part is the Sheet ID.
 
-### 4. Create the Drive root folder
+### 4. Create the Drive root folder — must be a Shared Drive
 
-1. Go to https://drive.google.com and create a new folder named **MSE Field Photos**.
-2. Right-click → **Share** → paste the service account email → give it **Editor** access → Send.
-3. Open the folder. From the URL, copy the folder ID:
-   `https://drive.google.com/drive/folders/`**`1aBcDeF...xyz`** — the bold part is the folder ID.
+> **Important:** Service accounts no longer have personal storage quota
+> on Google Drive. The root folder MUST live in a Shared Drive
+> (Workspace feature) for uploads to work. A regular folder in My Drive
+> will fail with `403 Service Accounts do not have storage quota`.
+
+1. Go to https://drive.google.com.
+2. In the left sidebar click **Shared drives** → **+ New** → name it **MSE Field Photos** → Create.
+3. Open the new shared drive. In the top-right click **Manage members** (people icon) → paste the service account email → give it **Manager** access → uncheck "notify people" → Send.
+4. Copy the shared drive ID from the URL:
+   `https://drive.google.com/drive/folders/`**`0ABcDeF...xyz`** — the bold part is the ID. (Shared drive IDs typically start with `0A`.)
+
+If you don't have Google Workspace (your account doesn't show "Shared drives" in the sidebar), Shared Drives aren't available on personal Gmail. You'd need either to upgrade to Workspace, or to use OAuth delegation instead (more complex — ask Claude to walk you through it).
 
 ### 5. Configure local env
 
@@ -143,6 +151,8 @@ If they have no signal: photos queue locally and auto-upload when signal comes b
 **"Permission denied" reading the Sheet** — you didn't share the Sheet with the service account email, or you shared with the wrong email. Open the Sheet → Share → check that the service-account email is listed with Editor.
 
 **"File not found" creating a Drive folder** — same problem on the Drive root folder. Right-click the `MSE Field Photos` folder → Share → add the service account.
+
+**"Service Accounts do not have storage quota"** — the root folder is in My Drive instead of a Shared Drive. Follow Step 4 in the setup section to create a Shared Drive, add the service account as Manager, and update `GOOGLE_DRIVE_ROOT_FOLDER_ID` in `.env.local`.
 
 **"Invalid grant" on auth** — your `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` env var is malformed. Check that:
 1. The whole key is wrapped in double quotes.
