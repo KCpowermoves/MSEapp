@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
+import { enqueueDraftJob } from "@/lib/upload-queue";
+import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
 import type { UtilityTerritory } from "@/lib/types";
 
@@ -38,23 +40,76 @@ export function NewJobForm({
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
-    try {
-      const res = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+
+    // ── Phase 1: try online, distinguish network from HTTP error
+    let httpResponse: Response | null = null;
+    let networkErrored = false;
+
+    const explicitlyOffline =
+      typeof navigator !== "undefined" && navigator.onLine === false;
+    if (explicitlyOffline) {
+      networkErrored = true;
+    } else {
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 8000);
+      try {
+        httpResponse = await fetch("/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: customerName.trim(),
+            siteAddress: "",
+            utilityTerritory: territory,
+            selfSold,
+            soldBy: selfSold ? soldBy : "",
+          }),
+        });
+      } catch {
+        networkErrored = true;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    // ── Phase 2: pick path
+    if (networkErrored) {
+      try {
+        const draftId = `local-job-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        await enqueueDraftJob({
+          id: draftId,
           customerName: customerName.trim(),
           siteAddress: "",
-          utilityTerritory: territory,
+          utilityTerritory: territory!,
           selfSold,
-          soldBy: selfSold ? soldBy : "",
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Could not create job");
+          soldBy: selfSold ? soldBy ?? "" : "",
+          createdAt: Date.now(),
+        });
+        kickWorker();
+        // Full-page nav so SW handles the offline shell, and the
+        // local- prefix routes through the offline-aware page logic.
+        window.location.assign(`/jobs/${encodeURIComponent(draftId)}`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not save offline");
+        setSubmitting(false);
       }
-      const job = await res.json();
+      return;
+    }
+
+    if (!httpResponse!.ok) {
+      try {
+        const data = await httpResponse!.json();
+        setError(data.error ?? "Could not create job");
+      } catch {
+        setError("Could not create job");
+      }
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const job = await httpResponse!.json();
       router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create job");

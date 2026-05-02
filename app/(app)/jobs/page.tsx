@@ -6,6 +6,7 @@ import { listAllDispatches } from "@/lib/data/dispatches";
 import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
 import { ageInDays } from "@/lib/utils";
 import { SubmittedToast } from "@/components/SubmittedToast";
+import { OfflineJobRows } from "@/components/OfflineJobRows";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,8 @@ export default async function JobsHomePage({
           </h2>
           <span className="text-xs text-mse-muted">last 7 days</span>
         </div>
+
+        <OfflineJobRows />
 
         {jobs.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-mse-light p-8 text-center">

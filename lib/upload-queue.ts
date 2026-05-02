@@ -1,12 +1,13 @@
 "use client";
 
 import { openDB, type IDBPDatabase } from "idb";
-import type { PhotoSlot, UnitType } from "@/lib/types";
+import type { PhotoSlot, UnitType, UtilityTerritory } from "@/lib/types";
 
 const DB_NAME = "mse-field-upload-queue";
 const STORE_PHOTOS = "photos";
 const STORE_DRAFTS = "drafts";
-const DB_VERSION = 2;
+const STORE_DRAFT_JOBS = "draftJobs";
+const DB_VERSION = 3;
 
 export interface QueuedPhoto {
   id: string;
@@ -24,7 +25,7 @@ export interface QueuedPhoto {
 
 export interface DraftUnit {
   id: string;            // local-{ts}-{rand}, used as the photo queue's unitId until sync
-  jobId: string;
+  jobId: string;         // may itself be a local-job- id; gets rewritten when the parent job syncs
   unitType: UnitType;
   label: string;
   make: string;
@@ -35,6 +36,20 @@ export interface DraftUnit {
   createdAt: number;
   status: "pending" | "syncing" | "synced" | "failed";
   realUnitId?: string;    // populated after server sync
+  lastError?: string;
+  attempts: number;
+}
+
+export interface DraftJob {
+  id: string;             // local-job-{ts}-{rand}, used as jobId by units/photos until sync
+  customerName: string;
+  siteAddress: string;
+  utilityTerritory: UtilityTerritory;
+  selfSold: boolean;
+  soldBy: string;
+  createdAt: number;
+  status: "pending" | "syncing" | "synced" | "failed";
+  realJobId?: string;     // populated after server sync
   lastError?: string;
   attempts: number;
 }
@@ -54,6 +69,12 @@ function getDb() {
           const drafts = db.createObjectStore(STORE_DRAFTS, { keyPath: "id" });
           drafts.createIndex("by-job", "jobId");
           drafts.createIndex("by-status", "status");
+        }
+        if (oldVersion < 3) {
+          const draftJobs = db.createObjectStore(STORE_DRAFT_JOBS, {
+            keyPath: "id",
+          });
+          draftJobs.createIndex("by-status", "status");
         }
       },
     });
@@ -190,4 +211,81 @@ export async function bumpDraftAttempt(
 export async function removeDraft(id: string): Promise<void> {
   const db = await getDb();
   await db.delete(STORE_DRAFTS, id);
+}
+
+/**
+ * Replace the jobId on every queued draft unit AND every queued photo
+ * currently keyed to oldJobId. Called by the worker after a draft job
+ * has been synced and we know the real jobId.
+ */
+export async function rewriteJobIds(
+  oldJobId: string,
+  newJobId: string
+): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction([STORE_DRAFTS, STORE_PHOTOS], "readwrite");
+  const drafts = (await tx.objectStore(STORE_DRAFTS).getAll()) as DraftUnit[];
+  for (const d of drafts) {
+    if (d.jobId === oldJobId) {
+      await tx.objectStore(STORE_DRAFTS).put({ ...d, jobId: newJobId });
+    }
+  }
+  const photos = (await tx.objectStore(STORE_PHOTOS).getAll()) as QueuedPhoto[];
+  for (const p of photos) {
+    if (p.jobId === oldJobId) {
+      await tx.objectStore(STORE_PHOTOS).put({ ...p, jobId: newJobId });
+    }
+  }
+  await tx.done;
+}
+
+// === Draft jobs ===
+
+export async function enqueueDraftJob(
+  payload: Omit<DraftJob, "attempts" | "status">
+): Promise<void> {
+  const db = await getDb();
+  await db.put(STORE_DRAFT_JOBS, { ...payload, attempts: 0, status: "pending" });
+}
+
+export async function listAllDraftJobs(): Promise<DraftJob[]> {
+  const db = await getDb();
+  return db.getAll(STORE_DRAFT_JOBS);
+}
+
+export async function getDraftJob(id: string): Promise<DraftJob | null> {
+  const db = await getDb();
+  const item = (await db.get(STORE_DRAFT_JOBS, id)) as DraftJob | undefined;
+  return item ?? null;
+}
+
+export async function setDraftJobStatus(
+  id: string,
+  status: DraftJob["status"],
+  patch: Partial<DraftJob> = {}
+): Promise<void> {
+  const db = await getDb();
+  const item = (await db.get(STORE_DRAFT_JOBS, id)) as DraftJob | undefined;
+  if (!item) return;
+  await db.put(STORE_DRAFT_JOBS, { ...item, ...patch, status });
+}
+
+export async function bumpDraftJobAttempt(
+  id: string,
+  error: string
+): Promise<void> {
+  const db = await getDb();
+  const item = (await db.get(STORE_DRAFT_JOBS, id)) as DraftJob | undefined;
+  if (!item) return;
+  await db.put(STORE_DRAFT_JOBS, {
+    ...item,
+    status: "failed",
+    attempts: (item.attempts ?? 0) + 1,
+    lastError: error,
+  });
+}
+
+export async function removeDraftJob(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete(STORE_DRAFT_JOBS, id);
 }

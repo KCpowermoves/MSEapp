@@ -2,14 +2,19 @@
 
 import {
   bumpDraftAttempt,
+  bumpDraftJobAttempt,
+  listAllDraftJobs,
   listAllDrafts,
   listPending,
   markFailed,
   markPending,
   markUploading,
   removePhoto,
+  rewriteJobIds,
   rewritePhotoUnitIds,
+  setDraftJobStatus,
   setDraftStatus,
+  type DraftJob,
   type DraftUnit,
   type QueuedPhoto,
 } from "@/lib/upload-queue";
@@ -24,6 +29,53 @@ let inFlight = 0;
 const UPLOAD_TIMEOUT_MS = 45_000;
 const STUCK_UPLOAD_THRESHOLD_MS = 90_000;
 const DRAFT_MAX_ATTEMPTS = 6;
+
+async function syncDraftJob(draft: DraftJob): Promise<void> {
+  await setDraftJobStatus(draft.id, "syncing");
+  try {
+    const res = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customerName: draft.customerName,
+        siteAddress: draft.siteAddress,
+        utilityTerritory: draft.utilityTerritory,
+        selfSold: draft.selfSold,
+        soldBy: draft.soldBy,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? `HTTP ${res.status}`);
+    }
+    const job = await res.json();
+    const realJobId = job?.jobId as string | undefined;
+    if (!realJobId) throw new Error("Server returned no jobId");
+
+    await setDraftJobStatus(draft.id, "synced", { realJobId });
+    // Cascade: rewrite the local-job- id to the real one on every queued
+    // draft unit AND every photo so they target the now-existing job.
+    await rewriteJobIds(draft.id, realJobId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await bumpDraftJobAttempt(draft.id, msg);
+    throw e;
+  }
+}
+
+async function syncPendingDraftJobs(): Promise<void> {
+  const drafts = await listAllDraftJobs();
+  for (const d of drafts) {
+    if (d.status === "synced") continue;
+    if (d.status === "syncing") continue;
+    if ((d.attempts ?? 0) >= DRAFT_MAX_ATTEMPTS) continue;
+    try {
+      await syncDraftJob(d);
+    } catch {
+      // logged via bumpDraftJobAttempt; keep going
+    }
+  }
+}
 
 async function syncDraftUnit(draft: DraftUnit): Promise<void> {
   await setDraftStatus(draft.id, "syncing");
@@ -65,6 +117,9 @@ async function syncPendingDrafts(): Promise<void> {
     if (d.status === "synced") continue;
     if (d.status === "syncing") continue;
     if ((d.attempts ?? 0) >= DRAFT_MAX_ATTEMPTS) continue;
+    // Skip if parent job is still a local- draft. Will retry next tick
+    // after the parent job syncs and rewriteJobIds updates this row.
+    if (d.jobId.startsWith("local-job-")) continue;
     try {
       await syncDraftUnit(d);
     } catch {
@@ -112,9 +167,14 @@ async function tick() {
     return;
   }
   try {
-    // 1) Sync any pending draft units first — photos for those drafts
-    //    can't upload until the unit row exists server-side and we know
-    //    the real unitId.
+    // 1a) Sync any offline-created jobs first. Until the job row exists
+    //     server-side, units that reference its local- id can't sync.
+    await syncPendingDraftJobs();
+
+    // 1b) Sync any pending draft units — photos for those drafts can't
+    //     upload until the unit row exists server-side and we know the
+    //     real unitId. (rewriteJobIds above ensures these now have real
+    //     jobIds where applicable.)
     await syncPendingDrafts();
 
     // 2) Drain photo queue (only photos whose unitId is real, not local-)
@@ -132,9 +192,10 @@ async function tick() {
     const drainable = fresh
       .filter((p) => p.status !== "uploading")
       .filter((p) => (p.attempts ?? 0) < 6)
-      // skip photos still pointing at an unsynced draft — next tick will pick
-      // them up after the draft syncs
+      // skip photos still pointing at an unsynced draft job OR draft unit —
+      // next tick will pick them up after the parent record syncs
       .filter((p) => !p.unitId || !p.unitId.startsWith("local-"))
+      .filter((p) => !p.jobId || !p.jobId.startsWith("local-job-"))
       .slice(0, MAX_CONCURRENCY - inFlight);
     for (const item of drainable) {
       inFlight++;

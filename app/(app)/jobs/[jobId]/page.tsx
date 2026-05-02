@@ -6,6 +6,7 @@ import { listUnitsForJob } from "@/lib/data/units";
 import { listActiveTechNames } from "@/lib/data/techs";
 import { todayIsoDate } from "@/lib/utils";
 import { JobDetail } from "@/components/JobDetail";
+import { OfflineJobDetail } from "@/components/OfflineJobDetail";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,14 @@ export default async function JobDetailPage({
   params: { jobId: string };
 }) {
   const jobId = decodeURIComponent(params.jobId);
+
+  // Offline draft jobs live entirely in IndexedDB. Render a thin
+  // client shell that loads from IDB and self-redirects once the
+  // background worker has synced the job server-side.
+  if (jobId.startsWith("local-job-")) {
+    return <OfflineJobDetail jobId={jobId} />;
+  }
+
   const job = await getJob(jobId);
   if (!job) notFound();
 
