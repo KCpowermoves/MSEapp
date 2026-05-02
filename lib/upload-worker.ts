@@ -1,11 +1,16 @@
 "use client";
 
 import {
+  bumpDraftAttempt,
+  listAllDrafts,
   listPending,
   markFailed,
   markPending,
   markUploading,
   removePhoto,
+  rewritePhotoUnitIds,
+  setDraftStatus,
+  type DraftUnit,
   type QueuedPhoto,
 } from "@/lib/upload-queue";
 
@@ -18,6 +23,55 @@ let inFlight = 0;
 
 const UPLOAD_TIMEOUT_MS = 45_000;
 const STUCK_UPLOAD_THRESHOLD_MS = 90_000;
+const DRAFT_MAX_ATTEMPTS = 6;
+
+async function syncDraftUnit(draft: DraftUnit): Promise<void> {
+  await setDraftStatus(draft.id, "syncing");
+  try {
+    const res = await fetch("/api/units", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobId: draft.jobId,
+        unitType: draft.unitType,
+        label: draft.label,
+        make: draft.make,
+        model: draft.model,
+        serial: draft.serial,
+        notes: draft.notes,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const realUnitId = data.unit?.unitId as string | undefined;
+    if (!realUnitId) throw new Error("Server returned no unitId");
+
+    // Mark draft synced and rewrite all queued photos that reference the temp id
+    await setDraftStatus(draft.id, "synced", { realUnitId });
+    await rewritePhotoUnitIds(draft.id, realUnitId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await bumpDraftAttempt(draft.id, msg);
+    throw e;
+  }
+}
+
+async function syncPendingDrafts(): Promise<void> {
+  const drafts = await listAllDrafts();
+  for (const d of drafts) {
+    if (d.status === "synced") continue;
+    if (d.status === "syncing") continue;
+    if ((d.attempts ?? 0) >= DRAFT_MAX_ATTEMPTS) continue;
+    try {
+      await syncDraftUnit(d);
+    } catch {
+      // already logged via bumpDraftAttempt; continue with next draft
+    }
+  }
+}
 
 async function uploadOne(item: QueuedPhoto) {
   await markUploading(item.id);
@@ -58,9 +112,13 @@ async function tick() {
     return;
   }
   try {
+    // 1) Sync any pending draft units first — photos for those drafts
+    //    can't upload until the unit row exists server-side and we know
+    //    the real unitId.
+    await syncPendingDrafts();
+
+    // 2) Drain photo queue (only photos whose unitId is real, not local-)
     const pending = await listPending();
-    // Reset items stuck in "uploading" state (page navigated mid-flight,
-    // browser killed the fetch silently, etc.) so they get retried.
     const now = Date.now();
     for (const p of pending) {
       if (
@@ -74,6 +132,9 @@ async function tick() {
     const drainable = fresh
       .filter((p) => p.status !== "uploading")
       .filter((p) => (p.attempts ?? 0) < 6)
+      // skip photos still pointing at an unsynced draft — next tick will pick
+      // them up after the draft syncs
+      .filter((p) => !p.unitId || !p.unitId.startsWith("local-"))
       .slice(0, MAX_CONCURRENCY - inFlight);
     for (const item of drainable) {
       inFlight++;

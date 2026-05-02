@@ -7,7 +7,7 @@ import { ArrowLeft, Camera, Loader2, X } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
-import { enqueuePhoto } from "@/lib/upload-queue";
+import { enqueueDraftUnit, enqueuePhoto } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
 import type { Job, PhotoSlot, UnitType } from "@/lib/types";
@@ -107,6 +107,13 @@ export function AddUnitForm({
     if (!canSubmit || !unitType) return;
     setSubmitting(true);
     setError(null);
+
+    let unitId: string;
+    let unitNumber: string;
+
+    // Try the online path first. On network failure (offline / basement /
+    // bad signal) fall back to a local draft that the worker will sync
+    // when connectivity returns.
     try {
       const res = await fetch("/api/units", {
         method: "POST",
@@ -122,51 +129,77 @@ export function AddUnitForm({
         }),
       });
       if (!res.ok) {
+        // HTTP error (auth, validation, 5xx) — surface and stop.
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Could not save unit");
+        setError(data.error ?? "Could not save unit");
+        setSubmitting(false);
+        return;
       }
       const data = await res.json();
-      const unitId = data.unit.unitId as string;
-      const unitNumber = String(data.unit.unitNumberOnJob).padStart(3, "0");
-      const typeTag = unitType!.replace(/[\s/]+/g, "-");
-
-      // Enqueue all the slot photos that the user actually captured
-      for (const { slot } of slots) {
-        const photo = photos[slot];
-        if (!photo) continue;
-        await enqueuePhoto({
-          id: `${unitId}-${slot}-${Date.now()}`,
+      unitId = data.unit.unitId as string;
+      unitNumber = String(data.unit.unitNumberOnJob).padStart(3, "0");
+    } catch {
+      // Network error — go offline. Create a draft locally; the
+      // background worker will POST it to /api/units when online.
+      const draftId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      try {
+        await enqueueDraftUnit({
+          id: draftId,
           jobId: job.jobId,
-          unitId,
-          serviceId: null,
-          photoSlot: slot,
-          blob: photo.blob,
-          filename: `Unit-${unitNumber}_${typeTag}_${slot}.jpg`,
-          capturedAt: photo.capturedAt,
+          unitType,
+          label,
+          make,
+          model,
+          serial,
+          notes,
+          fallbackUnitNumber: nextUnitNumber,
+          createdAt: Date.now(),
         });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not save offline");
+        setSubmitting(false);
+        return;
       }
-      // Enqueue any additional photos
-      for (let i = 0; i < additionalPhotos.length; i++) {
-        const photo = additionalPhotos[i];
-        if (!photo) continue;
-        await enqueuePhoto({
-          id: `${unitId}-additional-${i}-${Date.now()}`,
-          jobId: job.jobId,
-          unitId,
-          serviceId: null,
-          photoSlot: "additional",
-          blob: photo.blob,
-          filename: `${unitNumber}_additional_${i + 1}.jpg`,
-          capturedAt: photo.capturedAt,
-        });
-      }
-      kickWorker();
-      router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save unit");
-      setSubmitting(false);
+      unitId = draftId;
+      unitNumber = String(nextUnitNumber).padStart(3, "0");
     }
+
+    const typeTag = unitType.replace(/[\s/]+/g, "-");
+
+    // Enqueue all the slot photos that the user actually captured.
+    // If unitId is a local- id, the worker will rewrite it after the
+    // draft syncs.
+    for (const { slot } of slots) {
+      const photo = photos[slot];
+      if (!photo) continue;
+      await enqueuePhoto({
+        id: `${unitId}-${slot}-${Date.now()}`,
+        jobId: job.jobId,
+        unitId,
+        serviceId: null,
+        photoSlot: slot,
+        blob: photo.blob,
+        filename: `Unit-${unitNumber}_${typeTag}_${slot}.jpg`,
+        capturedAt: photo.capturedAt,
+      });
+    }
+    for (let i = 0; i < additionalPhotos.length; i++) {
+      const photo = additionalPhotos[i];
+      if (!photo) continue;
+      await enqueuePhoto({
+        id: `${unitId}-additional-${i}-${Date.now()}`,
+        jobId: job.jobId,
+        unitId,
+        serviceId: null,
+        photoSlot: "additional",
+        blob: photo.blob,
+        filename: `${unitNumber}_additional_${i + 1}.jpg`,
+        capturedAt: photo.capturedAt,
+      });
+    }
+    kickWorker();
+    router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
+    router.refresh();
   };
 
 

@@ -11,6 +11,7 @@ import {
   CircleDashed,
 } from "lucide-react";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
+import { UnitsSection } from "@/components/LocalDraftRows";
 import { cn } from "@/lib/utils";
 import type {
   Job,
@@ -90,18 +91,11 @@ export function JobDetail({
         </Link>
       </div>
 
-      {todaysUnits.length > 0 && (
-        <section>
-          <h3 className="text-sm font-semibold text-mse-muted uppercase tracking-wide mb-2">
-            Units
-          </h3>
-          <ul className="space-y-2">
-            {todaysUnits.map((u) => (
-              <UnitRow key={u.unitId} unit={u} jobId={job.jobId} />
-            ))}
-          </ul>
-        </section>
-      )}
+      <UnitsSection jobId={job.jobId} hasServerUnits={todaysUnits.length > 0}>
+        {todaysUnits.map((u) => (
+          <UnitRow key={u.unitId} unit={u} jobId={job.jobId} />
+        ))}
+      </UnitsSection>
 
       <Link
         href={`/jobs/${encodeURIComponent(job.jobId)}/submit`}
