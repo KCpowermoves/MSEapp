@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { listDraftsForJob, removeDraft, type DraftUnit } from "@/lib/upload-queue";
 
-const POLL_MS = 3000;
+const POLL_MS = 1500;
 
 /**
  * Polls IndexedDB for pending/syncing draft units belonging to a job.
@@ -45,11 +45,19 @@ export function useDraftUnits(jobId: string) {
     const onVis = () => {
       if (document.visibilityState === "visible") tick();
     };
+    const onFocus = () => tick();
+    const onPageshow = () => tick();
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onFocus);
+    // pageshow fires on bfcache restore (back/forward navigation) which
+    // visibilitychange/focus may miss on some Android Chrome versions.
+    window.addEventListener("pageshow", onPageshow);
     return () => {
       cancelled = true;
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onPageshow);
     };
   }, [jobId, router]);
 

@@ -18,10 +18,12 @@ import type {
   UnitServiced,
 } from "@/lib/types";
 
+type UnitWithStatus = UnitServiced & { submitted: boolean };
+
 interface Props {
   job: Job;
   todaysDispatchId: string | null;
-  todaysUnits: UnitServiced[];
+  todaysUnits: UnitWithStatus[];
   activeTechs: string[];
   currentUserName: string;
 }
@@ -32,7 +34,10 @@ export function JobDetail({
   currentUserName,
 }: Props) {
   useTodaysCrew(job.jobId, currentUserName);
-  const canSubmit = todaysUnits.length > 0;
+  // Only count un-submitted units toward the Submit button — already-
+  // submitted units shouldn't re-enable the submit dispatch flow.
+  const pendingUnits = todaysUnits.filter((u) => !u.submitted);
+  const canSubmit = pendingUnits.length > 0;
 
   return (
     <div className="space-y-6">
@@ -84,10 +89,10 @@ export function JobDetail({
       <div className="grid grid-cols-1 gap-3">
         <Link
           href={`/jobs/${encodeURIComponent(job.jobId)}/units/new`}
-          className="rounded-2xl bg-white border-2 border-mse-light hover:border-mse-navy/40 active:scale-[0.98] transition-[border-color,transform] p-4 flex flex-col items-center gap-2 shadow-card"
+          className="rounded-2xl bg-mse-navy hover:bg-mse-navy-soft active:scale-[0.98] transition-[background-color,transform] p-5 flex items-center justify-center gap-2 shadow-elevated text-white"
         >
-          <Wrench className="w-6 h-6 text-mse-navy" />
-          <span className="font-bold text-mse-navy">Add unit</span>
+          <Wrench className="w-6 h-6" />
+          <span className="font-bold text-lg">Add unit</span>
         </Link>
       </div>
 
@@ -119,7 +124,13 @@ export function JobDetail({
 
 const SIMPLE_TYPES = ["PTAC / Ductless"];
 
-function UnitRow({ unit, jobId }: { unit: UnitServiced; jobId: string }) {
+function UnitRow({
+  unit,
+  jobId,
+}: {
+  unit: UnitServiced & { submitted: boolean };
+  jobId: string;
+}) {
   const required: string[] = SIMPLE_TYPES.includes(unit.unitType)
     ? [unit.pre1Url, unit.pre2Url, unit.nameplateUrl]
     : unit.unitType === "Split System"
@@ -139,15 +150,27 @@ function UnitRow({ unit, jobId }: { unit: UnitServiced; jobId: string }) {
     ? unit.label
     : `Unit ${String(unit.unitNumberOnJob).padStart(3, "0")}`;
   return (
-    <li className="bg-white rounded-2xl border border-mse-light p-3 flex items-center gap-3 shadow-card">
+    <li
+      className={cn(
+        "bg-white rounded-2xl border border-mse-light p-3 flex items-center gap-3 shadow-card",
+        unit.submitted && "opacity-70"
+      )}
+    >
       {allUploaded ? (
         <CheckCircle2 className="w-6 h-6 text-mse-gold shrink-0" />
       ) : (
         <CircleDashed className="w-6 h-6 text-mse-muted shrink-0" />
       )}
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-mse-navy text-sm truncate">
-          {displayName} · {unit.unitType}
+        <div className="font-semibold text-mse-navy text-sm truncate flex items-center gap-2">
+          <span className="truncate">
+            {displayName} · {unit.unitType}
+          </span>
+          {unit.submitted && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-mse-navy/10 text-mse-navy shrink-0">
+              Submitted
+            </span>
+          )}
         </div>
         {unit.make && (
           <div className="text-xs text-mse-muted truncate">{unit.make}</div>

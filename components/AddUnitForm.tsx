@@ -85,8 +85,7 @@ export function AddUnitForm({
   const [unitType, setUnitType] = useState<UnitType | null>(null);
   const [photos, setPhotos] = useState<Partial<Record<PhotoSlot, CapturedPhoto>>>({});
   const [additionalPhotos, setAdditionalPhotos] = useState<CapturedPhoto[]>([]);
-  const [label, setLabel] = useState("");
-  const [labelTouched, setLabelTouched] = useState(false);
+  const [customLabel, setCustomLabel] = useState<string | null>(null);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [serial, setSerial] = useState("");
@@ -112,13 +111,15 @@ export function AddUnitForm({
 
   const effectiveNextNumber = nextUnitNumber + draftCount;
 
-  // Auto-fill the label whenever unit type changes — unless the tech
-  // has already typed something themselves.
-  useEffect(() => {
-    if (!unitType) return;
-    if (labelTouched) return;
-    setLabel(defaultLabel(unitType, effectiveNextNumber));
-  }, [unitType, effectiveNextNumber, labelTouched]);
+  // The label shown in the input. If the tech has typed a custom value,
+  // use that. Otherwise the label tracks unitType + effectiveNextNumber
+  // automatically — guarantees the second offline-saved unit defaults to
+  // "PTAC 2" rather than re-using "PTAC 1".
+  const displayLabel = useMemo(() => {
+    if (customLabel !== null) return customLabel;
+    if (!unitType) return "";
+    return defaultLabel(unitType, effectiveNextNumber);
+  }, [customLabel, unitType, effectiveNextNumber]);
 
   const slots = useMemo(() => slotsForType(unitType), [unitType]);
   const requiredSlots = slots.filter((s) => s.required);
@@ -149,8 +150,7 @@ export function AddUnitForm({
     setUnitType(null);
     setPhotos({});
     setAdditionalPhotos([]);
-    setLabel("");
-    setLabelTouched(false);
+    setCustomLabel(null);
     setMake("");
     setModel("");
     setSerial("");
@@ -166,7 +166,7 @@ export function AddUnitForm({
     // Snapshot the type before any state resets so async work (and
     // logging) sees the right value.
     const submittingType = unitType;
-    const submittingLabel = label;
+    const submittingLabel = displayLabel;
     const submittingPhotos = photos;
     const submittingAdditional = additionalPhotos;
     const submittingMake = make;
@@ -349,12 +349,9 @@ export function AddUnitForm({
           onChange={(next) => {
             setUnitType(next);
             setPhotos({});
-            // Reset the manual-touch flag so the label auto-fills
-            // for the new type. If they had typed a custom label
-            // for the previous type, that's lost — that's the right
-            // tradeoff: type-specific defaults are more useful than
-            // a sticky stale name.
-            setLabelTouched(false);
+            // Drop any custom label so the auto-default kicks in for
+            // the new type.
+            setCustomLabel(null);
           }}
         />
       </Field>
@@ -363,11 +360,8 @@ export function AddUnitForm({
         <Field label="Unit name">
           <input
             type="text"
-            value={label}
-            onChange={(e) => {
-              setLabel(e.target.value);
-              setLabelTouched(true);
-            }}
+            value={displayLabel}
+            onChange={(e) => setCustomLabel(e.target.value)}
             placeholder={defaultLabel(unitType, effectiveNextNumber)}
             autoCapitalize="words"
             className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
@@ -559,7 +553,7 @@ function AdditionalPhotosPicker({
         ref={inputRef}
         type="file"
         accept="image/*"
-        multiple
+        capture="environment"
         className="hidden"
         onChange={(e) => {
           const files = e.target.files;

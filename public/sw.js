@@ -1,6 +1,10 @@
 // MSE Field service worker — caches the app shell for offline use.
 // Photo uploads use IndexedDB (see lib/upload-queue.ts) and don't go through here.
 
+// IMPORTANT: only bump this when sw.js LOGIC changes — bumping wipes the
+// offline cache, which means the next time the user goes offline the app
+// won't load. App-code changes don't need a bump; the stale-while-
+// revalidate fetch handler picks up new HTML/JS automatically when online.
 const CACHE = "mse-field-v5";
 const PRECACHE = ["/login", "/jobs", "/manifest.json", "/logo.png", "/icon-192.png", "/icon-512.png"];
 
