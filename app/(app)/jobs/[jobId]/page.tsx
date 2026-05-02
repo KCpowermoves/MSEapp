@@ -3,7 +3,6 @@ import { getSession } from "@/lib/auth";
 import { getJob } from "@/lib/data/jobs";
 import { findDraftDispatch } from "@/lib/data/dispatches";
 import { listUnitsForDispatch } from "@/lib/data/units";
-import { listServicesForDispatch } from "@/lib/data/services";
 import { listActiveTechNames } from "@/lib/data/techs";
 import { todayIsoDate } from "@/lib/utils";
 import { JobDetail } from "@/components/JobDetail";
@@ -20,10 +19,9 @@ export default async function JobDetailPage({
   if (!job) notFound();
 
   const draft = await findDraftDispatch(jobId, todayIsoDate());
-  const [session, units, services, activeTechs] = await Promise.all([
+  const [session, units, activeTechs] = await Promise.all([
     getSession(),
     draft ? listUnitsForDispatch(draft.dispatchId) : Promise.resolve([]),
-    draft ? listServicesForDispatch(draft.dispatchId) : Promise.resolve([]),
     listActiveTechNames(),
   ]);
 
@@ -32,7 +30,6 @@ export default async function JobDetailPage({
       job={job}
       todaysDispatchId={draft?.dispatchId ?? null}
       todaysUnits={units}
-      todaysServices={services}
       activeTechs={activeTechs}
       currentUserName={session.name ?? ""}
     />

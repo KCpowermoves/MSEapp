@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, Loader2, Plus } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, X } from "lucide-react";
+import imageCompression from "browser-image-compression";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
 import { enqueuePhoto } from "@/lib/upload-queue";
@@ -58,12 +59,18 @@ function slotsForType(unitType: UnitType | null): SlotDef[] {
   ];
 }
 
-export function AddUnitForm({ job }: { job: Job }) {
+export function AddUnitForm({
+  job,
+  nextUnitNumber,
+}: {
+  job: Job;
+  nextUnitNumber: number;
+}) {
   const router = useRouter();
   const [unitType, setUnitType] = useState<UnitType | null>(null);
   const [photos, setPhotos] = useState<Partial<Record<PhotoSlot, CapturedPhoto>>>({});
   const [additionalPhotos, setAdditionalPhotos] = useState<CapturedPhoto[]>([]);
-  const [showOptional, setShowOptional] = useState(false);
+  const [label, setLabel] = useState(`Unit ${nextUnitNumber}`);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [serial, setSerial] = useState("");
@@ -88,16 +95,12 @@ export function AddUnitForm({ job }: { job: Job }) {
     });
   };
 
-  const setAdditionalAt = (i: number) => (next: CapturedPhoto | null) => {
-    setAdditionalPhotos((prev) => {
-      const copy = [...prev];
-      if (next === null) {
-        copy.splice(i, 1);
-      } else {
-        copy[i] = next;
-      }
-      return copy;
-    });
+  const addExtrasToAdditional = (extras: CapturedPhoto[]) => {
+    setAdditionalPhotos((prev) => [...prev, ...extras]);
+  };
+
+  const removeAdditional = (i: number) => {
+    setAdditionalPhotos((prev) => prev.filter((_, idx) => idx !== i));
   };
 
   const submit = async () => {
@@ -111,6 +114,7 @@ export function AddUnitForm({ job }: { job: Job }) {
         body: JSON.stringify({
           jobId: job.jobId,
           unitType,
+          label,
           make,
           model,
           serial,
@@ -158,13 +162,13 @@ export function AddUnitForm({ job }: { job: Job }) {
       }
       kickWorker();
       router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save unit");
       setSubmitting(false);
     }
   };
 
-  const additionalSlotCount = Math.max(additionalPhotos.length + 1, 1);
 
   return (
     <div className="space-y-6 pb-24">
@@ -197,18 +201,38 @@ export function AddUnitForm({ job }: { job: Job }) {
       </Field>
 
       {unitType && (
+        <Field label="Unit name">
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={`Unit ${nextUnitNumber}`}
+            autoCapitalize="words"
+            className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
+          />
+          <div className="text-xs text-mse-muted mt-1">
+            Defaults to <span className="font-semibold">Unit {nextUnitNumber}</span> — change to a location like &quot;Rooftop East&quot; or &quot;Suite 201&quot;.
+          </div>
+        </Field>
+      )}
+
+      {unitType && (
         <Field label="Photos" required>
           <div className="space-y-2">
-            {slots.map((p) => (
-              <PhotoCapture
-                key={p.slot}
-                label={p.label}
-                hint={p.hint}
-                required={p.required}
-                value={photos[p.slot] ?? null}
-                onChange={setSlot(p.slot)}
-              />
-            ))}
+            {slots.map((p) => {
+              const isFilterSlot = p.slot === "filter" || p.slot === "filter_pre" || p.slot === "filter_post";
+              return (
+                <PhotoCapture
+                  key={p.slot}
+                  label={p.label}
+                  hint={p.hint}
+                  required={p.required}
+                  value={photos[p.slot] ?? null}
+                  onChange={setSlot(p.slot)}
+                  onExtras={isFilterSlot ? addExtrasToAdditional : undefined}
+                />
+              );
+            })}
           </div>
         </Field>
       )}
@@ -216,45 +240,18 @@ export function AddUnitForm({ job }: { job: Job }) {
       {unitType && (
         <Field label="Additional photos">
           <div className="text-xs text-mse-muted mb-2">
-            Any extras — refrigerant gauges, before/after of a problem area,
-            anything that helps document the work. Add as many as you like.
+            Refrigerant gauges, problem areas, anything else that documents the work.
           </div>
-          <div className="space-y-2">
-            {Array.from({ length: additionalSlotCount }).map((_, i) => (
-              <PhotoCapture
-                key={i}
-                label={i === 0 ? "Additional photo" : `Additional photo ${i + 1}`}
-                value={additionalPhotos[i] ?? null}
-                onChange={setAdditionalAt(i)}
-              />
-            ))}
-          </div>
-          {additionalPhotos.length > 0 && (
-            <div className="text-xs text-mse-muted mt-2 inline-flex items-center gap-1">
-              <Plus className="w-3 h-3" />
-              {additionalPhotos.length} extra photo
-              {additionalPhotos.length === 1 ? "" : "s"}
-            </div>
-          )}
+          <AdditionalPhotosPicker
+            photos={additionalPhotos}
+            onAdd={addExtrasToAdditional}
+            onRemove={removeAdditional}
+          />
         </Field>
       )}
 
-      <button
-        type="button"
-        onClick={() => setShowOptional((v) => !v)}
-        className="w-full text-left text-sm font-semibold text-mse-muted flex items-center justify-between p-3 rounded-xl bg-mse-light/40 hover:bg-mse-light"
-      >
-        <span>Make / model / serial / notes (optional)</span>
-        <ChevronDown
-          className={cn(
-            "w-4 h-4 transition-transform",
-            showOptional && "rotate-180"
-          )}
-        />
-      </button>
-
-      {showOptional && (
-        <div className="space-y-4 animate-fade-in">
+      {unitType && (
+        <div className="space-y-4">
           <Field label="Make">
             <input
               type="text"
@@ -346,6 +343,119 @@ function Field({
         {required && <span className="text-mse-red ml-1">*</span>}
       </div>
       {children}
+    </div>
+  );
+}
+
+const COMPRESSION_OPTS = {
+  maxSizeMB: 1.5,
+  maxWidthOrHeight: 1600,
+  initialQuality: 0.78,
+  useWebWorker: false,
+  preserveExif: false,
+  fileType: "image/jpeg" as const,
+};
+const THUMB_OPTS = {
+  maxSizeMB: 0.05,
+  maxWidthOrHeight: 256,
+  useWebWorker: false,
+  fileType: "image/jpeg" as const,
+};
+
+function AdditionalPhotosPicker({
+  photos,
+  onAdd,
+  onRemove,
+}: {
+  photos: CapturedPhoto[];
+  onAdd: (photos: CapturedPhoto[]) => void;
+  onRemove: (i: number) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleFiles = async (files: FileList) => {
+    if (!files.length) return;
+    setBusy(true);
+    try {
+      const results = await Promise.all(
+        Array.from(files).map(async (file) => {
+          const compressed = await imageCompression(file, COMPRESSION_OPTS);
+          let thumb: Blob;
+          try {
+            thumb = await imageCompression(file, THUMB_OPTS);
+          } catch {
+            thumb = compressed;
+          }
+          return {
+            blob: compressed,
+            thumbnailUrl: URL.createObjectURL(thumb),
+            capturedAt: Date.now(),
+            filename: `photo_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,
+          } satisfies CapturedPhoto;
+        })
+      );
+      onAdd(results);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files;
+          e.target.value = "";
+          if (files) handleFiles(files);
+        }}
+      />
+      {photos.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {photos.map((p, i) => (
+            <div key={i} className="relative rounded-xl overflow-hidden aspect-square bg-mse-light">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
+                aria-label="Remove photo"
+              >
+                <X className="w-3 h-3 text-white" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        className={cn(
+          "w-full rounded-2xl border-2 border-dashed border-mse-light bg-white p-4",
+          "flex items-center justify-center gap-2 text-sm font-semibold text-mse-muted",
+          "hover:border-mse-navy/30 hover:text-mse-navy transition-[border-color,color]",
+          "active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red"
+        )}
+      >
+        {busy ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Camera className="w-4 h-4" />
+        )}
+        {busy ? "Processing..." : photos.length === 0 ? "Add photos" : "Add more"}
+        {!busy && photos.length > 0 && (
+          <span className="ml-1 text-xs text-mse-muted font-normal">
+            ({photos.length} added)
+          </span>
+        )}
+      </button>
     </div>
   );
 }

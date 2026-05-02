@@ -1,22 +1,58 @@
 import Link from "next/link";
-import { Plus, ChevronRight, MapPin } from "lucide-react";
+import { Plus, ChevronRight, MapPin, CheckCircle2, Camera } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listActiveJobs } from "@/lib/data/jobs";
+import { listAllDispatches } from "@/lib/data/dispatches";
+import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
 import { ageInDays } from "@/lib/utils";
 import { SubmittedToast } from "@/components/SubmittedToast";
 
 export const dynamic = "force-dynamic";
+
+interface JobStats {
+  pendingUnits: number;
+  photosUploaded: number;
+  photosRequired: number;
+}
 
 export default async function JobsHomePage({
   searchParams,
 }: {
   searchParams: { submitted?: string };
 }) {
-  const [session, jobs] = await Promise.all([
+  const [session, jobs, dispatches, units] = await Promise.all([
     getSession(),
     listActiveJobs(),
+    listAllDispatches(),
+    listAllUnits(),
   ]);
   const firstName = (session.name ?? "").split(" ")[0] || "there";
+
+  // Map jobId → stats from any unsubmitted dispatch
+  const draftDispatchesByJob = new Map<string, Set<string>>();
+  for (const d of dispatches) {
+    if (d.submittedAt) continue;
+    if (!draftDispatchesByJob.has(d.jobId)) {
+      draftDispatchesByJob.set(d.jobId, new Set());
+    }
+    draftDispatchesByJob.get(d.jobId)!.add(d.dispatchId);
+  }
+
+  const statsByJob = new Map<string, JobStats>();
+  for (const u of units) {
+    const drafts = draftDispatchesByJob.get(u.jobId);
+    if (!drafts || !drafts.has(u.dispatchId)) continue;
+    const { uploaded, required } = unitPhotoCounts(u);
+    const cur = statsByJob.get(u.jobId) ?? {
+      pendingUnits: 0,
+      photosUploaded: 0,
+      photosRequired: 0,
+    };
+    cur.pendingUnits += 1;
+    cur.photosUploaded += uploaded;
+    cur.photosRequired += required;
+    statsByJob.set(u.jobId, cur);
+  }
 
   return (
     <div className="space-y-6">
@@ -49,6 +85,7 @@ export default async function JobsHomePage({
               const age = Math.floor(
                 ageInDays(j.lastActivityDate || j.createdDate)
               );
+              const stats = statsByJob.get(j.jobId);
               return (
                 <li key={j.jobId}>
                   <Link
@@ -64,11 +101,14 @@ export default async function JobsHomePage({
                           <MapPin className="w-3 h-3 shrink-0" />
                           {j.siteAddress}
                         </div>
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <TerritoryPill territory={j.utilityTerritory} />
                           <span className="text-xs text-mse-muted">
                             {age === 0 ? "today" : `${age}d ago`}
                           </span>
+                          {stats && stats.pendingUnits > 0 && (
+                            <PhotoStatusPill stats={stats} />
+                          )}
                         </div>
                       </div>
                       <ChevronRight className="w-5 h-5 text-mse-muted shrink-0 mt-1" />
@@ -91,6 +131,28 @@ export default async function JobsHomePage({
         </span>
       </Link>
     </div>
+  );
+}
+
+function PhotoStatusPill({ stats }: { stats: JobStats }) {
+  const { pendingUnits, photosUploaded, photosRequired } = stats;
+  const allDone = photosRequired > 0 && photosUploaded === photosRequired;
+  const unitWord = pendingUnits === 1 ? "unit" : "units";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+        allDone
+          ? "bg-mse-gold/15 text-mse-navy"
+          : "bg-mse-red/10 text-mse-red"
+      }`}
+    >
+      {allDone ? (
+        <CheckCircle2 className="w-3 h-3" />
+      ) : (
+        <Camera className="w-3 h-3" />
+      )}
+      {pendingUnits} {unitWord} · {photosUploaded}/{photosRequired}
+    </span>
   );
 }
 

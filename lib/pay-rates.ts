@@ -28,8 +28,10 @@ export const SERVICE_PAY: Record<ServiceType, number> = {
   "Standalone Small Job": 100,
 };
 
-export const DAILY_DRIVING_STIPEND = 10;
-export const TRAVEL_DISPATCH_BONUS = 40;
+// Removed per company policy — kept exported as 0 so existing
+// dispatch rows / attribution helpers continue to type-check.
+export const DAILY_DRIVING_STIPEND = 0;
+export const TRAVEL_DISPATCH_BONUS = 0;
 
 export const TRAVEL_TERRITORIES: UtilityTerritory[] = ["Delmarva", "SMECO"];
 

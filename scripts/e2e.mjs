@@ -116,7 +116,6 @@ async function createJob(page, opts) {
   step(`Create job: ${opts.customer} (${opts.territory})${opts.selfSold ? " · self-sold" : ""}`);
   await page.goto(`${BASE}/jobs/new`, { waitUntil: "networkidle2" });
   await page.type('input[type="text"]', opts.customer);
-  await page.type("textarea", opts.address);
   await clickByText(page, "button", opts.territory);
   if (opts.selfSold) {
     // Click the toggle — it's the only role="switch" on the page
@@ -181,20 +180,19 @@ async function addUnit(page, jobId, unitType) {
   );
   for (let i = 0; i < requiredCount; i++) {
     const before = await page.evaluate(
-      () => (document.body.innerText.match(/Captured/g) || []).length
+      () => document.querySelectorAll('[data-photo-captured]').length
     );
     await inputs[i].uploadFile(TMP_FILE);
     await page
       .waitForFunction(
-        (b) =>
-          (document.body.innerText.match(/Captured/g) || []).length > b,
+        (b) => document.querySelectorAll('[data-photo-captured]').length > b,
         { timeout: 8000 },
         before
       )
       .catch(() => {});
   }
   const captured = await page.evaluate(
-    () => (document.body.innerText.match(/Captured/g) || []).length
+    () => document.querySelectorAll('[data-photo-captured]').length
   );
   expect(
     captured >= requiredCount,
@@ -623,8 +621,6 @@ async function main() {
     const expectedSalesPaid = (5 + 30) * 0.5;   // $17.50
     const expectedSalesPending = (5 + 30) * 0.5; // $17.50
     const expectedService = 2 * 25;              // $50
-    const expectedStipend = 2 * 10;              // $20
-    const expectedTravel = 40;
     expect(
       Math.abs((sumByLineItem.Install ?? 0) - expectedInstall) < 0.01,
       `Install pay: expected ${expectedInstall}, got ${sumByLineItem.Install}`
@@ -641,14 +637,7 @@ async function main() {
       Math.abs((sumByLineItem.Service ?? 0) - expectedService) < 0.01,
       `Service pay: expected ${expectedService}, got ${sumByLineItem.Service}`
     );
-    expect(
-      Math.abs((sumByLineItem["Daily Stipend"] ?? 0) - expectedStipend) < 0.01,
-      `Daily stipend: expected ${expectedStipend}, got ${sumByLineItem["Daily Stipend"]}`
-    );
-    expect(
-      Math.abs((sumByLineItem["Travel Bonus"] ?? 0) - expectedTravel) < 0.01,
-      `Travel bonus: expected ${expectedTravel}, got ${sumByLineItem["Travel Bonus"]}`
-    );
+    // Stipend & travel removed per company policy — no longer asserted
 
     // Verify Pay Calc tab actually rolls up correctly
     step("Verify Pay Calc rollup for Kevin Lee");
@@ -663,8 +652,7 @@ async function main() {
     );
     expect(row[0] === "Kevin Lee", `tech name in Pay Calc row 4 = "Kevin Lee"`);
     const thisRunTotal =
-      expectedInstall + expectedSalesPaid + expectedSalesPending +
-      expectedService + expectedStipend + expectedTravel;
+      expectedInstall + expectedSalesPaid + expectedSalesPending + expectedService;
     // Pay Calc tab is cumulative across all test runs — just verify it's
     // at least this run's contribution and is a valid number
     expect(

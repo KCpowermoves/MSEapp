@@ -119,6 +119,6 @@ export function jobFolderName(opts: {
   const dateStr = opts.createdDate.toISOString().slice(0, 10);
   const cust = opts.customerName.replace(/[^a-zA-Z0-9 ]+/g, "").trim();
   const addr = shortAddress(opts.siteAddress);
-  return `${dateStr}_${cust}_${addr}`;
+  return addr ? `${dateStr}_${cust}_${addr}` : `${dateStr}_${cust}`;
 }
 

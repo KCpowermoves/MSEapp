@@ -4,15 +4,15 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ExternalLink,
+  FolderOpen,
+  Pencil,
   Wrench,
-  Lightbulb,
   CheckCircle2,
   CircleDashed,
 } from "lucide-react";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { cn } from "@/lib/utils";
 import type {
-  AdditionalService,
   Job,
   UnitServiced,
 } from "@/lib/types";
@@ -21,7 +21,6 @@ interface Props {
   job: Job;
   todaysDispatchId: string | null;
   todaysUnits: UnitServiced[];
-  todaysServices: AdditionalService[];
   activeTechs: string[];
   currentUserName: string;
 }
@@ -29,15 +28,10 @@ interface Props {
 export function JobDetail({
   job,
   todaysUnits,
-  todaysServices,
-  activeTechs,
   currentUserName,
 }: Props) {
-  // Hook still runs to seed localStorage with the logged-in tech for
-  // the AddUnit / Submit flows downstream — even though we no longer
-  // show a crew picker on this page.
   useTodaysCrew(job.jobId, currentUserName);
-  const canSubmit = todaysUnits.length > 0 || todaysServices.length > 0;
+  const canSubmit = todaysUnits.length > 0;
 
   return (
     <div className="space-y-6">
@@ -64,20 +58,29 @@ export function JobDetail({
             <span className="text-xs text-mse-muted font-mono">{job.jobId}</span>
           </div>
         </div>
+        <Link
+          href={`/jobs/${encodeURIComponent(job.jobId)}/edit`}
+          className="p-2 text-mse-muted hover:text-mse-navy"
+          aria-label="Edit job"
+        >
+          <Pencil className="w-4 h-4" />
+        </Link>
         {job.driveFolderUrl && (
           <a
             href={job.driveFolderUrl}
             target="_blank"
             rel="noopener"
-            className="p-2 text-mse-muted hover:text-mse-navy"
-            aria-label="Open Drive folder"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-mse-muted hover:text-mse-navy hover:bg-mse-light/60 transition-colors text-xs font-semibold shrink-0"
+            aria-label="Open Google Drive folder"
           >
-            <ExternalLink className="w-5 h-5" />
+            <FolderOpen className="w-4 h-4 text-[#4285F4]" />
+            <span className="hidden sm:inline">Google Drive</span>
+            <ExternalLink className="w-3 h-3 opacity-60" />
           </a>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <Link
           href={`/jobs/${encodeURIComponent(job.jobId)}/units/new`}
           className="rounded-2xl bg-white border-2 border-mse-light hover:border-mse-navy/40 active:scale-[0.98] transition-[border-color,transform] p-4 flex flex-col items-center gap-2 shadow-card"
@@ -85,49 +88,16 @@ export function JobDetail({
           <Wrench className="w-6 h-6 text-mse-navy" />
           <span className="font-bold text-mse-navy">Add unit</span>
         </Link>
-        <Link
-          href={`/jobs/${encodeURIComponent(job.jobId)}/services/new`}
-          className="rounded-2xl bg-white border-2 border-mse-light hover:border-mse-navy/40 active:scale-[0.98] transition-[border-color,transform] p-4 flex flex-col items-center gap-2 shadow-card"
-        >
-          <Lightbulb className="w-6 h-6 text-mse-navy" />
-          <span className="font-bold text-mse-navy">Add service</span>
-        </Link>
       </div>
 
       {todaysUnits.length > 0 && (
         <section>
           <h3 className="text-sm font-semibold text-mse-muted uppercase tracking-wide mb-2">
-            Today&apos;s units
+            Units
           </h3>
           <ul className="space-y-2">
             {todaysUnits.map((u) => (
-              <UnitRow key={u.unitId} unit={u} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {todaysServices.length > 0 && (
-        <section>
-          <h3 className="text-sm font-semibold text-mse-muted uppercase tracking-wide mb-2">
-            Today&apos;s services
-          </h3>
-          <ul className="space-y-2">
-            {todaysServices.map((s) => (
-              <li
-                key={s.serviceId}
-                className="bg-white rounded-2xl border border-mse-light p-3 flex items-center gap-3 shadow-card"
-              >
-                <Lightbulb className="w-5 h-5 text-mse-navy shrink-0" />
-                <div className="flex-1">
-                  <div className="font-semibold text-mse-navy text-sm">
-                    {s.serviceType}
-                  </div>
-                  <div className="text-xs text-mse-muted">
-                    qty {s.quantity}
-                  </div>
-                </div>
-              </li>
+              <UnitRow key={u.unitId} unit={u} jobId={job.jobId} />
             ))}
           </ul>
         </section>
@@ -147,7 +117,7 @@ export function JobDetail({
             : "bg-mse-light text-mse-muted cursor-not-allowed"
         )}
       >
-        Submit dispatch
+        Submit job
       </Link>
     </div>
   );
@@ -155,7 +125,7 @@ export function JobDetail({
 
 const SIMPLE_TYPES = ["PTAC / Ductless"];
 
-function UnitRow({ unit }: { unit: UnitServiced }) {
+function UnitRow({ unit, jobId }: { unit: UnitServiced; jobId: string }) {
   const required: string[] = SIMPLE_TYPES.includes(unit.unitType)
     ? [unit.pre1Url, unit.pre2Url, unit.nameplateUrl]
     : unit.unitType === "Split System"
@@ -171,6 +141,9 @@ function UnitRow({ unit }: { unit: UnitServiced }) {
   const requiredFilled = required.filter(Boolean).length;
   const requiredCount = required.length;
   const allUploaded = requiredFilled === requiredCount;
+  const displayName = unit.label?.trim()
+    ? unit.label
+    : `Unit ${String(unit.unitNumberOnJob).padStart(3, "0")}`;
   return (
     <li className="bg-white rounded-2xl border border-mse-light p-3 flex items-center gap-3 shadow-card">
       {allUploaded ? (
@@ -180,7 +153,7 @@ function UnitRow({ unit }: { unit: UnitServiced }) {
       )}
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-mse-navy text-sm truncate">
-          Unit {String(unit.unitNumberOnJob).padStart(3, "0")} · {unit.unitType}
+          {displayName} · {unit.unitType}
         </div>
         {unit.make && (
           <div className="text-xs text-mse-muted truncate">{unit.make}</div>
@@ -194,6 +167,13 @@ function UnitRow({ unit }: { unit: UnitServiced }) {
       >
         {requiredFilled}/{requiredCount}
       </div>
+      <Link
+        href={`/jobs/${encodeURIComponent(jobId)}/units/${encodeURIComponent(unit.unitId)}/edit`}
+        className="p-1.5 text-mse-muted hover:text-mse-navy"
+        aria-label="Edit unit"
+      >
+        <Pencil className="w-4 h-4" />
+      </Link>
     </li>
   );
 }

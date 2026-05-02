@@ -107,3 +107,36 @@ export async function bumpLastActivity(jobId: string): Promise<void> {
   if (!rowIndex) return;
   await updateCell(`${TABS.jobs}!C${rowIndex}`, nowIso());
 }
+
+export async function updateJob(opts: {
+  jobId: string;
+  customerName?: string;
+  siteAddress?: string;
+  utilityTerritory?: UtilityTerritory;
+  status?: "Active" | "Closed";
+  selfSold?: boolean;
+  soldBy?: string;
+  notes?: string;
+}): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.jobs, "A", opts.jobId);
+  if (!rowIndex) throw new Error(`Job not found: ${opts.jobId}`);
+  const updates: Promise<void>[] = [];
+  if (opts.customerName !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!D${rowIndex}`, opts.customerName));
+  if (opts.siteAddress !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!E${rowIndex}`, opts.siteAddress));
+  if (opts.utilityTerritory !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!F${rowIndex}`, opts.utilityTerritory));
+  if (opts.status !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!G${rowIndex}`, opts.status));
+  if (opts.selfSold !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!H${rowIndex}`, opts.selfSold ? "TRUE" : "FALSE"));
+  if (opts.soldBy !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!I${rowIndex}`, opts.soldBy));
+  if (opts.notes !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!M${rowIndex}`, opts.notes));
+  if (updates.length > 0) {
+    await Promise.all(updates);
+    await bumpLastActivity(opts.jobId);
+  }
+}

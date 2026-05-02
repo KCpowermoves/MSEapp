@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { getJob } from "@/lib/data/jobs";
 import { getUnit, setUnitPhotoUrl } from "@/lib/data/units";
@@ -85,6 +86,8 @@ export async function POST(request: Request) {
         body: buffer,
       });
       await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
+      revalidatePath(`/jobs/${jobId}`);
+      revalidatePath("/jobs");
       return NextResponse.json({ url: uploaded.url });
     }
 

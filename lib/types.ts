@@ -96,6 +96,7 @@ export interface UnitServiced {
   inPreUrl: string;
   inPostUrl: string;
   inNameplateUrl: string;
+  label: string;
   make: string;
   model: string;
   serial: string;

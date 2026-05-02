@@ -19,7 +19,6 @@ export function NewJobForm({
 }) {
   const router = useRouter();
   const [customerName, setCustomerName] = useState("");
-  const [siteAddress, setSiteAddress] = useState("");
   const [territory, setTerritory] = useState<UtilityTerritory | null>(null);
   const [selfSold, setSelfSold] = useState(false);
   // Default to the logged-in tech (most common case). User can change
@@ -31,7 +30,6 @@ export function NewJobForm({
   const sellerOk = !selfSold || (selfSold && soldBy);
   const canSubmit =
     customerName.trim().length > 0 &&
-    siteAddress.trim().length > 0 &&
     territory !== null &&
     sellerOk &&
     !submitting;
@@ -46,7 +44,7 @@ export function NewJobForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerName: customerName.trim(),
-          siteAddress: siteAddress.trim(),
+          siteAddress: "",
           utilityTerritory: territory,
           selfSold,
           soldBy: selfSold ? soldBy : "",
@@ -87,16 +85,6 @@ export function NewJobForm({
             autoFocus
             autoCapitalize="words"
             className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
-          />
-        </Field>
-
-        <Field label="Site address">
-          <textarea
-            value={siteAddress}
-            onChange={(e) => setSiteAddress(e.target.value)}
-            placeholder="e.g. 1234 York Rd, Towson MD 21204"
-            rows={2}
-            className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy resize-none"
           />
         </Field>
 

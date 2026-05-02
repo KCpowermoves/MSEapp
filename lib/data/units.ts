@@ -18,6 +18,7 @@ import type { PhotoSlot, UnitServiced, UnitType } from "@/lib/types";
 // M=Nameplate  N=Filter  O=Additional (CSV)
 // P=Make  Q=Model  R=Serial  S=Notes  T=LoggedBy  U=LoggedAt
 // V=InPre  W=InPost  X=InNameplate  (Split System indoor AH only)
+// Y=Label (optional zone/location label, e.g. "Rooftop East", "Suite 201")
 const PHOTO_COL: Record<Exclude<PhotoSlot, "additional">, string> = {
   // Simple types (PTAC, Ductless, Water-Source HP, VRV-VRF)
   pre: "G", post: "H",
@@ -62,6 +63,7 @@ function rowToUnit(row: string[]): UnitServiced {
     inPreUrl: String(row[21] ?? ""),
     inPostUrl: String(row[22] ?? ""),
     inNameplateUrl: String(row[23] ?? ""),
+    label: String(row[24] ?? ""),
   };
 }
 
@@ -100,6 +102,7 @@ export async function createUnit(opts: {
   jobId: string;
   unitNumberOnJob: number;
   unitType: UnitType;
+  label: string;
   make: string;
   model: string;
   serial: string;
@@ -127,6 +130,7 @@ export async function createUnit(opts: {
     opts.loggedBy,
     isoNow,
     "", "", "",        // V W X: Split System indoor AH photos
+    opts.label,        // Y: location/zone label
   ]);
   await bumpLastActivity(opts.jobId);
   return {
@@ -139,6 +143,7 @@ export async function createUnit(opts: {
     post1Url: "", post2Url: "", post3Url: "",
     nameplateUrl: "", filterUrl: "", additionalUrls: "",
     inPreUrl: "", inPostUrl: "", inNameplateUrl: "",
+    label: opts.label,
     make: opts.make,
     model: opts.model,
     serial: opts.serial,
@@ -146,6 +151,33 @@ export async function createUnit(opts: {
     loggedBy: opts.loggedBy,
     loggedAt: isoNow,
   };
+}
+
+export async function updateUnit(opts: {
+  unitId: string;
+  unitType?: UnitType;
+  label?: string;
+  make?: string;
+  model?: string;
+  serial?: string;
+  notes?: string;
+}): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.unitsServiced, "A", opts.unitId);
+  if (!rowIndex) throw new Error(`Unit not found: ${opts.unitId}`);
+  const updates: Promise<void>[] = [];
+  if (opts.unitType !== undefined)
+    updates.push(updateCell(`${TABS.unitsServiced}!E${rowIndex}`, opts.unitType));
+  if (opts.label !== undefined)
+    updates.push(updateCell(`${TABS.unitsServiced}!Y${rowIndex}`, opts.label));
+  if (opts.make !== undefined)
+    updates.push(updateCell(`${TABS.unitsServiced}!P${rowIndex}`, opts.make));
+  if (opts.model !== undefined)
+    updates.push(updateCell(`${TABS.unitsServiced}!Q${rowIndex}`, opts.model));
+  if (opts.serial !== undefined)
+    updates.push(updateCell(`${TABS.unitsServiced}!R${rowIndex}`, opts.serial));
+  if (opts.notes !== undefined)
+    updates.push(updateCell(`${TABS.unitsServiced}!S${rowIndex}`, opts.notes));
+  await Promise.all(updates);
 }
 
 export async function setUnitPhotoUrl(
@@ -213,4 +245,17 @@ export function unitHasAllRequiredPhotos(unit: UnitServiced): boolean {
   return requiredPhotoSlots(unit.unitType).every((slot) =>
     Boolean(urlForSlot(unit, slot))
   );
+}
+
+export function unitPhotoCounts(unit: UnitServiced): {
+  uploaded: number;
+  required: number;
+} {
+  const slots = requiredPhotoSlots(unit.unitType);
+  const uploaded = slots.filter((s) => Boolean(urlForSlot(unit, s))).length;
+  return { uploaded, required: slots.length };
+}
+
+export function photoUrlForSlot(unit: UnitServiced, slot: PhotoSlot): string {
+  return urlForSlot(unit, slot);
 }

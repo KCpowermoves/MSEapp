@@ -7,13 +7,10 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import {
-  DAILY_DRIVING_STIPEND,
   INSTALL_PAY,
   SALES_BONUS,
   SERVICE_PAY,
-  TRAVEL_DISPATCH_BONUS,
   crewSize,
-  isTravelTerritory,
 } from "@/lib/pay-rates";
 import { cn, formatCurrency } from "@/lib/utils";
 import type {
@@ -52,28 +49,21 @@ export function SubmitDispatchForm({
     currentUserName
   );
   const [crewSplit, setCrewSplit] = useState<CrewSplit>("Solo");
-  const [driver, setDriver] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-select split based on crew size and seed driver to first crew member
+  // Auto-select split based on crew size
   useEffect(() => {
     if (!hydrated) return;
     if (crew.length === 1) setCrewSplit("Solo");
     else if (crew.length === 2) setCrewSplit("50-50");
     else if (crew.length >= 3) setCrewSplit("33-33-33");
-    if (crew.length === 1) setDriver(crew[0]);
-    else if (crew.length > 1 && (!driver || !crew.includes(driver))) {
-      setDriver(crew[0]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crew.join(","), hydrated]);
+  }, [crew.length, hydrated]);
 
   const cSize = crewSize(crewSplit);
   const totals = useMemo(
-    () =>
-      computePayPreview({ job, units, services, crewSplit, driver, crew }),
-    [job, units, services, crewSplit, driver, crew]
+    () => computePayPreview({ job, units, services, crewSplit, crew }),
+    [job, units, services, crewSplit, crew]
   );
 
   const SIMPLE_TYPES = ["PTAC / Ductless"];
@@ -95,10 +85,7 @@ export function SubmitDispatchForm({
   });
 
   const crewSizeMatches = crew.length === cSize;
-  const driverPicked =
-    crewSplit === "Solo" || (driver !== null && crew.includes(driver));
-  const canSubmit =
-    crew.length > 0 && crewSizeMatches && driverPicked && !submitting;
+  const canSubmit = crew.length > 0 && crewSizeMatches && !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -112,7 +99,7 @@ export function SubmitDispatchForm({
           dispatchId,
           techsOnSite: crew,
           crewSplit,
-          driver: crewSplit === "Solo" ? crew[0] : driver,
+          driver: "",
         }),
       });
       if (!res.ok) {
@@ -136,7 +123,7 @@ export function SubmitDispatchForm({
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-2xl font-bold text-mse-navy">Submit dispatch</h1>
+        <h1 className="text-2xl font-bold text-mse-navy">Submit job</h1>
       </div>
 
       <section className="bg-mse-light/60 rounded-2xl p-4">
@@ -214,17 +201,6 @@ export function SubmitDispatchForm({
           </div>
         )}
       </Field>
-
-      {crewSplit !== "Solo" && crew.length > 1 && (
-        <Field label="Who drove?" required>
-          <CrewPicker options={crew} value={driver} onChange={setDriver} />
-          <div className="text-xs text-mse-muted mt-2">
-            {isTravelTerritory(job.utilityTerritory)
-              ? `${job.utilityTerritory} territory — driver gets the $40 travel bonus.`
-              : "Driver tracking only matters for travel-bonus territories (Delmarva, SMECO)."}
-          </div>
-        </Field>
-      )}
 
       <section className="bg-white rounded-2xl border border-mse-light p-4 space-y-3 shadow-card">
         <div className="font-bold text-mse-navy">Pay preview</div>
@@ -330,10 +306,9 @@ function computePayPreview(opts: {
   units: UnitServiced[];
   services: AdditionalService[];
   crewSplit: CrewSplit;
-  driver: string | null;
   crew: string[];
 }): { lines: PayLine[]; byTech: PayTotal[] } {
-  const { job, units, services, crewSplit, driver, crew } = opts;
+  const { job, units, services, crewSplit, crew } = opts;
   const lines: PayLine[] = [];
   if (crew.length === 0) return { lines, byTech: [] };
   const cSize = crewSize(crewSplit);
@@ -370,25 +345,6 @@ function computePayPreview(opts: {
         tech: s.loggedBy,
         label: `${s.serviceType} · qty ${s.quantity}`,
         amount: rate * s.quantity,
-      });
-    }
-  }
-
-  for (const t of crew) {
-    lines.push({
-      tech: t,
-      label: "Daily driving stipend",
-      amount: DAILY_DRIVING_STIPEND,
-    });
-  }
-
-  if (isTravelTerritory(job.utilityTerritory)) {
-    const driverName = crewSplit === "Solo" ? crew[0] : driver;
-    if (driverName) {
-      lines.push({
-        tech: driverName,
-        label: "Travel bonus",
-        amount: TRAVEL_DISPATCH_BONUS,
       });
     }
   }
