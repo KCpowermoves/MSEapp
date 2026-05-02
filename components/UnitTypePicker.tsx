@@ -37,6 +37,7 @@ function TypeBtn({
   return (
     <button
       type="button"
+      data-unit-type={t.id}
       onClick={() => onChange(t.id)}
       className={cn(
         "rounded-2xl p-4 text-left transition-[background-color,border-color,transform]",
