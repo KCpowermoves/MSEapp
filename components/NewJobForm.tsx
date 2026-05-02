@@ -10,13 +10,21 @@ import type { UtilityTerritory } from "@/lib/types";
 
 const TERRITORIES: UtilityTerritory[] = ["BGE", "PEPCO", "Delmarva", "SMECO"];
 
-export function NewJobForm({ activeTechs }: { activeTechs: string[] }) {
+export function NewJobForm({
+  activeTechs,
+  currentUserName,
+}: {
+  activeTechs: string[];
+  currentUserName: string;
+}) {
   const router = useRouter();
   const [customerName, setCustomerName] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [territory, setTerritory] = useState<UtilityTerritory | null>(null);
   const [selfSold, setSelfSold] = useState(false);
-  const [soldBy, setSoldBy] = useState<string | null>(null);
+  // Default to the logged-in tech (most common case). User can change
+  // via the picker if a different tech sold the job.
+  const [soldBy, setSoldBy] = useState<string | null>(currentUserName || null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,8 +134,14 @@ export function NewJobForm({ activeTechs }: { activeTechs: string[] }) {
             <button
               type="button"
               onClick={() => {
-                setSelfSold((v) => !v);
-                if (selfSold) setSoldBy(null);
+                setSelfSold((v) => {
+                  const next = !v;
+                  if (next && !soldBy && currentUserName) {
+                    setSoldBy(currentUserName);
+                  }
+                  if (!next) setSoldBy(null);
+                  return next;
+                });
               }}
               role="switch"
               aria-checked={selfSold}

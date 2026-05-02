@@ -4,11 +4,7 @@ export type JobStatus = "Active" | "Closed";
 
 export type CrewSplit = "Solo" | "50-50" | "33-33-33";
 
-export type UnitType =
-  | "PTAC"
-  | "Standard 3-20"
-  | "Mid-Large 20-50"
-  | "Large 50+";
+export type UnitType = "PTAC" | "Standard" | "Medium" | "Large";
 
 export type UnitSubType =
   | "Standard tune-up"
@@ -22,7 +18,19 @@ export type ServiceType =
   | "Endo Cube"
   | "Standalone Small Job";
 
-export type PhotoSlot = "pre" | "post" | "clean" | "nameplate" | "filter";
+// PTAC: 1 pre, 1 post, nameplate (3 required) + optional filter + additional
+// Standard/Medium/Large: 3 sides pre, 3 sides post, nameplate (7 required)
+//                        + optional filter + additional
+export type PhotoSlot =
+  | "pre1"
+  | "pre2"
+  | "pre3"
+  | "post1"
+  | "post2"
+  | "post3"
+  | "nameplate"
+  | "filter"
+  | "additional";
 
 export interface Tech {
   techId: string;
@@ -68,11 +76,15 @@ export interface UnitServiced {
   unitNumberOnJob: number;
   unitType: UnitType;
   unitSubType: UnitSubType;
-  prePhotoUrl: string;
-  postPhotoUrl: string;
-  cleanPhotoUrl: string;
-  nameplatePhotoUrl: string;
-  filterPhotoUrl: string;
+  pre1Url: string;
+  pre2Url: string;
+  pre3Url: string;
+  post1Url: string;
+  post2Url: string;
+  post3Url: string;
+  nameplateUrl: string;
+  filterUrl: string;
+  additionalUrls: string;
   make: string;
   model: string;
   serial: string;

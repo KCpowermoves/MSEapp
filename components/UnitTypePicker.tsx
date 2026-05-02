@@ -5,9 +5,9 @@ import type { UnitType } from "@/lib/types";
 
 const TYPES: { id: UnitType; label: string; sub: string }[] = [
   { id: "PTAC", label: "PTAC", sub: "under 3 tons / hotels" },
-  { id: "Standard 3-20", label: "Standard", sub: "3 – 20 tons" },
-  { id: "Mid-Large 20-50", label: "Mid-Large", sub: "20 – 50 tons" },
-  { id: "Large 50+", label: "Large", sub: "50+ tons" },
+  { id: "Standard", label: "Standard", sub: "3 – 20 tons" },
+  { id: "Medium", label: "Medium", sub: "20 – 50 tons" },
+  { id: "Large", label: "Large", sub: "50+ tons" },
 ];
 
 export function UnitTypePicker({

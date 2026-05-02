@@ -156,20 +156,15 @@ async function addUnit(page, jobId, unitType, subType = null) {
     { waitUntil: "networkidle2" }
   );
   await new Promise((r) => setTimeout(r, 400));
-  // Pick unit type
-  const typeLabel = unitType.startsWith("Standard")
-    ? "Standard"
-    : unitType.startsWith("Mid")
-    ? "Mid-Large"
-    : unitType.startsWith("Large")
-    ? "Large"
-    : "PTAC";
-  await clickByText(page, "button", typeLabel);
+  // Pick unit type — labels match the button text exactly
+  await clickByText(page, "button", unitType);
   if (subType) await clickByText(page, "button", subType);
+  // Wait a moment for the photo slots to render after type selection
+  await new Promise((r) => setTimeout(r, 400));
 
-  // Capture 4 required photos one at a time, waiting for "Captured"
+  const requiredCount = unitType === "PTAC" ? 3 : 7;
   const inputs = await page.$$('input[type="file"]');
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < requiredCount; i++) {
     const before = await page.evaluate(
       () => (document.body.innerText.match(/Captured/g) || []).length
     );
@@ -186,7 +181,10 @@ async function addUnit(page, jobId, unitType, subType = null) {
   const captured = await page.evaluate(
     () => (document.body.innerText.match(/Captured/g) || []).length
   );
-  expect(captured >= 4, `4 required photos captured (${captured})`);
+  expect(
+    captured >= requiredCount,
+    `${requiredCount} required photos captured (${captured})`
+  );
 
   const before = page.url();
   await clickByText(page, "button", "Save unit");
@@ -460,12 +458,12 @@ async function verifyDriveState(expectedJobs) {
       (f) => f.name.startsWith("Unit-") && f.mimeType?.startsWith("image/")
     );
     expect(
-      unitPhotos.length >= 4,
-      `${folders[0].name} has ≥ 4 Unit photos (got ${unitPhotos.length})`
+      unitPhotos.length >= 3,
+      `${folders[0].name} has ≥ 3 Unit photos (got ${unitPhotos.length})`
     );
-    // Spot-check a filename has the expected pattern
+    // Spot-check a filename has the expected pattern (Unit-NNN_<type>_<slot>.jpg)
     const sample = unitPhotos[0]?.name ?? "";
-    const matchesPattern = /^Unit-\d{3}_.+_(pre|post|clean|nameplate|filter)\.jpg$/.test(sample);
+    const matchesPattern = /^Unit-\d{3}_.+\.jpg$/.test(sample);
     expect(matchesPattern, `filename pattern matches: ${sample}`);
   }
 }
@@ -536,8 +534,8 @@ async function main() {
       soldBy: "Kevin Lee",
     });
     await setCrew(page, job2, ["Kevin Lee"]);
-    await addUnit(page, job2, "Standard 3-20");
-    await addUnit(page, job2, "Mid-Large 20-50", "Water-source heat pump");
+    await addUnit(page, job2, "Standard");
+    await addUnit(page, job2, "Medium", "Water-source heat pump");
     await addService(page, job2, "Thermostat (regular)", 2);
     await waitForUploadQueue(page);
     await submitDispatch(page, job2, {

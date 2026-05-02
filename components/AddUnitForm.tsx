@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, Loader2, Plus } from "lucide-react";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
 import { enqueuePhoto } from "@/lib/upload-queue";
@@ -11,38 +11,51 @@ import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
 import type { Job, PhotoSlot, UnitSubType, UnitType } from "@/lib/types";
 
-// "Standard tune-up" is the implicit default — the picker only shows
-// alternative sub-types. None selected = standard.
 const ALT_SUB_TYPES: { id: UnitSubType; label: string }[] = [
   { id: "Water-source heat pump", label: "Water-source heat pump" },
   { id: "VRV-VRF", label: "VRV / VRF" },
   { id: "Other building tune-up", label: "Other building tune-up" },
 ];
 
-const PHOTO_SLOTS: {
+interface SlotDef {
   slot: PhotoSlot;
   label: string;
   hint: string;
   required: boolean;
-}[] = [
-  { slot: "pre", label: "Pre-service", hint: "Before you start", required: true },
-  { slot: "post", label: "Post-service", hint: "After tune-up", required: true },
-  { slot: "clean", label: "Clean", hint: "Coils + cabinet clean", required: true },
-  { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
-  { slot: "filter", label: "Filter", hint: "New filter installed (optional)", required: false },
-];
+}
+
+// Slot lists per unit type:
+// PTAC = 3 required (pre, post, nameplate). Filter optional.
+// Standard / Medium / Large = 7 required (3 pre sides + 3 post sides
+// + nameplate). Filter optional.
+function slotsForType(unitType: UnitType | null): SlotDef[] {
+  if (unitType === "PTAC") {
+    return [
+      { slot: "pre1", label: "Pre-service", hint: "Before you start", required: true },
+      { slot: "post1", label: "Post-service", hint: "After tune-up", required: true },
+      { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
+      { slot: "filter", label: "Filter", hint: "New filter installed (optional)", required: false },
+    ];
+  }
+  // Standard, Medium, Large — same template
+  return [
+    { slot: "pre1", label: "Pre-service · side 1", hint: "Before you start", required: true },
+    { slot: "pre2", label: "Pre-service · side 2", hint: "Different angle", required: true },
+    { slot: "pre3", label: "Pre-service · side 3", hint: "Third angle", required: true },
+    { slot: "post1", label: "Post-service · side 1", hint: "After tune-up", required: true },
+    { slot: "post2", label: "Post-service · side 2", hint: "Different angle", required: true },
+    { slot: "post3", label: "Post-service · side 3", hint: "Third angle", required: true },
+    { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
+    { slot: "filter", label: "Filter", hint: "New filter installed (optional)", required: false },
+  ];
+}
 
 export function AddUnitForm({ job }: { job: Job }) {
   const router = useRouter();
   const [unitType, setUnitType] = useState<UnitType | null>(null);
   const [subType, setSubType] = useState<UnitSubType>("Standard tune-up");
-  const [photos, setPhotos] = useState<Record<PhotoSlot, CapturedPhoto | null>>({
-    pre: null,
-    post: null,
-    clean: null,
-    nameplate: null,
-    filter: null,
-  });
+  const [photos, setPhotos] = useState<Partial<Record<PhotoSlot, CapturedPhoto>>>({});
+  const [additionalPhotos, setAdditionalPhotos] = useState<CapturedPhoto[]>([]);
   const [showOptional, setShowOptional] = useState(false);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
@@ -51,18 +64,33 @@ export function AddUnitForm({ job }: { job: Job }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const requiredPhotosReady = PHOTO_SLOTS.filter((p) => p.required).every(
-    (p) => photos[p.slot] !== null
-  );
-  const requiredCount = PHOTO_SLOTS.filter((p) => p.required).length;
-  const filledRequired = PHOTO_SLOTS.filter(
-    (p) => p.required && photos[p.slot]
-  ).length;
-  const canSubmit =
-    unitType !== null && subType !== null && requiredPhotosReady && !submitting;
+  const slots = useMemo(() => slotsForType(unitType), [unitType]);
+  const requiredSlots = slots.filter((s) => s.required);
+  const filledRequired = requiredSlots.filter((s) => photos[s.slot]).length;
+  const requiredCount = requiredSlots.length;
+  const allRequiredReady =
+    unitType !== null && filledRequired === requiredCount;
+  const canSubmit = unitType !== null && allRequiredReady && !submitting;
 
   const setSlot = (slot: PhotoSlot) => (next: CapturedPhoto | null) => {
-    setPhotos((prev) => ({ ...prev, [slot]: next }));
+    setPhotos((prev) => {
+      const copy = { ...prev };
+      if (next === null) delete copy[slot];
+      else copy[slot] = next;
+      return copy;
+    });
+  };
+
+  const setAdditionalAt = (i: number) => (next: CapturedPhoto | null) => {
+    setAdditionalPhotos((prev) => {
+      const copy = [...prev];
+      if (next === null) {
+        copy.splice(i, 1);
+      } else {
+        copy[i] = next;
+      }
+      return copy;
+    });
   };
 
   const submit = async () => {
@@ -91,7 +119,8 @@ export function AddUnitForm({ job }: { job: Job }) {
       const unitId = data.unit.unitId as string;
       const unitNumber = String(data.unit.unitNumberOnJob).padStart(3, "0");
 
-      for (const { slot } of PHOTO_SLOTS) {
+      // Enqueue all the slot photos that the user actually captured
+      for (const { slot } of slots) {
         const photo = photos[slot];
         if (!photo) continue;
         await enqueuePhoto({
@@ -105,6 +134,21 @@ export function AddUnitForm({ job }: { job: Job }) {
           capturedAt: photo.capturedAt,
         });
       }
+      // Enqueue any additional photos
+      for (let i = 0; i < additionalPhotos.length; i++) {
+        const photo = additionalPhotos[i];
+        if (!photo) continue;
+        await enqueuePhoto({
+          id: `${unitId}-additional-${i}-${Date.now()}`,
+          jobId: job.jobId,
+          unitId,
+          serviceId: null,
+          photoSlot: "additional",
+          blob: photo.blob,
+          filename: `${unitNumber}_additional_${i + 1}.jpg`,
+          capturedAt: photo.capturedAt,
+        });
+      }
       kickWorker();
       router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
     } catch (e) {
@@ -112,6 +156,8 @@ export function AddUnitForm({ job }: { job: Job }) {
       setSubmitting(false);
     }
   };
+
+  const additionalSlotCount = Math.max(additionalPhotos.length + 1, 1);
 
   return (
     <div className="space-y-6 pb-24">
@@ -167,20 +213,48 @@ export function AddUnitForm({ job }: { job: Job }) {
         </div>
       </Field>
 
-      <Field label="Photos" required>
-        <div className="space-y-2">
-          {PHOTO_SLOTS.map((p) => (
-            <PhotoCapture
-              key={p.slot}
-              label={p.label}
-              hint={p.hint}
-              required={p.required}
-              value={photos[p.slot]}
-              onChange={setSlot(p.slot)}
-            />
-          ))}
-        </div>
-      </Field>
+      {unitType && (
+        <Field label="Photos" required>
+          <div className="space-y-2">
+            {slots.map((p) => (
+              <PhotoCapture
+                key={p.slot}
+                label={p.label}
+                hint={p.hint}
+                required={p.required}
+                value={photos[p.slot] ?? null}
+                onChange={setSlot(p.slot)}
+              />
+            ))}
+          </div>
+        </Field>
+      )}
+
+      {unitType && (
+        <Field label="Additional photos">
+          <div className="text-xs text-mse-muted mb-2">
+            Any extras — refrigerant gauges, before/after of a problem area,
+            anything that helps document the work. Add as many as you like.
+          </div>
+          <div className="space-y-2">
+            {Array.from({ length: additionalSlotCount }).map((_, i) => (
+              <PhotoCapture
+                key={i}
+                label={i === 0 ? "Additional photo" : `Additional photo ${i + 1}`}
+                value={additionalPhotos[i] ?? null}
+                onChange={setAdditionalAt(i)}
+              />
+            ))}
+          </div>
+          {additionalPhotos.length > 0 && (
+            <div className="text-xs text-mse-muted mt-2 inline-flex items-center gap-1">
+              <Plus className="w-3 h-3" />
+              {additionalPhotos.length} extra photo
+              {additionalPhotos.length === 1 ? "" : "s"}
+            </div>
+          )}
+        </Field>
+      )}
 
       <button
         type="button"
@@ -260,7 +334,11 @@ export function AddUnitForm({ job }: { job: Job }) {
                 Saving...
               </span>
             ) : (
-              `Save unit${requiredPhotosReady ? "" : ` · ${filledRequired}/${requiredCount} required photos`}`
+              `Save unit${
+                allRequiredReady
+                  ? ""
+                  : ` · ${filledRequired}/${requiredCount} required photos`
+              }`
             )}
           </button>
         </div>

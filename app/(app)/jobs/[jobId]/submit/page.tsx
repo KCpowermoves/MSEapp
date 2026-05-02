@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
 import { getJob } from "@/lib/data/jobs";
 import { findDraftDispatch } from "@/lib/data/dispatches";
 import { listUnitsForDispatch } from "@/lib/data/units";
@@ -21,7 +22,8 @@ export default async function SubmitDispatchPage({
   if (!draft) {
     redirect(`/jobs/${encodeURIComponent(jobId)}`);
   }
-  const [units, services, activeTechs] = await Promise.all([
+  const [session, units, services, activeTechs] = await Promise.all([
+    getSession(),
     listUnitsForDispatch(draft.dispatchId),
     listServicesForDispatch(draft.dispatchId),
     listActiveTechNames(),
@@ -33,6 +35,7 @@ export default async function SubmitDispatchPage({
       units={units}
       services={services}
       activeTechs={activeTechs}
+      currentUserName={session.name ?? ""}
     />
   );
 }

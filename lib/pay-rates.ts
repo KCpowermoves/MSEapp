@@ -7,16 +7,16 @@ import type {
 
 export const INSTALL_PAY: Record<UnitType, number> = {
   PTAC: 10,
-  "Standard 3-20": 50,
-  "Mid-Large 20-50": 75,
-  "Large 50+": 100,
+  Standard: 50,
+  Medium: 75,
+  Large: 100,
 };
 
 export const SALES_BONUS: Record<UnitType, number> = {
   PTAC: 5,
-  "Standard 3-20": 30,
-  "Mid-Large 20-50": 50,
-  "Large 50+": 75,
+  Standard: 30,
+  Medium: 50,
+  Large: 75,
 };
 
 export const SERVICE_PAY: Record<ServiceType, number> = {

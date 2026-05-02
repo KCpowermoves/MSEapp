@@ -9,7 +9,10 @@ function key(jobId: string) {
   return `${PREFIX}${jobId}:${todayIsoDate()}`;
 }
 
-export function useTodaysCrew(jobId: string) {
+// `defaultMember` (typically the logged-in tech) gets auto-added on
+// first load when localStorage is empty for this (job, date) pair.
+// User can deselect or add others.
+export function useTodaysCrew(jobId: string, defaultMember?: string) {
   const [crew, setCrewState] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
@@ -19,11 +22,23 @@ export function useTodaysCrew(jobId: string) {
       const raw = window.localStorage.getItem(key(jobId));
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setCrewState(parsed.filter((x) => typeof x === "string"));
+        if (Array.isArray(parsed)) {
+          setCrewState(parsed.filter((x) => typeof x === "string"));
+          setHydrated(true);
+          return;
+        }
+      }
+      // No stored crew yet — seed with the default member if provided
+      if (defaultMember) {
+        setCrewState([defaultMember]);
+        window.localStorage.setItem(
+          key(jobId),
+          JSON.stringify([defaultMember])
+        );
       }
     } catch {}
     setHydrated(true);
-  }, [jobId]);
+  }, [jobId, defaultMember]);
 
   const setCrew = (next: string[]) => {
     setCrewState(next);

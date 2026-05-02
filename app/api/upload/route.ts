@@ -12,11 +12,15 @@ import {
 import type { PhotoSlot } from "@/lib/types";
 
 const PHOTO_SLOTS: PhotoSlot[] = [
-  "pre",
-  "post",
-  "clean",
+  "pre1",
+  "pre2",
+  "pre3",
+  "post1",
+  "post2",
+  "post3",
   "nameplate",
   "filter",
+  "additional",
 ];
 
 export async function POST(request: Request) {
@@ -67,7 +71,13 @@ export async function POST(request: Request) {
       }
       const numStr = String(unit.unitNumberOnJob).padStart(3, "0");
       const safeType = slugForFilename(unit.unitType);
-      const filename = `Unit-${numStr}_${safeType}_${slot}.jpg`;
+      // For "additional" photos, append a sortable timestamp so multiple
+      // uploads don't collide on filename.
+      const slotPart =
+        slot === "additional"
+          ? `additional-${Date.now()}`
+          : (slot as string);
+      const filename = `Unit-${numStr}_${safeType}_${slotPart}.jpg`;
       const uploaded = await uploadImage({
         folderId: rootFolderId,
         filename,

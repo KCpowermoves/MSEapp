@@ -8,7 +8,10 @@ import {
 } from "@/lib/google/sheets";
 import { nextDispatchId } from "@/lib/id-generators";
 import { bumpLastActivity, getJob } from "@/lib/data/jobs";
-import { listUnitsForDispatch } from "@/lib/data/units";
+import {
+  listUnitsForDispatch,
+  unitHasAllRequiredPhotos,
+} from "@/lib/data/units";
 import { listServicesForDispatch } from "@/lib/data/services";
 import { writeAttributions } from "@/lib/data/pay-attribution";
 import { nowIso, todayIsoDate } from "@/lib/utils";
@@ -117,20 +120,6 @@ export async function ensureDraftDispatch(
   };
 }
 
-function unitHasAllPhotos(u: {
-  prePhotoUrl: string;
-  postPhotoUrl: string;
-  cleanPhotoUrl: string;
-  nameplatePhotoUrl: string;
-}): boolean {
-  // Filter photo is optional per the latest spec
-  return Boolean(
-    u.prePhotoUrl &&
-      u.postPhotoUrl &&
-      u.cleanPhotoUrl &&
-      u.nameplatePhotoUrl
-  );
-}
 
 export async function submitDispatch(opts: {
   dispatchId: string;
@@ -147,7 +136,7 @@ export async function submitDispatch(opts: {
   const services = await listServicesForDispatch(dispatch.dispatchId);
 
   const photosComplete =
-    units.length > 0 && units.every((u) => unitHasAllPhotos(u));
+    units.length > 0 && units.every((u) => unitHasAllRequiredPhotos(u));
 
   const dailyStipend = photosComplete ? DAILY_DRIVING_STIPEND : 0;
   const travelBonus =

@@ -4,12 +4,7 @@ import { ensureDraftDispatch } from "@/lib/data/dispatches";
 import { createUnit, nextUnitNumberOnJob } from "@/lib/data/units";
 import type { UnitSubType, UnitType } from "@/lib/types";
 
-const UNIT_TYPES: UnitType[] = [
-  "PTAC",
-  "Standard 3-20",
-  "Mid-Large 20-50",
-  "Large 50+",
-];
+const UNIT_TYPES: UnitType[] = ["PTAC", "Standard", "Medium", "Large"];
 const UNIT_SUB_TYPES: UnitSubType[] = [
   "Standard tune-up",
   "Water-source heat pump",

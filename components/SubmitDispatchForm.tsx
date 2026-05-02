@@ -35,6 +35,7 @@ interface Props {
   units: UnitServiced[];
   services: AdditionalService[];
   activeTechs: string[];
+  currentUserName: string;
 }
 
 export function SubmitDispatchForm({
@@ -43,9 +44,13 @@ export function SubmitDispatchForm({
   units,
   services,
   activeTechs,
+  currentUserName,
 }: Props) {
   const router = useRouter();
-  const { crew, setCrew, hydrated } = useTodaysCrew(job.jobId);
+  const { crew, setCrew, hydrated } = useTodaysCrew(
+    job.jobId,
+    currentUserName
+  );
   const [crewSplit, setCrewSplit] = useState<CrewSplit>("Solo");
   const [driver, setDriver] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -71,13 +76,20 @@ export function SubmitDispatchForm({
     [job, units, services, crewSplit, driver, crew]
   );
 
-  const allPhotosUploaded = units.every(
-    (u) =>
-      u.prePhotoUrl &&
-      u.postPhotoUrl &&
-      u.cleanPhotoUrl &&
-      u.nameplatePhotoUrl
-  );
+  const allPhotosUploaded = units.every((u) => {
+    if (u.unitType === "PTAC") {
+      return Boolean(u.pre1Url && u.post1Url && u.nameplateUrl);
+    }
+    return Boolean(
+      u.pre1Url &&
+        u.pre2Url &&
+        u.pre3Url &&
+        u.post1Url &&
+        u.post2Url &&
+        u.post3Url &&
+        u.nameplateUrl
+    );
+  });
 
   const crewSizeMatches = crew.length === cSize;
   const driverPicked =

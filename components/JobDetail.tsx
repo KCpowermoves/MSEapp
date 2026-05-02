@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   CircleDashed,
 } from "lucide-react";
-import { CrewPicker } from "@/components/CrewPicker";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { cn } from "@/lib/utils";
 import type {
@@ -24,6 +23,7 @@ interface Props {
   todaysUnits: UnitServiced[];
   todaysServices: AdditionalService[];
   activeTechs: string[];
+  currentUserName: string;
 }
 
 export function JobDetail({
@@ -31,8 +31,12 @@ export function JobDetail({
   todaysUnits,
   todaysServices,
   activeTechs,
+  currentUserName,
 }: Props) {
-  const { crew, setCrew, hydrated } = useTodaysCrew(job.jobId);
+  // Hook still runs to seed localStorage with the logged-in tech for
+  // the AddUnit / Submit flows downstream — even though we no longer
+  // show a crew picker on this page.
+  useTodaysCrew(job.jobId, currentUserName);
   const canSubmit = todaysUnits.length > 0 || todaysServices.length > 0;
 
   return (
@@ -72,21 +76,6 @@ export function JobDetail({
           </a>
         )}
       </div>
-
-      <section className="bg-mse-light/60 rounded-2xl p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-mse-navy">Today&apos;s crew</h2>
-          {hydrated && crew.length > 0 && (
-            <span className="text-xs text-mse-muted">{crew.length} on site</span>
-          )}
-        </div>
-        <CrewPicker
-          multi
-          options={activeTechs}
-          value={crew}
-          onChange={setCrew}
-        />
-      </section>
 
       <div className="grid grid-cols-2 gap-3">
         <Link
@@ -165,13 +154,21 @@ export function JobDetail({
 }
 
 function UnitRow({ unit }: { unit: UnitServiced }) {
-  const requiredFilled = [
-    unit.prePhotoUrl,
-    unit.postPhotoUrl,
-    unit.cleanPhotoUrl,
-    unit.nameplatePhotoUrl,
-  ].filter(Boolean).length;
-  const allUploaded = requiredFilled === 4;
+  const required =
+    unit.unitType === "PTAC"
+      ? [unit.pre1Url, unit.post1Url, unit.nameplateUrl]
+      : [
+          unit.pre1Url,
+          unit.pre2Url,
+          unit.pre3Url,
+          unit.post1Url,
+          unit.post2Url,
+          unit.post3Url,
+          unit.nameplateUrl,
+        ];
+  const requiredFilled = required.filter(Boolean).length;
+  const requiredCount = required.length;
+  const allUploaded = requiredFilled === requiredCount;
   return (
     <li className="bg-white rounded-2xl border border-mse-light p-3 flex items-center gap-3 shadow-card">
       {allUploaded ? (
@@ -193,7 +190,7 @@ function UnitRow({ unit }: { unit: UnitServiced }) {
           allUploaded ? "bg-mse-gold/15 text-mse-navy" : "bg-mse-light text-mse-muted"
         )}
       >
-        {requiredFilled}/4
+        {requiredFilled}/{requiredCount}
       </div>
     </li>
   );
