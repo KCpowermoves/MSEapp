@@ -4,13 +4,15 @@ export type JobStatus = "Active" | "Closed";
 
 export type CrewSplit = "Solo" | "50-50" | "33-33-33";
 
-export type UnitType = "PTAC" | "Standard" | "Medium" | "Large";
-
-export type UnitSubType =
-  | "Standard tune-up"
-  | "Water-source heat pump"
-  | "VRV-VRF"
-  | "Other building tune-up";
+// Simple (1-side) types share the same 3-photo template.
+// RTU types share the 7-photo coil template.
+// Split System has 11 required photos (outdoor 3-side + indoor AH).
+export type UnitType =
+  | "PTAC / Ductless"
+  | "Split System"
+  | "RTU-S"
+  | "RTU-M"
+  | "RTU-L";
 
 export type ServiceType =
   | "Thermostat (regular)"
@@ -18,18 +20,23 @@ export type ServiceType =
   | "Endo Cube"
   | "Standalone Small Job";
 
-// PTAC: 1 pre, 1 post, nameplate (3 required) + optional filter + additional
-// Standard/Medium/Large: 3 sides pre, 3 sides post, nameplate (7 required)
-//                        + optional filter + additional
+// Column mapping (sheet cols G–X):
+//   Simple:  pre→G  post→H  nameplate→M  filter→N(opt)
+//   RTU:     coil1_pre→G  coil1_post→J  coil2_pre→H  coil2_post→K
+//            nameplate→M  filter_pre→N  filter_post→I
+//   Split:   out_pre_1→G  out_pre_2→H  out_pre_3→I
+//            out_post_1→J  out_post_2→K  out_post_3→L
+//            out_nameplate→M  filter→N
+//            in_pre→V  in_post→W  in_nameplate→X
 export type PhotoSlot =
-  | "pre1"
-  | "pre2"
-  | "pre3"
-  | "post1"
-  | "post2"
-  | "post3"
-  | "nameplate"
-  | "filter"
+  | "pre" | "post"
+  | "coil1_pre" | "coil1_post" | "coil2_pre" | "coil2_post"
+  | "filter_pre" | "filter_post"
+  | "out_pre_1" | "out_pre_2" | "out_pre_3"
+  | "out_post_1" | "out_post_2" | "out_post_3"
+  | "out_nameplate"
+  | "in_pre" | "in_post" | "in_nameplate"
+  | "nameplate" | "filter"
   | "additional";
 
 export interface Tech {
@@ -75,7 +82,7 @@ export interface UnitServiced {
   jobId: string;
   unitNumberOnJob: number;
   unitType: UnitType;
-  unitSubType: UnitSubType;
+  // Positional photo URLs G–L (semantic meaning varies by unitType, see PhotoSlot comment)
   pre1Url: string;
   pre2Url: string;
   pre3Url: string;
@@ -85,6 +92,10 @@ export interface UnitServiced {
   nameplateUrl: string;
   filterUrl: string;
   additionalUrls: string;
+  // Split System indoor air handler (cols V–X)
+  inPreUrl: string;
+  inPostUrl: string;
+  inNameplateUrl: string;
   make: string;
   model: string;
   serial: string;

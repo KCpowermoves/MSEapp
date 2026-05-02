@@ -6,17 +6,19 @@ import type {
 } from "@/lib/types";
 
 export const INSTALL_PAY: Record<UnitType, number> = {
-  PTAC: 10,
-  Standard: 50,
-  Medium: 75,
-  Large: 100,
+  "PTAC / Ductless": 10,
+  "Split System": 50,
+  "RTU-S": 50,
+  "RTU-M": 75,
+  "RTU-L": 100,
 };
 
 export const SALES_BONUS: Record<UnitType, number> = {
-  PTAC: 5,
-  Standard: 30,
-  Medium: 50,
-  Large: 75,
+  "PTAC / Ductless": 5,
+  "Split System": 30,
+  "RTU-S": 30,
+  "RTU-M": 50,
+  "RTU-L": 75,
 };
 
 export const SERVICE_PAY: Record<ServiceType, number> = {

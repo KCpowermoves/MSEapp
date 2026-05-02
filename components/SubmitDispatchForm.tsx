@@ -76,18 +76,21 @@ export function SubmitDispatchForm({
     [job, units, services, crewSplit, driver, crew]
   );
 
+  const SIMPLE_TYPES = ["PTAC / Ductless"];
   const allPhotosUploaded = units.every((u) => {
-    if (u.unitType === "PTAC") {
-      return Boolean(u.pre1Url && u.post1Url && u.nameplateUrl);
-    }
+    if (SIMPLE_TYPES.includes(u.unitType))
+      return Boolean(u.pre1Url && u.pre2Url && u.nameplateUrl);
+    if (u.unitType === "Split System")
+      return Boolean(
+        u.pre1Url && u.pre2Url && u.pre3Url &&
+        u.post1Url && u.post2Url && u.post3Url &&
+        u.nameplateUrl && u.filterUrl &&
+        u.inPreUrl && u.inPostUrl && u.inNameplateUrl
+      );
+    // RTU types
     return Boolean(
-      u.pre1Url &&
-        u.pre2Url &&
-        u.pre3Url &&
-        u.post1Url &&
-        u.post2Url &&
-        u.post3Url &&
-        u.nameplateUrl
+      u.pre1Url && u.pre2Url && u.post1Url && u.post2Url &&
+      u.nameplateUrl && u.filterUrl && u.pre3Url
     );
   });
 

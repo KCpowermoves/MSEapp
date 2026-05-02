@@ -9,13 +9,7 @@ import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
 import { enqueuePhoto } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
-import type { Job, PhotoSlot, UnitSubType, UnitType } from "@/lib/types";
-
-const ALT_SUB_TYPES: { id: UnitSubType; label: string }[] = [
-  { id: "Water-source heat pump", label: "Water-source heat pump" },
-  { id: "VRV-VRF", label: "VRV / VRF" },
-  { id: "Other building tune-up", label: "Other building tune-up" },
-];
+import type { Job, PhotoSlot, UnitType } from "@/lib/types";
 
 interface SlotDef {
   slot: PhotoSlot;
@@ -24,36 +18,49 @@ interface SlotDef {
   required: boolean;
 }
 
-// Slot lists per unit type:
-// PTAC = 3 required (pre, post, nameplate). Filter optional.
-// Standard / Medium / Large = 7 required (3 pre sides + 3 post sides
-// + nameplate). Filter optional.
+const SIMPLE_TYPES: UnitType[] = ["PTAC / Ductless"];
+const RTU_TYPES: UnitType[] = ["RTU-S", "RTU-M", "RTU-L"];
+
 function slotsForType(unitType: UnitType | null): SlotDef[] {
-  if (unitType === "PTAC") {
+  if (!unitType) return [];
+  if (SIMPLE_TYPES.includes(unitType)) {
     return [
-      { slot: "pre1", label: "Pre-service", hint: "Before you start", required: true },
-      { slot: "post1", label: "Post-service", hint: "After tune-up", required: true },
+      { slot: "pre", label: "Pre-service", hint: "Before you start", required: true },
+      { slot: "post", label: "Post-service", hint: "After tune-up", required: true },
       { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
       { slot: "filter", label: "Filter", hint: "New filter installed (optional)", required: false },
     ];
   }
-  // Standard, Medium, Large — same template
+  if (RTU_TYPES.includes(unitType)) {
+    return [
+      { slot: "coil1_pre", label: "Coil 1 · before", hint: "First coil before tune-up", required: true },
+      { slot: "coil1_post", label: "Coil 1 · after", hint: "First coil after tune-up", required: true },
+      { slot: "coil2_pre", label: "Coil 2 · before", hint: "Second coil before tune-up", required: true },
+      { slot: "coil2_post", label: "Coil 2 · after", hint: "Second coil after tune-up", required: true },
+      { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
+      { slot: "filter_pre", label: "Filter · before", hint: "Filter condition before cleaning", required: true },
+      { slot: "filter_post", label: "Filter · after", hint: "Filter after replacement", required: true },
+    ];
+  }
+  // Split System — 11 required
   return [
-    { slot: "pre1", label: "Pre-service · side 1", hint: "Before you start", required: true },
-    { slot: "pre2", label: "Pre-service · side 2", hint: "Different angle", required: true },
-    { slot: "pre3", label: "Pre-service · side 3", hint: "Third angle", required: true },
-    { slot: "post1", label: "Post-service · side 1", hint: "After tune-up", required: true },
-    { slot: "post2", label: "Post-service · side 2", hint: "Different angle", required: true },
-    { slot: "post3", label: "Post-service · side 3", hint: "Third angle", required: true },
-    { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
-    { slot: "filter", label: "Filter", hint: "New filter installed (optional)", required: false },
+    { slot: "out_pre_1", label: "Outdoor · side 1 · before", hint: "Outdoor unit, first angle", required: true },
+    { slot: "out_pre_2", label: "Outdoor · side 2 · before", hint: "Different angle", required: true },
+    { slot: "out_pre_3", label: "Outdoor · side 3 · before", hint: "Third angle", required: true },
+    { slot: "out_post_1", label: "Outdoor · side 1 · after", hint: "After tune-up", required: true },
+    { slot: "out_post_2", label: "Outdoor · side 2 · after", hint: "After tune-up", required: true },
+    { slot: "out_post_3", label: "Outdoor · side 3 · after", hint: "After tune-up", required: true },
+    { slot: "out_nameplate", label: "Outdoor nameplate", hint: "Outdoor unit make / model / serial", required: true },
+    { slot: "in_pre", label: "Air handler · before", hint: "Indoor unit before service", required: true },
+    { slot: "in_post", label: "Air handler · after", hint: "Indoor unit after service", required: true },
+    { slot: "in_nameplate", label: "Air handler nameplate", hint: "Indoor unit make / model / serial", required: true },
+    { slot: "filter", label: "Filter", hint: "Filter condition / replacement", required: true },
   ];
 }
 
 export function AddUnitForm({ job }: { job: Job }) {
   const router = useRouter();
   const [unitType, setUnitType] = useState<UnitType | null>(null);
-  const [subType, setSubType] = useState<UnitSubType>("Standard tune-up");
   const [photos, setPhotos] = useState<Partial<Record<PhotoSlot, CapturedPhoto>>>({});
   const [additionalPhotos, setAdditionalPhotos] = useState<CapturedPhoto[]>([]);
   const [showOptional, setShowOptional] = useState(false);
@@ -104,7 +111,6 @@ export function AddUnitForm({ job }: { job: Job }) {
         body: JSON.stringify({
           jobId: job.jobId,
           unitType,
-          unitSubType: subType,
           make,
           model,
           serial,
@@ -118,6 +124,7 @@ export function AddUnitForm({ job }: { job: Job }) {
       const data = await res.json();
       const unitId = data.unit.unitId as string;
       const unitNumber = String(data.unit.unitNumberOnJob).padStart(3, "0");
+      const typeTag = unitType!.replace(/[\s/]+/g, "-");
 
       // Enqueue all the slot photos that the user actually captured
       for (const { slot } of slots) {
@@ -130,7 +137,7 @@ export function AddUnitForm({ job }: { job: Job }) {
           serviceId: null,
           photoSlot: slot,
           blob: photo.blob,
-          filename: `${unitNumber}_${slot}.jpg`,
+          filename: `Unit-${unitNumber}_${typeTag}_${slot}.jpg`,
           capturedAt: photo.capturedAt,
         });
       }
@@ -180,37 +187,13 @@ export function AddUnitForm({ job }: { job: Job }) {
       )}
 
       <Field label="Unit type" required>
-        <UnitTypePicker value={unitType} onChange={setUnitType} />
-      </Field>
-
-      <Field label="Sub-type">
-        <div className="text-xs text-mse-muted mb-2">
-          Standard HVAC tune-up by default. Tap below only if this unit is
-          one of the alternative types.
-        </div>
-        <div className="grid grid-cols-1 gap-2">
-          {ALT_SUB_TYPES.map((s) => {
-            const active = subType === s.id;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() =>
-                  setSubType(active ? "Standard tune-up" : s.id)
-                }
-                className={cn(
-                  "h-12 rounded-xl text-sm font-medium px-3 transition-[background-color,border-color,transform]",
-                  "active:scale-95",
-                  active
-                    ? "bg-mse-navy text-white border-2 border-mse-navy"
-                    : "bg-white text-mse-navy border-2 border-mse-light hover:border-mse-navy/40"
-                )}
-              >
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
+        <UnitTypePicker
+          value={unitType}
+          onChange={(next) => {
+            setUnitType(next);
+            setPhotos({});
+          }}
+        />
       </Field>
 
       {unitType && (

@@ -9,28 +9,30 @@ import {
 import { nextUnitId } from "@/lib/id-generators";
 import { bumpLastActivity } from "@/lib/data/jobs";
 import { nowIso } from "@/lib/utils";
-import type {
-  PhotoSlot,
-  UnitServiced,
-  UnitSubType,
-  UnitType,
-} from "@/lib/types";
+import type { PhotoSlot, UnitServiced, UnitType } from "@/lib/types";
 
 // Units Serviced columns:
-// A=UnitID  B=DispID  C=JobID  D=UnitNum  E=Type  F=SubType
-// G=Pre1  H=Pre2  I=Pre3
-// J=Post1 K=Post2 L=Post3
+// A=UnitID  B=DispID  C=JobID  D=UnitNum  E=Type  F=(legacy, empty)
+// G=Photo1  H=Photo2  I=Photo3
+// J=Photo4  K=Photo5  L=Photo6
 // M=Nameplate  N=Filter  O=Additional (CSV)
 // P=Make  Q=Model  R=Serial  S=Notes  T=LoggedBy  U=LoggedAt
+// V=InPre  W=InPost  X=InNameplate  (Split System indoor AH only)
 const PHOTO_COL: Record<Exclude<PhotoSlot, "additional">, string> = {
-  pre1: "G",
-  pre2: "H",
-  pre3: "I",
-  post1: "J",
-  post2: "K",
-  post3: "L",
-  nameplate: "M",
-  filter: "N",
+  // Simple types (PTAC, Ductless, Water-Source HP, VRV-VRF)
+  pre: "G", post: "H",
+  // RTU coils
+  coil1_pre: "G", coil1_post: "J",
+  coil2_pre: "H", coil2_post: "K",
+  filter_pre: "N", filter_post: "I",
+  // Split System outdoor unit
+  out_pre_1: "G", out_pre_2: "H", out_pre_3: "I",
+  out_post_1: "J", out_post_2: "K", out_post_3: "L",
+  out_nameplate: "M",
+  // Split System indoor air handler
+  in_pre: "V", in_post: "W", in_nameplate: "X",
+  // Shared
+  nameplate: "M", filter: "N",
 };
 const ADDITIONAL_COL = "O";
 
@@ -41,7 +43,7 @@ function rowToUnit(row: string[]): UnitServiced {
     jobId: String(row[2] ?? ""),
     unitNumberOnJob: Number(row[3] ?? 0),
     unitType: (row[4] as UnitType) || "PTAC",
-    unitSubType: (row[5] as UnitSubType) || "Standard tune-up",
+    // row[5] = legacy SubType column (ignored)
     pre1Url: String(row[6] ?? ""),
     pre2Url: String(row[7] ?? ""),
     pre3Url: String(row[8] ?? ""),
@@ -57,6 +59,9 @@ function rowToUnit(row: string[]): UnitServiced {
     notes: String(row[18] ?? ""),
     loggedBy: String(row[19] ?? ""),
     loggedAt: String(row[20] ?? ""),
+    inPreUrl: String(row[21] ?? ""),
+    inPostUrl: String(row[22] ?? ""),
+    inNameplateUrl: String(row[23] ?? ""),
   };
 }
 
@@ -95,7 +100,6 @@ export async function createUnit(opts: {
   jobId: string;
   unitNumberOnJob: number;
   unitType: UnitType;
-  unitSubType: UnitSubType;
   make: string;
   model: string;
   serial: string;
@@ -110,18 +114,19 @@ export async function createUnit(opts: {
     opts.jobId,
     opts.unitNumberOnJob,
     opts.unitType,
-    opts.unitSubType,
-    "", "", "",        // pre1, pre2, pre3
-    "", "", "",        // post1, post2, post3
-    "",                // nameplate
-    "",                // filter
-    "",                // additional (CSV)
+    "",                // F: legacy SubType column (empty for new records)
+    "", "", "",        // G H I: photo slots 1-3
+    "", "", "",        // J K L: photo slots 4-6
+    "",                // M: nameplate
+    "",                // N: filter
+    "",                // O: additional (CSV)
     opts.make,
     opts.model,
     opts.serial,
     opts.notes,
     opts.loggedBy,
     isoNow,
+    "", "", "",        // V W X: Split System indoor AH photos
   ]);
   await bumpLastActivity(opts.jobId);
   return {
@@ -130,16 +135,10 @@ export async function createUnit(opts: {
     jobId: opts.jobId,
     unitNumberOnJob: opts.unitNumberOnJob,
     unitType: opts.unitType,
-    unitSubType: opts.unitSubType,
-    pre1Url: "",
-    pre2Url: "",
-    pre3Url: "",
-    post1Url: "",
-    post2Url: "",
-    post3Url: "",
-    nameplateUrl: "",
-    filterUrl: "",
-    additionalUrls: "",
+    pre1Url: "", pre2Url: "", pre3Url: "",
+    post1Url: "", post2Url: "", post3Url: "",
+    nameplateUrl: "", filterUrl: "", additionalUrls: "",
+    inPreUrl: "", inPostUrl: "", inNameplateUrl: "",
     make: opts.make,
     model: opts.model,
     serial: opts.serial,
@@ -178,24 +177,40 @@ export async function getUnit(
   return all.find((u) => u.unitId === unitId) ?? null;
 }
 
-// Photo-completeness rule per unit type. PTAC needs pre1, post1,
-// nameplate. Standard/Medium/Large need all 3 sides pre and post +
-// nameplate. Filter is always optional. Additional is always optional.
+const SIMPLE_TYPES: UnitType[] = ["PTAC / Ductless"];
+const RTU_TYPES: UnitType[] = ["RTU-S", "RTU-M", "RTU-L"];
+
 export function requiredPhotoSlots(unitType: UnitType): PhotoSlot[] {
-  if (unitType === "PTAC") return ["pre1", "post1", "nameplate"];
-  return ["pre1", "pre2", "pre3", "post1", "post2", "post3", "nameplate"];
+  if (SIMPLE_TYPES.includes(unitType)) return ["pre", "post", "nameplate"];
+  if (RTU_TYPES.includes(unitType))
+    return ["coil1_pre", "coil1_post", "coil2_pre", "coil2_post", "nameplate", "filter_pre", "filter_post"];
+  // Split System — 11 required
+  return [
+    "out_pre_1", "out_pre_2", "out_pre_3",
+    "out_post_1", "out_post_2", "out_post_3",
+    "out_nameplate", "in_pre", "in_post", "in_nameplate", "filter",
+  ];
+}
+
+function urlForSlot(unit: UnitServiced, slot: PhotoSlot): string {
+  switch (slot) {
+    case "pre": case "out_pre_1": case "coil1_pre": return unit.pre1Url;
+    case "post": case "out_pre_2": case "coil2_pre": return unit.pre2Url;
+    case "out_pre_3": case "filter_post": return unit.pre3Url;
+    case "out_post_1": case "coil1_post": return unit.post1Url;
+    case "out_post_2": case "coil2_post": return unit.post2Url;
+    case "out_post_3": return unit.post3Url;
+    case "nameplate": case "out_nameplate": return unit.nameplateUrl;
+    case "filter": case "filter_pre": return unit.filterUrl;
+    case "in_pre": return unit.inPreUrl;
+    case "in_post": return unit.inPostUrl;
+    case "in_nameplate": return unit.inNameplateUrl;
+    default: return "";
+  }
 }
 
 export function unitHasAllRequiredPhotos(unit: UnitServiced): boolean {
-  const required = requiredPhotoSlots(unit.unitType);
-  return required.every((slot) => {
-    if (slot === "pre1") return Boolean(unit.pre1Url);
-    if (slot === "pre2") return Boolean(unit.pre2Url);
-    if (slot === "pre3") return Boolean(unit.pre3Url);
-    if (slot === "post1") return Boolean(unit.post1Url);
-    if (slot === "post2") return Boolean(unit.post2Url);
-    if (slot === "post3") return Boolean(unit.post3Url);
-    if (slot === "nameplate") return Boolean(unit.nameplateUrl);
-    return true;
-  });
+  return requiredPhotoSlots(unit.unitType).every((slot) =>
+    Boolean(urlForSlot(unit, slot))
+  );
 }

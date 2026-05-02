@@ -23,7 +23,7 @@ interface CacheEntry {
   inflight?: Promise<string[][]>;
 }
 const readCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 2500;
+const CACHE_TTL_MS = 30_000;
 
 function tabFromRange(range: string): string | null {
   const m = range.match(/^['"]?([^'!"]+)['"]?!/);

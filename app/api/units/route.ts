@@ -2,14 +2,10 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { ensureDraftDispatch } from "@/lib/data/dispatches";
 import { createUnit, nextUnitNumberOnJob } from "@/lib/data/units";
-import type { UnitSubType, UnitType } from "@/lib/types";
+import type { UnitType } from "@/lib/types";
 
-const UNIT_TYPES: UnitType[] = ["PTAC", "Standard", "Medium", "Large"];
-const UNIT_SUB_TYPES: UnitSubType[] = [
-  "Standard tune-up",
-  "Water-source heat pump",
-  "VRV-VRF",
-  "Other building tune-up",
+const UNIT_TYPES: UnitType[] = [
+  "PTAC / Ductless", "Split System", "RTU-S", "RTU-M", "RTU-L",
 ];
 
 export async function POST(request: Request) {
@@ -25,7 +21,6 @@ export async function POST(request: Request) {
   }
   const jobId = String(body.jobId ?? "");
   const unitType = body.unitType as UnitType;
-  const unitSubType = body.unitSubType as UnitSubType;
   const make = String(body.make ?? "").trim();
   const model = String(body.model ?? "").trim();
   const serial = String(body.serial ?? "").trim();
@@ -37,9 +32,6 @@ export async function POST(request: Request) {
   if (!UNIT_TYPES.includes(unitType)) {
     return NextResponse.json({ error: "Pick a unit type" }, { status: 400 });
   }
-  if (!UNIT_SUB_TYPES.includes(unitSubType)) {
-    return NextResponse.json({ error: "Pick a sub-type" }, { status: 400 });
-  }
 
   try {
     const dispatch = await ensureDraftDispatch(jobId);
@@ -49,7 +41,6 @@ export async function POST(request: Request) {
       jobId,
       unitNumberOnJob: unitNumber,
       unitType,
-      unitSubType,
       make,
       model,
       serial,

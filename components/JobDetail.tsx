@@ -153,19 +153,21 @@ export function JobDetail({
   );
 }
 
+const SIMPLE_TYPES = ["PTAC / Ductless"];
+
 function UnitRow({ unit }: { unit: UnitServiced }) {
-  const required =
-    unit.unitType === "PTAC"
-      ? [unit.pre1Url, unit.post1Url, unit.nameplateUrl]
-      : [
-          unit.pre1Url,
-          unit.pre2Url,
-          unit.pre3Url,
-          unit.post1Url,
-          unit.post2Url,
-          unit.post3Url,
-          unit.nameplateUrl,
-        ];
+  const required: string[] = SIMPLE_TYPES.includes(unit.unitType)
+    ? [unit.pre1Url, unit.pre2Url, unit.nameplateUrl]
+    : unit.unitType === "Split System"
+    ? [
+        unit.pre1Url, unit.pre2Url, unit.pre3Url,
+        unit.post1Url, unit.post2Url, unit.post3Url,
+        unit.nameplateUrl, unit.filterUrl,
+        unit.inPreUrl, unit.inPostUrl, unit.inNameplateUrl,
+      ]
+    : // RTU types
+      [unit.pre1Url, unit.pre2Url, unit.post1Url, unit.post2Url,
+       unit.nameplateUrl, unit.filterUrl, unit.pre3Url];
   const requiredFilled = required.filter(Boolean).length;
   const requiredCount = required.length;
   const allUploaded = requiredFilled === requiredCount;
@@ -180,9 +182,9 @@ function UnitRow({ unit }: { unit: UnitServiced }) {
         <div className="font-semibold text-mse-navy text-sm truncate">
           Unit {String(unit.unitNumberOnJob).padStart(3, "0")} · {unit.unitType}
         </div>
-        <div className="text-xs text-mse-muted truncate">
-          {unit.unitSubType}
-        </div>
+        {unit.make && (
+          <div className="text-xs text-mse-muted truncate">{unit.make}</div>
+        )}
       </div>
       <div
         className={cn(

@@ -12,14 +12,14 @@ import {
 import type { PhotoSlot } from "@/lib/types";
 
 const PHOTO_SLOTS: PhotoSlot[] = [
-  "pre1",
-  "pre2",
-  "pre3",
-  "post1",
-  "post2",
-  "post3",
-  "nameplate",
-  "filter",
+  "pre", "post",
+  "coil1_pre", "coil1_post", "coil2_pre", "coil2_post",
+  "filter_pre", "filter_post",
+  "out_pre_1", "out_pre_2", "out_pre_3",
+  "out_post_1", "out_post_2", "out_post_3",
+  "out_nameplate",
+  "in_pre", "in_post", "in_nameplate",
+  "nameplate", "filter",
   "additional",
 ];
 
