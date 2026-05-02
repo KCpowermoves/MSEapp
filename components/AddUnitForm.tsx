@@ -1,16 +1,31 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Loader2, X } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, Loader2, X } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
-import { enqueueDraftUnit, enqueuePhoto } from "@/lib/upload-queue";
+import {
+  enqueueDraftUnit,
+  enqueuePhoto,
+  listDraftsForJob,
+} from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
 import type { Job, PhotoSlot, UnitType } from "@/lib/types";
+
+const TYPE_SHORT: Record<UnitType, string> = {
+  "PTAC / Ductless": "PTAC",
+  "Split System": "Split",
+  "RTU-S": "RTU-S",
+  "RTU-M": "RTU-M",
+  "RTU-L": "RTU-L",
+};
+
+function defaultLabel(unitType: UnitType, n: number): string {
+  return `${TYPE_SHORT[unitType]} ${n}`;
+}
 
 interface SlotDef {
   slot: PhotoSlot;
@@ -70,13 +85,40 @@ export function AddUnitForm({
   const [unitType, setUnitType] = useState<UnitType | null>(null);
   const [photos, setPhotos] = useState<Partial<Record<PhotoSlot, CapturedPhoto>>>({});
   const [additionalPhotos, setAdditionalPhotos] = useState<CapturedPhoto[]>([]);
-  const [label, setLabel] = useState(`Unit ${nextUnitNumber}`);
+  const [label, setLabel] = useState("");
+  const [labelTouched, setLabelTouched] = useState(false);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [serial, setSerial] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedOfflineCount, setSavedOfflineCount] = useState(0);
+  const [draftCount, setDraftCount] = useState(0);
+
+  // Load existing offline drafts for this job so the auto-numbered label
+  // accounts for units saved offline that the server doesn't know about yet.
+  useEffect(() => {
+    let cancelled = false;
+    listDraftsForJob(job.jobId)
+      .then((d) => {
+        if (!cancelled) setDraftCount(d.length);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [job.jobId]);
+
+  const effectiveNextNumber = nextUnitNumber + draftCount;
+
+  // Auto-fill the label whenever unit type changes — unless the tech
+  // has already typed something themselves.
+  useEffect(() => {
+    if (!unitType) return;
+    if (labelTouched) return;
+    setLabel(defaultLabel(unitType, effectiveNextNumber));
+  }, [unitType, effectiveNextNumber, labelTouched]);
 
   const slots = useMemo(() => slotsForType(unitType), [unitType]);
   const requiredSlots = slots.filter((s) => s.required);
@@ -103,115 +145,145 @@ export function AddUnitForm({
     setAdditionalPhotos((prev) => prev.filter((_, idx) => idx !== i));
   };
 
+  const resetFormForNextUnit = () => {
+    setUnitType(null);
+    setPhotos({});
+    setAdditionalPhotos([]);
+    setLabel("");
+    setLabelTouched(false);
+    setMake("");
+    setModel("");
+    setSerial("");
+    setNotes("");
+    setError(null);
+  };
+
   const submit = async () => {
     if (!canSubmit || !unitType) return;
     setSubmitting(true);
     setError(null);
 
-    let unitId: string;
-    let unitNumber: string;
-    let wentOffline = false;
+    // Snapshot the type before any state resets so async work (and
+    // logging) sees the right value.
+    const submittingType = unitType;
+    const submittingLabel = label;
+    const submittingPhotos = photos;
+    const submittingAdditional = additionalPhotos;
+    const submittingMake = make;
+    const submittingModel = model;
+    const submittingSerial = serial;
+    const submittingNotes = notes;
+    const submittingSlots = slots;
 
-    // Try the online path first. On network failure (offline / basement /
-    // bad signal) fall back to a local draft that the worker will sync
-    // when connectivity returns.
     try {
-      const res = await fetch("/api/units", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId: job.jobId,
-          unitType,
-          label,
-          make,
-          model,
-          serial,
-          notes,
-        }),
-      });
-      if (!res.ok) {
-        // HTTP error (auth, validation, 5xx) — surface and stop.
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Could not save unit");
-        setSubmitting(false);
-        return;
-      }
-      const data = await res.json();
-      unitId = data.unit.unitId as string;
-      unitNumber = String(data.unit.unitNumberOnJob).padStart(3, "0");
-    } catch {
-      // Network error — go offline. Create a draft locally; the
-      // background worker will POST it to /api/units when online.
-      wentOffline = true;
-      const draftId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      // ── Phase 1: Try online API. Distinguish network error from HTTP error.
+      let httpResponse: Response | null = null;
+      let networkErrored = false;
       try {
+        httpResponse = await fetch("/api/units", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobId: job.jobId,
+            unitType: submittingType,
+            label: submittingLabel,
+            make: submittingMake,
+            model: submittingModel,
+            serial: submittingSerial,
+            notes: submittingNotes,
+          }),
+        });
+      } catch (netErr) {
+        networkErrored = true;
+        console.warn("[AddUnit] network error, going offline:", netErr);
+      }
+
+      // ── Phase 2: Decide path
+      let unitId: string;
+      let unitNumber: string;
+      let wentOffline = false;
+
+      if (networkErrored) {
+        wentOffline = true;
+        const draftId = `local-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
         await enqueueDraftUnit({
           id: draftId,
           jobId: job.jobId,
-          unitType,
-          label,
-          make,
-          model,
-          serial,
-          notes,
-          fallbackUnitNumber: nextUnitNumber,
+          unitType: submittingType,
+          label: submittingLabel,
+          make: submittingMake,
+          model: submittingModel,
+          serial: submittingSerial,
+          notes: submittingNotes,
+          fallbackUnitNumber: effectiveNextNumber,
           createdAt: Date.now(),
         });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not save offline");
-        setSubmitting(false);
-        return;
+        unitId = draftId;
+        unitNumber = String(effectiveNextNumber).padStart(3, "0");
+      } else if (!httpResponse!.ok) {
+        const data = await httpResponse!.json().catch(() => ({}));
+        throw new Error(data.error ?? `Server error ${httpResponse!.status}`);
+      } else {
+        const data = await httpResponse!.json();
+        unitId = data.unit.unitId as string;
+        unitNumber = String(data.unit.unitNumberOnJob).padStart(3, "0");
       }
-      unitId = draftId;
-      unitNumber = String(nextUnitNumber).padStart(3, "0");
-    }
 
-    const typeTag = unitType.replace(/[\s/]+/g, "-");
+      // ── Phase 3: Enqueue photos (works for both online and offline paths;
+      // if unitId is local-, the worker rewrites it after the draft syncs).
+      const typeTag = submittingType.replace(/[\s/]+/g, "-");
+      for (const { slot } of submittingSlots) {
+        const photo = submittingPhotos[slot];
+        if (!photo) continue;
+        await enqueuePhoto({
+          id: `${unitId}-${slot}-${Date.now()}`,
+          jobId: job.jobId,
+          unitId,
+          serviceId: null,
+          photoSlot: slot,
+          blob: photo.blob,
+          filename: `Unit-${unitNumber}_${typeTag}_${slot}.jpg`,
+          capturedAt: photo.capturedAt,
+        });
+      }
+      for (let i = 0; i < submittingAdditional.length; i++) {
+        const photo = submittingAdditional[i];
+        if (!photo) continue;
+        await enqueuePhoto({
+          id: `${unitId}-additional-${i}-${Date.now()}`,
+          jobId: job.jobId,
+          unitId,
+          serviceId: null,
+          photoSlot: "additional",
+          blob: photo.blob,
+          filename: `${unitNumber}_additional_${i + 1}.jpg`,
+          capturedAt: photo.capturedAt,
+        });
+      }
 
-    // Enqueue all the slot photos that the user actually captured.
-    // If unitId is a local- id, the worker will rewrite it after the
-    // draft syncs.
-    for (const { slot } of slots) {
-      const photo = photos[slot];
-      if (!photo) continue;
-      await enqueuePhoto({
-        id: `${unitId}-${slot}-${Date.now()}`,
-        jobId: job.jobId,
-        unitId,
-        serviceId: null,
-        photoSlot: slot,
-        blob: photo.blob,
-        filename: `Unit-${unitNumber}_${typeTag}_${slot}.jpg`,
-        capturedAt: photo.capturedAt,
-      });
-    }
-    for (let i = 0; i < additionalPhotos.length; i++) {
-      const photo = additionalPhotos[i];
-      if (!photo) continue;
-      await enqueuePhoto({
-        id: `${unitId}-additional-${i}-${Date.now()}`,
-        jobId: job.jobId,
-        unitId,
-        serviceId: null,
-        photoSlot: "additional",
-        blob: photo.blob,
-        filename: `${unitNumber}_additional_${i + 1}.jpg`,
-        capturedAt: photo.capturedAt,
-      });
-    }
-    kickWorker();
-    setSubmitting(false);
+      kickWorker();
 
-    // When offline, router.replace hangs because Next.js tries to fetch
-    // a fresh RSC payload that never arrives. A full-page navigation
-    // hits the service worker, which serves the cached job-detail
-    // shell instantly. Online, the soft nav is faster.
-    const dest = `/jobs/${encodeURIComponent(job.jobId)}`;
-    if (wentOffline) {
-      window.location.assign(dest);
-    } else {
-      router.replace(dest);
-      router.refresh();
+      // ── Phase 4: Either navigate (online) or reset for another unit (offline)
+      if (wentOffline) {
+        // Don't navigate offline — dynamic routes aren't always in the
+        // SW cache after a SW update. Reset the form, bump the saved
+        // counter, and let the tech keep adding units in place.
+        setSavedOfflineCount((c) => c + 1);
+        setDraftCount((c) => c + 1);
+        resetFormForNextUnit();
+        setSubmitting(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setSubmitting(false);
+        router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
+        router.refresh();
+      }
+    } catch (e) {
+      console.error("[AddUnit] save failed:", e);
+      setError(e instanceof Error ? e.message : "Could not save unit");
+      setSubmitting(false);
     }
   };
 
@@ -219,15 +291,34 @@ export function AddUnitForm({
   return (
     <div className="space-y-6 pb-24">
       <div className="flex items-center gap-2">
-        <Link
-          href={`/jobs/${encodeURIComponent(job.jobId)}`}
+        <button
+          type="button"
+          onClick={() => {
+            const dest = `/jobs/${encodeURIComponent(job.jobId)}`;
+            // Full-page nav so SW handles offline. Online, browser is fast.
+            if (typeof window !== "undefined") window.location.assign(dest);
+          }}
           className="p-2 -ml-2 text-mse-muted hover:text-mse-navy"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5" />
-        </Link>
+        </button>
         <h1 className="text-2xl font-bold text-mse-navy">Add unit</h1>
       </div>
+
+      {savedOfflineCount > 0 && (
+        <div className="rounded-xl bg-mse-gold/15 border border-mse-gold/30 px-4 py-3 text-sm text-mse-navy flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-mse-gold shrink-0" />
+          <div className="flex-1">
+            <span className="font-bold">
+              {savedOfflineCount} unit{savedOfflineCount === 1 ? "" : "s"}{" "}
+              saved offline
+            </span>{" "}
+            — will sync when you&apos;re back online. Add another below or
+            tap the back arrow when finished.
+          </div>
+        </div>
+      )}
 
       {job.selfSold && job.soldBy && (
         <div className="rounded-xl bg-mse-gold/15 border border-mse-gold/30 px-4 py-3 text-sm text-mse-navy">
@@ -242,6 +333,12 @@ export function AddUnitForm({
           onChange={(next) => {
             setUnitType(next);
             setPhotos({});
+            // Reset the manual-touch flag so the label auto-fills
+            // for the new type. If they had typed a custom label
+            // for the previous type, that's lost — that's the right
+            // tradeoff: type-specific defaults are more useful than
+            // a sticky stale name.
+            setLabelTouched(false);
           }}
         />
       </Field>
@@ -251,13 +348,21 @@ export function AddUnitForm({
           <input
             type="text"
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder={`Unit ${nextUnitNumber}`}
+            onChange={(e) => {
+              setLabel(e.target.value);
+              setLabelTouched(true);
+            }}
+            placeholder={defaultLabel(unitType, effectiveNextNumber)}
             autoCapitalize="words"
             className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
           />
           <div className="text-xs text-mse-muted mt-1">
-            Defaults to <span className="font-semibold">Unit {nextUnitNumber}</span> — change to a location like &quot;Rooftop East&quot; or &quot;Suite 201&quot;.
+            Defaults to{" "}
+            <span className="font-semibold">
+              {defaultLabel(unitType, effectiveNextNumber)}
+            </span>{" "}
+            — change to a location like &quot;Rooftop East&quot; or &quot;Suite
+            201&quot;.
           </div>
         </Field>
       )}

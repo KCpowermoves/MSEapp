@@ -1,7 +1,7 @@
 // MSE Field service worker — caches the app shell for offline use.
 // Photo uploads use IndexedDB (see lib/upload-queue.ts) and don't go through here.
 
-const CACHE = "mse-field-v3";
+const CACHE = "mse-field-v4";
 const PRECACHE = ["/login", "/jobs", "/manifest.json", "/logo.png", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
