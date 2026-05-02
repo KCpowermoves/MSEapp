@@ -110,6 +110,7 @@ export function AddUnitForm({
 
     let unitId: string;
     let unitNumber: string;
+    let wentOffline = false;
 
     // Try the online path first. On network failure (offline / basement /
     // bad signal) fall back to a local draft that the worker will sync
@@ -141,6 +142,7 @@ export function AddUnitForm({
     } catch {
       // Network error — go offline. Create a draft locally; the
       // background worker will POST it to /api/units when online.
+      wentOffline = true;
       const draftId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       try {
         await enqueueDraftUnit({
@@ -198,8 +200,19 @@ export function AddUnitForm({
       });
     }
     kickWorker();
-    router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
-    router.refresh();
+    setSubmitting(false);
+
+    // When offline, router.replace hangs because Next.js tries to fetch
+    // a fresh RSC payload that never arrives. A full-page navigation
+    // hits the service worker, which serves the cached job-detail
+    // shell instantly. Online, the soft nav is faster.
+    const dest = `/jobs/${encodeURIComponent(job.jobId)}`;
+    if (wentOffline) {
+      window.location.assign(dest);
+    } else {
+      router.replace(dest);
+      router.refresh();
+    }
   };
 
 
