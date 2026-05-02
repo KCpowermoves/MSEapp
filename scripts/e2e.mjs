@@ -438,28 +438,35 @@ async function verifyDriveState(expectedJobs) {
     folders.length >= expectedJobs,
     `Drive root has ≥ ${expectedJobs} job folders (got ${folders.length})`
   );
-  // Sample one job folder and verify a Unit-001 subfolder + photos
+  // Sample one job folder and verify Unit-prefixed photo files (flat
+  // structure — no per-unit subfolders)
   if (folders.length > 0) {
-    const sub = await drive.files.list({
+    const contents = await drive.files.list({
       q: `'${folders[0].id}' in parents and trashed=false`,
       fields: "files(id,name,mimeType)",
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
+      pageSize: 100,
     });
-    const units = (sub.data.files ?? []).filter((f) =>
-      f.name.startsWith("Unit-")
+    const all = contents.data.files ?? [];
+    const subfolders = all.filter(
+      (f) => f.mimeType === "application/vnd.google-apps.folder"
     );
-    expect(units.length > 0, `${folders[0].name} contains a Unit folder`);
-    if (units.length > 0) {
-      const photos = await drive.files.list({
-        q: `'${units[0].id}' in parents and trashed=false and mimeType contains 'image/'`,
-        fields: "files(id,name,size)",
-        supportsAllDrives: true,
-        includeItemsFromAllDrives: true,
-      });
-      const count = (photos.data.files ?? []).length;
-      expect(count >= 4, `${units[0].name} has ≥ 4 photos (got ${count})`);
-    }
+    expect(
+      subfolders.length === 0,
+      `${folders[0].name} should be flat (got ${subfolders.length} subfolders)`
+    );
+    const unitPhotos = all.filter(
+      (f) => f.name.startsWith("Unit-") && f.mimeType?.startsWith("image/")
+    );
+    expect(
+      unitPhotos.length >= 4,
+      `${folders[0].name} has ≥ 4 Unit photos (got ${unitPhotos.length})`
+    );
+    // Spot-check a filename has the expected pattern
+    const sample = unitPhotos[0]?.name ?? "";
+    const matchesPattern = /^Unit-\d{3}_.+_(pre|post|clean|nameplate|filter)\.jpg$/.test(sample);
+    expect(matchesPattern, `filename pattern matches: ${sample}`);
   }
 }
 

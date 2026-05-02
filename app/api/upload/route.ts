@@ -7,7 +7,6 @@ import {
   getOrCreateFolder,
   getRootFolderId,
   jobFolderName,
-  unitFolderName,
   uploadImage,
 } from "@/lib/google/drive";
 import type { PhotoSlot } from "@/lib/types";
@@ -66,14 +65,11 @@ export async function POST(request: Request) {
       if (!unit) {
         return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
-      const unitFolder = await getOrCreateFolder(
-        unitFolderName(unit.unitNumberOnJob, unit.unitType),
-        rootFolderId
-      );
       const numStr = String(unit.unitNumberOnJob).padStart(3, "0");
-      const filename = `${numStr}_${slot}.jpg`;
+      const safeType = slugForFilename(unit.unitType);
+      const filename = `Unit-${numStr}_${safeType}_${slot}.jpg`;
       const uploaded = await uploadImage({
-        folderId: unitFolder.id,
+        folderId: rootFolderId,
         filename,
         mimeType,
         body: buffer,
@@ -83,13 +79,10 @@ export async function POST(request: Request) {
     }
 
     if (serviceId) {
-      const servicesFolder = await getOrCreateFolder(
-        "Additional-Services",
-        rootFolderId
-      );
-      const filename = `Service_${serviceId}_${Date.now()}.jpg`;
+      const shortId = serviceId.split("-").at(-1) ?? serviceId;
+      const filename = `Service-${shortId}_${Date.now()}.jpg`;
       const uploaded = await uploadImage({
-        folderId: servicesFolder.id,
+        folderId: rootFolderId,
         filename,
         mimeType,
         body: buffer,
@@ -126,4 +119,8 @@ async function ensureJobFolderId(job: {
     getRootFolderId()
   );
   return folder.id;
+}
+
+function slugForFilename(s: string): string {
+  return s.replace(/[^a-zA-Z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
 }

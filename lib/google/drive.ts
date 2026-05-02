@@ -122,8 +122,3 @@ export function jobFolderName(opts: {
   return `${dateStr}_${cust}_${addr}`;
 }
 
-export function unitFolderName(unitNumber: number, unitType: string): string {
-  const numStr = unitNumber.toString().padStart(3, "0");
-  const safeType = unitType.replace(/[^a-zA-Z0-9-]+/g, "_");
-  return `Unit-${numStr}_${safeType}`;
-}
