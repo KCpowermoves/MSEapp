@@ -177,25 +177,41 @@ export function AddUnitForm({
 
     try {
       // ── Phase 1: Try online API. Distinguish network error from HTTP error.
+      // Critical: iOS Safari does NOT immediately fail fetch when offline —
+      // it can hang for 30+ seconds. Pre-check navigator.onLine and use
+      // AbortController to bound the wait.
       let httpResponse: Response | null = null;
       let networkErrored = false;
-      try {
-        httpResponse = await fetch("/api/units", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobId: job.jobId,
-            unitType: submittingType,
-            label: submittingLabel,
-            make: submittingMake,
-            model: submittingModel,
-            serial: submittingSerial,
-            notes: submittingNotes,
-          }),
-        });
-      } catch (netErr) {
+
+      const explicitlyOffline =
+        typeof navigator !== "undefined" && navigator.onLine === false;
+      if (explicitlyOffline) {
+        console.log("[AddUnit] navigator.onLine=false → offline path");
         networkErrored = true;
-        console.warn("[AddUnit] network error, going offline:", netErr);
+      } else {
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 8000);
+        try {
+          httpResponse = await fetch("/api/units", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              jobId: job.jobId,
+              unitType: submittingType,
+              label: submittingLabel,
+              make: submittingMake,
+              model: submittingModel,
+              serial: submittingSerial,
+              notes: submittingNotes,
+            }),
+            signal: ctrl.signal,
+          });
+        } catch (netErr) {
+          networkErrored = true;
+          console.warn("[AddUnit] fetch failed/aborted, going offline:", netErr);
+        } finally {
+          clearTimeout(timeoutId);
+        }
       }
 
       // ── Phase 2: Decide path
@@ -370,20 +386,16 @@ export function AddUnitForm({
       {unitType && (
         <Field label="Photos" required>
           <div className="space-y-2">
-            {slots.map((p) => {
-              const isFilterSlot = p.slot === "filter" || p.slot === "filter_pre" || p.slot === "filter_post";
-              return (
-                <PhotoCapture
-                  key={p.slot}
-                  label={p.label}
-                  hint={p.hint}
-                  required={p.required}
-                  value={photos[p.slot] ?? null}
-                  onChange={setSlot(p.slot)}
-                  onExtras={isFilterSlot ? addExtrasToAdditional : undefined}
-                />
-              );
-            })}
+            {slots.map((p) => (
+              <PhotoCapture
+                key={p.slot}
+                label={p.label}
+                hint={p.hint}
+                required={p.required}
+                value={photos[p.slot] ?? null}
+                onChange={setSlot(p.slot)}
+              />
+            ))}
           </div>
         </Field>
       )}
@@ -506,12 +518,6 @@ const COMPRESSION_OPTS = {
   preserveExif: false,
   fileType: "image/jpeg" as const,
 };
-const THUMB_OPTS = {
-  maxSizeMB: 0.05,
-  maxWidthOrHeight: 256,
-  useWebWorker: false,
-  fileType: "image/jpeg" as const,
-};
 
 function AdditionalPhotosPicker({
   photos,
@@ -532,15 +538,10 @@ function AdditionalPhotosPicker({
       const results = await Promise.all(
         Array.from(files).map(async (file) => {
           const compressed = await imageCompression(file, COMPRESSION_OPTS);
-          let thumb: Blob;
-          try {
-            thumb = await imageCompression(file, THUMB_OPTS);
-          } catch {
-            thumb = compressed;
-          }
           return {
             blob: compressed,
-            thumbnailUrl: URL.createObjectURL(thumb),
+            // Full compressed image for preview — sharp on phone screens.
+            thumbnailUrl: URL.createObjectURL(compressed),
             capturedAt: Date.now(),
             filename: `photo_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,
           } satisfies CapturedPhoto;

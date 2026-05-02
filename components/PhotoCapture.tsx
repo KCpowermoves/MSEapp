@@ -39,27 +39,18 @@ function compressionOptions() {
   };
 }
 
-const THUMB_OPTIONS = {
-  maxSizeMB: 0.05,
-  maxWidthOrHeight: 256,
-  useWebWorker: false,
-  fileType: "image/jpeg" as const,
-};
-
 async function compressToPhoto(
   file: File,
   filename: string
 ): Promise<CapturedPhoto> {
   const compressed = await imageCompression(file, compressionOptions());
-  let thumb: Blob;
-  try {
-    thumb = await imageCompression(file, THUMB_OPTIONS);
-  } catch {
-    thumb = compressed;
-  }
+  // Use the full compressed image for the in-app preview so the tech
+  // sees the actual quality of the photo they just took, not a tiny
+  // pixelated thumb. The compressed blob is ~1.5MB max which is fine
+  // to hold in memory while the form is open.
   return {
     blob: compressed,
-    thumbnailUrl: URL.createObjectURL(thumb),
+    thumbnailUrl: URL.createObjectURL(compressed),
     capturedAt: Date.now(),
     filename,
   };
