@@ -104,10 +104,8 @@ export function CustomerConfirmForm({
     if (submitting) return;
     const email = customerEmail.trim();
     const hasInk = sigRef.current && !sigRef.current.isEmpty();
-
-    // Nothing to upload — skip straight to feedback.
-    if (!hasInk && !email) {
-      goToFeedback();
+    if (!hasInk) {
+      setError("Please ask the customer to sign before continuing.");
       return;
     }
 
@@ -120,28 +118,9 @@ export function CustomerConfirmForm({
       formData.append("kind", "signature");
       formData.append("signedByName", signedByName.trim());
       if (email) formData.append("customerEmail", email);
-      if (hasInk) {
-        const dataUrl = sigRef.current!.toDataURL("image/png");
-        const blob = await (await fetch(dataUrl)).blob();
-        formData.append("file", blob, "signature.png");
-      } else {
-        // /api/upload requires a file. Send a 1-pixel transparent PNG
-        // when only the email needs to land — we'll still get the email
-        // saved, but won't pollute the Drive folder with a blank sig.
-        // Easier: hit a separate path that takes only email. Skip the
-        // /api/upload route in this case and PUT to a thin endpoint.
-        const res = await fetch("/api/dispatches/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dispatchId, customerEmail: email }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          console.warn("[confirm] email-only save failed:", data);
-        }
-        goToFeedback();
-        return;
-      }
+      const dataUrl = sigRef.current!.toDataURL("image/png");
+      const blob = await (await fetch(dataUrl)).blob();
+      formData.append("file", blob, "signature.png");
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -184,7 +163,8 @@ export function CustomerConfirmForm({
       </div>
 
       <p className="text-sm text-mse-text leading-relaxed">
-        Please confirm our technician was here and completed the work today.
+        Please confirm our technician was here and completed the work
+        today by signing below.
       </p>
 
       <ReportSummary preview={preview} job={job} />
@@ -291,11 +271,11 @@ export function CustomerConfirmForm({
           <button
             type="button"
             onClick={onContinue}
-            disabled={submitting}
+            disabled={submitting || !hasSignature}
             className={cn(
               "w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
-              !submitting
+              !submitting && hasSignature
                 ? "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card"
                 : "bg-mse-light text-mse-muted cursor-not-allowed"
             )}
@@ -305,6 +285,8 @@ export function CustomerConfirmForm({
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Saving…
               </span>
+            ) : !hasSignature ? (
+              "Sign above to continue"
             ) : (
               <span className="inline-flex items-center gap-2">
                 Continue <ArrowRight className="w-4 h-4" />

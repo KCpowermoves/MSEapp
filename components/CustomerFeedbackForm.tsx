@@ -131,11 +131,11 @@ function RateStage({
     <>
       <section className="rounded-2xl border-2 border-mse-navy/15 bg-white p-5">
         <div className="text-lg font-bold text-mse-navy">
-          Share your honest feedback
+          How was today&apos;s service?
         </div>
         <div className="text-sm text-mse-muted mt-1.5 leading-relaxed">
-          Tap a star — we&apos;ll email you a thank-you gift either way.
-          Takes about 10 seconds.
+          Tap a star — your honest rating helps our team improve. Takes
+          about 10 seconds.
         </div>
         <div className="flex justify-between items-center gap-1 mt-5">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -221,9 +221,37 @@ function FiveStarStage({
           Awesome — thank you!
         </div>
         <div className="text-sm text-mse-text/90 mt-2 leading-relaxed">
-          Would you mind sharing that on Google? Scan the code below with
-          your own phone — we&apos;ll suggest some words to start with so
-          it only takes a few seconds.
+          Scan the code with your own phone to leave us a quick Google
+          review — we&apos;ll even suggest the words. Then watch for the
+          thank-you in your inbox.
+        </div>
+      </section>
+
+      {/* Gift offer — large, gold, sits between the rating and the QR
+          so it's the first thing the customer sees as the reason to
+          scan. Wording mentions Google but doesn't explicitly tie the
+          gift to the review (Google's TOS bans incentivized reviews —
+          we reward the 5-star rating in our system, the Google share
+          is a parallel ask). */}
+      <section className="rounded-2xl bg-mse-gold p-5 shadow-elevated">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-12 h-12 rounded-full bg-mse-navy flex items-center justify-center shrink-0">
+            <Gift className="w-6 h-6 text-mse-gold" />
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider font-bold text-mse-navy/70">
+              Free thank-you gift
+            </div>
+            <div className="text-xl font-extrabold text-mse-navy leading-tight">
+              Free filter on your next visit
+            </div>
+          </div>
+        </div>
+        <div className="text-sm text-mse-navy leading-relaxed mt-3">
+          Sharing on Google means a lot to a small Maryland team — leave
+          us a quick review and we&apos;ll email your free-filter
+          voucher right after. Just mention it when you book your next
+          tune-up.
         </div>
       </section>
 
@@ -254,17 +282,6 @@ function FiveStarStage({
           Open your camera, point at the code, and tap the link. We&apos;ll
           drop a suggested review on your clipboard so you can paste it
           straight into Google.
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-mse-gold/30 bg-mse-gold/5 p-4">
-        <div className="flex items-start gap-3">
-          <Gift className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
-          <div className="text-sm text-mse-text leading-relaxed">
-            <span className="font-bold text-mse-navy">A thank-you from MSE.</span>{" "}
-            Watch your inbox — we&apos;re sending a small token of
-            appreciation for the honest feedback.
-          </div>
         </div>
       </section>
 
@@ -309,17 +326,6 @@ function LowRatingStage({
           follow up by email shortly so you can share what would&apos;ve
           made it a 5-star visit. Stays between you and our team — the
           tech doesn&apos;t see your reply.
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-mse-gold/30 bg-mse-gold/5 p-4">
-        <div className="flex items-start gap-3">
-          <Gift className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
-          <div className="text-sm text-mse-text leading-relaxed">
-            <span className="font-bold text-mse-navy">Thank-you gift on its way.</span>{" "}
-            Keep an eye on your inbox — even when we miss the mark, we
-            appreciate honest feedback.
-          </div>
         </div>
       </section>
 

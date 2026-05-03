@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ArrowRight, Check, Copy, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Copy, Gift, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -84,6 +84,27 @@ export function ReviewHelper({
               </>
             )}
           </button>
+        </section>
+
+        <section className="rounded-2xl bg-mse-gold p-5 shadow-elevated">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 rounded-full bg-mse-navy flex items-center justify-center shrink-0">
+              <Gift className="w-6 h-6 text-mse-gold" />
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider font-bold text-mse-navy/70">
+                Free thank-you gift
+              </div>
+              <div className="text-xl font-extrabold text-mse-navy leading-tight">
+                Free filter on your next visit
+              </div>
+            </div>
+          </div>
+          <div className="text-sm text-mse-navy leading-relaxed mt-3">
+            We&apos;ll email your free-filter voucher to the address on
+            file. Just mention it when you book your next tune-up — no
+            promo code needed and it doesn&apos;t expire.
+          </div>
         </section>
 
         <a
