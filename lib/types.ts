@@ -97,6 +97,9 @@ export interface UnitServiced {
   inPostUrl: string;
   inNameplateUrl: string;
   label: string;
+  /** Soft-delete flag. Deleted units are kept in the sheet for audit
+   *  but excluded from app reads and pay rollups. */
+  deleted: boolean;
   make: string;
   model: string;
   serial: string;

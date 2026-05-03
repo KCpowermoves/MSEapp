@@ -19,6 +19,7 @@ import type { PhotoSlot, UnitServiced, UnitType } from "@/lib/types";
 // P=Make  Q=Model  R=Serial  S=Notes  T=LoggedBy  U=LoggedAt
 // V=InPre  W=InPost  X=InNameplate  (Split System indoor AH only)
 // Y=Label (optional zone/location label, e.g. "Rooftop East", "Suite 201")
+// Z=Deleted ("TRUE" = soft-deleted, hidden from app reads)
 const PHOTO_COL: Record<Exclude<PhotoSlot, "additional">, string> = {
   // Simple types (PTAC, Ductless, Water-Source HP, VRV-VRF)
   pre: "G", post: "H",
@@ -64,12 +65,13 @@ function rowToUnit(row: string[]): UnitServiced {
     inPostUrl: String(row[22] ?? ""),
     inNameplateUrl: String(row[23] ?? ""),
     label: String(row[24] ?? ""),
+    deleted: String(row[25] ?? "").toUpperCase() === "TRUE",
   };
 }
 
 export async function listAllUnits(): Promise<UnitServiced[]> {
   const rows = await readTab(TABS.unitsServiced);
-  return rows.filter((r) => r[0]).map(rowToUnit);
+  return rows.filter((r) => r[0]).map(rowToUnit).filter((u) => !u.deleted);
 }
 
 export async function listUnitsForDispatch(
@@ -131,6 +133,7 @@ export async function createUnit(opts: {
     isoNow,
     "", "", "",        // V W X: Split System indoor AH photos
     opts.label,        // Y: location/zone label
+    "",                // Z: deleted flag (empty = not deleted)
   ]);
   await bumpLastActivity(opts.jobId);
   return {
@@ -144,6 +147,7 @@ export async function createUnit(opts: {
     nameplateUrl: "", filterUrl: "", additionalUrls: "",
     inPreUrl: "", inPostUrl: "", inNameplateUrl: "",
     label: opts.label,
+    deleted: false,
     make: opts.make,
     model: opts.model,
     serial: opts.serial,
@@ -151,6 +155,17 @@ export async function createUnit(opts: {
     loggedBy: opts.loggedBy,
     loggedAt: isoNow,
   };
+}
+
+/**
+ * Soft-delete a unit. Sets column Z to "TRUE" so the row stays in the
+ * sheet for audit but the app stops showing it. Does not touch any
+ * pay-attribution rows that may already reference the unit.
+ */
+export async function softDeleteUnit(unitId: string): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.unitsServiced, "A", unitId);
+  if (!rowIndex) throw new Error(`Unit not found: ${unitId}`);
+  await updateCell(`${TABS.unitsServiced}!Z${rowIndex}`, "TRUE");
 }
 
 export async function updateUnit(opts: {

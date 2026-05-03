@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { enqueuePhoto } from "@/lib/upload-queue";
@@ -81,6 +81,7 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
   const [serial, setSerial] = useState(unit.serial ?? "");
   const [notes, setNotes] = useState(unit.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Local optimistic overrides (slot → local thumbnail blob URL while reupload pends)
@@ -130,6 +131,32 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save");
       setSubmitting(false);
+    }
+  };
+
+  const deleteThisUnit = async () => {
+    if (deleting || submitting) return;
+    const confirmed = window.confirm(
+      `Delete ${displayName}? This removes the unit from the app. ` +
+        `Photos already in Drive aren't deleted. Cannot be undone from the app.`
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/units?unitId=${encodeURIComponent(unit.unitId)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Could not delete");
+      }
+      router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete unit");
+      setDeleting(false);
     }
   };
 
@@ -290,16 +317,47 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
         </div>
       )}
 
+      <div className="pt-4 border-t border-mse-light">
+        <button
+          type="button"
+          onClick={deleteThisUnit}
+          disabled={deleting || submitting}
+          className={cn(
+            "w-full font-semibold rounded-2xl py-3 text-center text-sm",
+            "border-2 border-mse-red/40 text-mse-red bg-white",
+            "hover:bg-mse-red/5 active:scale-[0.98] transition-[background-color,transform]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red",
+            (deleting || submitting) && "opacity-50 cursor-not-allowed"
+          )}
+        >
+          {deleting ? (
+            <span className="inline-flex items-center gap-2 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Deleting...
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2 justify-center">
+              <Trash2 className="w-4 h-4" />
+              Delete this unit
+            </span>
+          )}
+        </button>
+        <p className="text-xs text-mse-muted text-center mt-2">
+          Removes the unit from the app. Photos already uploaded to Drive
+          stay there. Submitted units can&apos;t be deleted.
+        </p>
+      </div>
+
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
         <div className="max-w-2xl mx-auto">
           <button
             type="button"
             onClick={submit}
-            disabled={submitting}
+            disabled={submitting || deleting}
             className={cn(
               "w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
-              !submitting
+              !submitting && !deleting
                 ? "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card"
                 : "bg-mse-light text-mse-muted cursor-not-allowed"
             )}

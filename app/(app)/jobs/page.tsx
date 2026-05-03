@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { Plus, ChevronRight, MapPin, CheckCircle2, Camera } from "lucide-react";
+import { Plus, DollarSign } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listActiveJobs } from "@/lib/data/jobs";
 import { listAllDispatches } from "@/lib/data/dispatches";
 import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
-import { ageInDays } from "@/lib/utils";
+import { payForTechOnDate } from "@/lib/data/pay-attribution";
+import { formatCurrency, todayIsoDate } from "@/lib/utils";
 import { SubmittedToast } from "@/components/SubmittedToast";
 import { OfflineJobRows } from "@/components/OfflineJobRows";
+import { JobsList } from "@/components/JobsList";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +23,22 @@ export default async function JobsHomePage({
 }: {
   searchParams: { submitted?: string };
 }) {
-  const [session, jobs, dispatches, units] = await Promise.all([
-    getSession(),
+  const session = await getSession();
+  const techName = session.name ?? "";
+  const today = todayIsoDate();
+  const [jobs, dispatches, units, todaysPay] = await Promise.all([
     listActiveJobs(),
     listAllDispatches(),
     listAllUnits(),
+    payForTechOnDate({ techName, dateIso: today }),
   ]);
-  const firstName = (session.name ?? "").split(" ")[0] || "there";
+  const firstName = techName.split(" ")[0] || "there";
+
+  // Today's earnings summary inputs
+  const distinctDispatchIds = new Set(todaysPay.rows.map((r) => r.dispatchId));
+  const installRowCount = todaysPay.rows.filter(
+    (r) => r.lineItem === "Install"
+  ).length;
 
   // Map jobId → stats from any unsubmitted dispatch
   const draftDispatchesByJob = new Map<string, Set<string>>();
@@ -65,6 +76,34 @@ export default async function JobsHomePage({
         </h1>
       </div>
 
+      {todaysPay.total > 0 && (
+        <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-white/60 font-semibold">
+                Today
+              </div>
+              <div className="text-3xl font-bold tracking-tight mt-0.5">
+                {formatCurrency(todaysPay.total)}
+              </div>
+            </div>
+            <div className="text-right text-xs text-white/70">
+              <div>
+                {installRowCount} unit{installRowCount === 1 ? "" : "s"}
+              </div>
+              <div>
+                {distinctDispatchIds.size} job
+                {distinctDispatchIds.size === 1 ? "" : "s"}
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-white/60">
+            <DollarSign className="w-3 h-3" />
+            updates after each job is submitted
+          </div>
+        </div>
+      )}
+
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-mse-muted uppercase tracking-wide">
@@ -75,53 +114,10 @@ export default async function JobsHomePage({
 
         <OfflineJobRows />
 
-        {jobs.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-mse-light p-8 text-center">
-            <p className="text-mse-muted">No active jobs.</p>
-            <p className="text-xs text-mse-muted mt-1">
-              Tap the button below to create your first one.
-            </p>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {jobs.map((j) => {
-              const age = Math.floor(
-                ageInDays(j.lastActivityDate || j.createdDate)
-              );
-              const stats = statsByJob.get(j.jobId);
-              return (
-                <li key={j.jobId}>
-                  <Link
-                    href={`/jobs/${encodeURIComponent(j.jobId)}`}
-                    className="block bg-white rounded-2xl border border-mse-light p-4 shadow-card hover:shadow-elevated active:scale-[0.99] transition-[transform,box-shadow]"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-mse-navy truncate">
-                          {j.customerName}
-                        </div>
-                        <div className="text-sm text-mse-muted truncate flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          {j.siteAddress}
-                        </div>
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          <TerritoryPill territory={j.utilityTerritory} />
-                          <span className="text-xs text-mse-muted">
-                            {age === 0 ? "today" : `${age}d ago`}
-                          </span>
-                          {stats && stats.pendingUnits > 0 && (
-                            <PhotoStatusPill stats={stats} />
-                          )}
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-mse-muted shrink-0 mt-1" />
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <JobsList
+          jobs={jobs}
+          statsByJob={Object.fromEntries(statsByJob.entries())}
+        />
       </section>
 
       <Link
@@ -137,42 +133,3 @@ export default async function JobsHomePage({
   );
 }
 
-function PhotoStatusPill({ stats }: { stats: JobStats }) {
-  const { pendingUnits, photosUploaded, photosRequired } = stats;
-  const allDone = photosRequired > 0 && photosUploaded === photosRequired;
-  const unitWord = pendingUnits === 1 ? "unit" : "units";
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-        allDone
-          ? "bg-mse-gold/15 text-mse-navy"
-          : "bg-mse-red/10 text-mse-red"
-      }`}
-    >
-      {allDone ? (
-        <CheckCircle2 className="w-3 h-3" />
-      ) : (
-        <Camera className="w-3 h-3" />
-      )}
-      {pendingUnits} {unitWord} · {photosUploaded}/{photosRequired}
-    </span>
-  );
-}
-
-function TerritoryPill({ territory }: { territory: string }) {
-  const colors: Record<string, string> = {
-    BGE: "bg-mse-navy/10 text-mse-navy",
-    PEPCO: "bg-mse-navy/10 text-mse-navy",
-    Delmarva: "bg-mse-gold/15 text-mse-navy",
-    SMECO: "bg-mse-gold/15 text-mse-navy",
-  };
-  return (
-    <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-        colors[territory] ?? "bg-mse-light text-mse-text"
-      }`}
-    >
-      {territory}
-    </span>
-  );
-}

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
-import { ensureDraftDispatch } from "@/lib/data/dispatches";
-import { createUnit, getUnit, nextUnitNumberOnJob, updateUnit } from "@/lib/data/units";
+import { ensureDraftDispatch, getDispatch } from "@/lib/data/dispatches";
+import {
+  createUnit,
+  getUnit,
+  nextUnitNumberOnJob,
+  softDeleteUnit,
+  updateUnit,
+} from "@/lib/data/units";
 import type { UnitType } from "@/lib/types";
 
 const UNIT_TYPES: UnitType[] = [
@@ -96,5 +102,45 @@ export async function PATCH(request: Request) {
   } catch (e) {
     console.error("Unit update failed:", e);
     return NextResponse.json({ error: "Could not update unit." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await requireSession();
+  } catch {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const unitId = new URL(request.url).searchParams.get("unitId");
+  if (!unitId)
+    return NextResponse.json({ error: "Missing unitId" }, { status: 400 });
+
+  const unit = await getUnit(unitId);
+  if (!unit)
+    return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+
+  // Refuse to delete units that are part of a submitted dispatch — pay
+  // attribution rows already reference them and removing the unit
+  // would leave dangling pay rows.
+  const dispatch = await getDispatch(unit.dispatchId);
+  if (dispatch?.submittedAt) {
+    return NextResponse.json(
+      {
+        error:
+          "This unit is part of a submitted dispatch and can't be deleted. Edit instead.",
+      },
+      { status: 409 }
+    );
+  }
+
+  try {
+    await softDeleteUnit(unitId);
+    revalidatePath(`/jobs/${unit.jobId}`);
+    revalidatePath("/jobs");
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Unit delete failed:", e);
+    return NextResponse.json({ error: "Could not delete unit." }, { status: 500 });
   }
 }
