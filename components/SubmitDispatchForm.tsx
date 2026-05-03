@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
+import { captureLocationEvent } from "@/lib/location";
 import {
   INSTALL_PAY,
   SALES_BONUS,
@@ -106,6 +107,11 @@ export function SubmitDispatchForm({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Could not submit");
       }
+      captureLocationEvent(
+        "dispatch-submit",
+        { jobId: job.jobId },
+        { force: true }
+      ).catch(() => {});
       router.replace("/jobs?submitted=1");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not submit");

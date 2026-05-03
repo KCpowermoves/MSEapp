@@ -10,6 +10,7 @@ export const TABS = {
   payAttribution: "Pay Attribution",
   payRates: "Pay Rates",
   payCalc: "Pay Calc",
+  locationEvents: "Location Events",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across

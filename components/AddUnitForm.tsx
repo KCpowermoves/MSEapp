@@ -12,6 +12,7 @@ import {
   listDraftsForJob,
 } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
+import { captureLocationEvent } from "@/lib/location";
 import { cn } from "@/lib/utils";
 import type { Job, PhotoSlot, UnitType } from "@/lib/types";
 
@@ -319,6 +320,15 @@ export function AddUnitForm({
       }
 
       kickWorker();
+
+      // Best-effort geo-stamp on the unit save. Real unitId for online
+      // path; local- temp id for offline path (still useful for the
+      // office to see where the tech was).
+      captureLocationEvent(
+        "unit-save",
+        { jobId: job.jobId, unitId },
+        { force: true }
+      ).catch(() => {});
 
       // ── Phase 4: Either navigate (online) or reset for another unit (offline)
       if (wentOffline) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Delete } from "lucide-react";
+import { captureLocationEvent } from "@/lib/location";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
@@ -30,6 +31,9 @@ export default function LoginPage() {
         setTimeout(() => setShake(false), 400);
         return;
       }
+      // Best-effort: log a location-stamped login event. Doesn't block
+      // the redirect — fires and forgets.
+      captureLocationEvent("login", {}, { force: true }).catch(() => {});
       router.replace("/jobs");
     } finally {
       setLoading(false);

@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
 import { enqueueDraftJob } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
+import { captureLocationEvent } from "@/lib/location";
 import { cn } from "@/lib/utils";
 import type { UtilityTerritory } from "@/lib/types";
 
@@ -110,6 +111,8 @@ export function NewJobForm({
 
     try {
       const job = await httpResponse!.json();
+      captureLocationEvent("job-create", { jobId: job.jobId }, { force: true })
+        .catch(() => {});
       router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create job");

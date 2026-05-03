@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { PendingBadge } from "@/components/PendingBadge";
+import { LocationConsent } from "@/components/LocationConsent";
 
 export function AppShell({
   children,
@@ -49,6 +50,7 @@ export function AppShell({
       <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-6 safe-bottom">
         {children}
       </main>
+      <LocationConsent techName={techName} />
     </div>
   );
 }
