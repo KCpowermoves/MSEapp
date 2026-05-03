@@ -8,6 +8,11 @@ function required(key: string): string {
   return value;
 }
 
+function optional(key: string): string | null {
+  const value = process.env[key];
+  return value && value.length > 0 ? value : null;
+}
+
 export const env = {
   googleServiceAccountEmail: () => required("GOOGLE_SERVICE_ACCOUNT_EMAIL"),
   googleServiceAccountPrivateKey: () =>
@@ -16,4 +21,8 @@ export const env = {
   googleDriveRootFolderId: () => required("GOOGLE_DRIVE_ROOT_FOLDER_ID"),
   ironSessionPassword: () => required("IRON_SESSION_PASSWORD"),
   appUrl: () => process.env.APP_URL ?? "http://localhost:3000",
+  // Optional — when present, nameplate OCR is enabled. When absent, the
+  // OCR endpoint returns a no-op result so the app silently degrades to
+  // manual entry.
+  anthropicApiKey: () => optional("ANTHROPIC_API_KEY"),
 };
