@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Camera, CheckCircle2, Loader2, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, Loader2, X } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
@@ -13,7 +13,8 @@ import {
 } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { captureLocationEvent } from "@/lib/location";
-import { readNameplate, type OcrResult } from "@/lib/ocr";
+import { useOcrAutoFill } from "@/hooks/useOcrAutoFill";
+import { OcrStatusBanner } from "@/components/OcrStatusBanner";
 import { cn } from "@/lib/utils";
 import type { Job, PhotoSlot, UnitType } from "@/lib/types";
 
@@ -135,11 +136,15 @@ export function AddUnitForm({
   const [savedOfflineCount, setSavedOfflineCount] = useState(0);
   const [draftCount, setDraftCount] = useState(0);
 
-  // OCR state for nameplate auto-fill
-  const [ocrStatus, setOcrStatus] = useState<
-    "idle" | "reading" | "complete" | "error"
-  >("idle");
-  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
+  // OCR auto-fill — shared hook handles status/result + only fills empty fields
+  const ocr = useOcrAutoFill({
+    make,
+    model,
+    serial,
+    setMake,
+    setModel,
+    setSerial,
+  });
 
   // Load existing offline drafts for this job so the auto-numbered label
   // accounts for units saved offline that the server doesn't know about yet.
@@ -193,27 +198,8 @@ export function AddUnitForm({
 
     // Fire-and-forget OCR when a nameplate is captured. Skips if a
     // read is already running or has already populated the fields.
-    if (next && isNameplateSlot(slot) && ocrStatus !== "reading") {
-      void runOcr(next.blob);
-    }
-  };
-
-  const runOcr = async (blob: Blob) => {
-    setOcrStatus("reading");
-    const result = await readNameplate(blob);
-    setOcrResult(result);
-    if (result.status !== "ok") {
-      // OCR disabled or errored — silently fall back to manual entry.
-      setOcrStatus("error");
-      return;
-    }
-    setOcrStatus("complete");
-    // Only fill EMPTY fields — never overwrite anything the tech has
-    // already typed or corrected.
-    if (result.confidence >= 50) {
-      if (result.make && !make) setMake(result.make);
-      if (result.model && !model) setModel(result.model);
-      if (result.serial && !serial) setSerial(result.serial);
+    if (next && isNameplateSlot(slot)) {
+      void ocr.run(next.blob);
     }
   };
 
@@ -235,8 +221,7 @@ export function AddUnitForm({
     setSerial("");
     setNotes("");
     setError(null);
-    setOcrStatus("idle");
-    setOcrResult(null);
+    ocr.reset();
   };
 
   const submit = async () => {
@@ -490,7 +475,7 @@ export function AddUnitForm({
 
       {unitType && (
         <div className="space-y-4">
-          <OcrStatusBanner status={ocrStatus} result={ocrResult} />
+          <OcrStatusBanner status={ocr.status} result={ocr.result} />
           <Field label="Make">
             <input
               type="text"
@@ -599,69 +584,6 @@ export function AddUnitForm({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function OcrStatusBanner({
-  status,
-  result,
-}: {
-  status: "idle" | "reading" | "complete" | "error";
-  result: OcrResult | null;
-}) {
-  if (status === "idle") return null;
-  if (status === "error") return null;
-
-  if (status === "reading") {
-    return (
-      <div className="rounded-xl bg-mse-navy/5 border border-mse-navy/15 px-3 py-2 text-xs text-mse-navy flex items-center gap-2">
-        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-        <span>Reading nameplate…</span>
-      </div>
-    );
-  }
-
-  // status === "complete"
-  if (!result || result.status !== "ok") return null;
-
-  if (result.confidence >= 80) {
-    // High confidence — quiet, just a small confirmation pill.
-    return (
-      <div className="rounded-xl bg-mse-gold/15 border border-mse-gold/30 px-3 py-2 text-xs text-mse-navy flex items-center gap-2">
-        <Sparkles className="w-3.5 h-3.5 text-mse-gold shrink-0" />
-        <span>
-          <span className="font-semibold">Auto-filled from photo.</span>{" "}
-          Edit anything below if it&apos;s off.
-        </span>
-      </div>
-    );
-  }
-
-  if (result.confidence >= 50) {
-    // Medium confidence — explicit "review for accuracy" prompt.
-    return (
-      <div className="rounded-xl bg-mse-red/5 border border-mse-red/20 px-3 py-2 text-xs text-mse-red flex items-start gap-2">
-        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-        <span>
-          <span className="font-semibold">
-            Auto-filled — please review for accuracy.
-          </span>{" "}
-          Some characters may be hard to read in the photo.
-        </span>
-      </div>
-    );
-  }
-
-  // Low confidence — silently skip the auto-fill (handled in runOcr) and
-  // tell the tech to type it themselves.
-  return (
-    <div className="rounded-xl bg-mse-light/40 border border-mse-light px-3 py-2 text-xs text-mse-muted flex items-center gap-2">
-      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-      <span>
-        Couldn&apos;t read the nameplate clearly. Please type the
-        info below.
-      </span>
     </div>
   );
 }

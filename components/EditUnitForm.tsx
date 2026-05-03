@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
+import { OcrStatusBanner } from "@/components/OcrStatusBanner";
 import { enqueuePhoto } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
+import { useOcrAutoFill } from "@/hooks/useOcrAutoFill";
 import { cn, extractDriveFileId } from "@/lib/utils";
 import type { Job, UnitServiced, UnitType, PhotoSlot } from "@/lib/types";
 
@@ -91,6 +93,15 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
 
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const pendingSlotRef = useRef<PhotoSlot | null>(null);
+
+  const ocr = useOcrAutoFill({
+    make,
+    model,
+    serial,
+    setMake,
+    setModel,
+    setSerial,
+  });
 
   const displayName = unit.label?.trim()
     ? unit.label
@@ -192,6 +203,17 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
         capturedAt: Date.now(),
       });
       kickWorker();
+
+      // If a nameplate was replaced, run OCR. Only fills make/model/serial
+      // fields that are currently empty — never overwrites a value that
+      // was already saved or that the tech has manually corrected.
+      if (
+        slot === "nameplate" ||
+        slot === "out_nameplate" ||
+        slot === "in_nameplate"
+      ) {
+        void ocr.run(compressed);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not replace photo");
     } finally {
@@ -237,6 +259,8 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
           className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
         />
       </Field>
+
+      <OcrStatusBanner status={ocr.status} result={ocr.result} />
 
       <Field label="Make">
         <input
