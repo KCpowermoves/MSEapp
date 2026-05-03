@@ -2,25 +2,38 @@
 
 import { useState } from "react";
 import {
-  CloudUpload,
   AlertTriangle,
+  CheckCircle2,
+  CloudUpload,
+  HardDrive,
+  Pin,
+  PinOff,
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { usePendingCount, usePendingList } from "@/hooks/useUploadQueue";
+import {
+  useLocalBackups,
+  usePendingCount,
+  usePendingList,
+} from "@/hooks/useUploadQueue";
 import {
   forceRetryAllFailedPhotos,
   forceRetryPhoto,
   removePhoto,
+  setPhotoRetention,
 } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
 
 export function PendingBadge() {
-  const count = usePendingCount();
+  const pending = usePendingCount();
+  const { items: backups } = useLocalBackups();
   const [open, setOpen] = useState(false);
 
-  if (count === 0) return null;
+  // Show nothing if there's no queue activity AND no local backup.
+  if (pending === 0 && backups.length === 0) return null;
+
+  const hasPending = pending > 0;
 
   return (
     <>
@@ -28,14 +41,29 @@ export function PendingBadge() {
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "flex items-center gap-1.5 px-3 h-9 rounded-full",
-          "bg-mse-gold/15 text-mse-gold border border-mse-gold/30",
-          "text-sm font-medium",
-          "hover:bg-mse-gold/20 active:scale-95 transition-[transform,background-color]"
+          "flex items-center gap-1.5 px-3 h-9 rounded-full text-sm font-medium",
+          "active:scale-95 transition-[transform,background-color]",
+          hasPending
+            ? "bg-mse-gold/15 text-mse-gold border border-mse-gold/30 hover:bg-mse-gold/20"
+            : "bg-white/10 text-white/80 border border-white/20 hover:bg-white/15"
         )}
+        aria-label={
+          hasPending
+            ? `${pending} pending uploads`
+            : `${backups.length} photos backed up locally`
+        }
       >
-        <CloudUpload className="w-4 h-4" />
-        <span>{count} pending</span>
+        {hasPending ? (
+          <>
+            <CloudUpload className="w-4 h-4" />
+            <span>{pending} pending</span>
+          </>
+        ) : (
+          <>
+            <HardDrive className="w-4 h-4" />
+            <span>{backups.length} saved</span>
+          </>
+        )}
       </button>
       {open && <QueueInspector onClose={() => setOpen(false)} />}
     </>
@@ -44,6 +72,7 @@ export function PendingBadge() {
 
 function QueueInspector({ onClose }: { onClose: () => void }) {
   const items = usePendingList();
+  const { items: backups, bytes: backupBytes } = useLocalBackups();
   const failedCount = items.filter(
     (p) => p.status === "failed" || (p.attempts ?? 0) > 0
   ).length;
@@ -84,65 +113,142 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
-        {items.length === 0 ? (
+        {items.length === 0 && backups.length === 0 ? (
           <div className="p-8 text-center text-mse-muted text-sm">
-            All photos uploaded.
+            No photos in the local queue or backup.
           </div>
         ) : (
-          <ul className="divide-y divide-mse-light">
-            {items.map((p) => (
-              <li key={p.id} className="p-4 flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate text-mse-navy">
-                    {p.filename}
-                  </div>
-                  <div className="text-xs text-mse-muted">
-                    {p.status === "failed" ? (
-                      <span className="text-mse-red flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                        <span className="truncate" title={p.lastError}>
-                          {p.lastError ?? "Upload failed"} · attempt{" "}
-                          {p.attempts}
-                        </span>
-                      </span>
-                    ) : p.status === "uploading" ? (
-                      <span className="text-mse-navy font-semibold">
-                        Uploading…
-                      </span>
-                    ) : (
-                      <>{ageLabel(p.capturedAt)}</>
+          <>
+            {items.length > 0 && (
+              <ul className="divide-y divide-mse-light">
+                {items.map((p) => (
+                  <li key={p.id} className="p-4 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate text-mse-navy">
+                        {p.filename}
+                      </div>
+                      <div className="text-xs text-mse-muted">
+                        {p.status === "failed" ? (
+                          <span className="text-mse-red flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 shrink-0" />
+                            <span className="truncate" title={p.lastError}>
+                              {p.lastError ?? "Upload failed"} · attempt{" "}
+                              {p.attempts}
+                            </span>
+                          </span>
+                        ) : p.status === "uploading" ? (
+                          <span className="text-mse-navy font-semibold">
+                            Uploading…
+                          </span>
+                        ) : (
+                          <>{ageLabel(p.capturedAt)}</>
+                        )}
+                      </div>
+                    </div>
+                    {(p.status === "failed" || (p.attempts ?? 0) > 0) && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await forceRetryPhoto(p.id);
+                          kickWorker();
+                        }}
+                        aria-label="Retry now"
+                        className="p-2 text-mse-muted hover:text-mse-navy"
+                        title="Retry now"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(p.id)}
+                      aria-label="Remove from queue"
+                      className="p-2 text-mse-muted hover:text-mse-red"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {backups.length > 0 && (
+              <>
+                <div className="px-4 pt-4 pb-2 bg-mse-light/30 border-y border-mse-light flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-semibold text-mse-navy uppercase tracking-wide flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3 h-3 text-mse-gold" />
+                      Backed up locally
+                    </div>
+                    <div className="text-[11px] text-mse-muted mt-0.5">
+                      {backups.length} photo{backups.length === 1 ? "" : "s"} ·{" "}
+                      {formatBytes(backupBytes)} · auto-purges after 14 days
+                    </div>
                   </div>
                 </div>
-                {(p.status === "failed" || (p.attempts ?? 0) > 0) && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await forceRetryPhoto(p.id);
-                      kickWorker();
-                    }}
-                    aria-label="Retry now"
-                    className="p-2 text-mse-muted hover:text-mse-navy"
-                    title="Retry now"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removePhoto(p.id)}
-                  aria-label="Remove from queue"
-                  className="p-2 text-mse-muted hover:text-mse-red"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
+                <ul className="divide-y divide-mse-light">
+                  {backups.map((p) => (
+                    <li
+                      key={p.id}
+                      className="p-3 flex items-center gap-2 bg-mse-light/10"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-mse-gold shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-xs truncate text-mse-navy">
+                          {p.filename}
+                        </div>
+                        <div className="text-[10px] text-mse-muted">
+                          uploaded {p.uploadedAt ? ageLabel(p.uploadedAt) : ""}
+                          {p.retainLocally && " · pinned"}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPhotoRetention(p.id, !p.retainLocally)
+                        }
+                        aria-label={
+                          p.retainLocally ? "Unpin" : "Pin (keep forever)"
+                        }
+                        title={
+                          p.retainLocally
+                            ? "Pinned — won't auto-purge. Tap to unpin."
+                            : "Pin to keep this backup beyond 14 days."
+                        }
+                        className="p-2 text-mse-muted hover:text-mse-navy"
+                      >
+                        {p.retainLocally ? (
+                          <Pin className="w-3.5 h-3.5 fill-mse-navy text-mse-navy" />
+                        ) : (
+                          <PinOff className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(p.id)}
+                        aria-label="Delete local copy"
+                        title="Delete local copy (Drive copy is unaffected)"
+                        className="p-2 text-mse-muted hover:text-mse-red"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
   );
+}
+
+function formatBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function ageLabel(t: number): string {

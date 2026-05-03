@@ -8,8 +8,9 @@ import {
   listPending,
   markFailed,
   markPending,
+  markUploaded,
   markUploading,
-  removePhoto,
+  purgeOldBackups,
   rewriteJobIds,
   rewritePhotoUnitIds,
   setDraftJobStatus,
@@ -208,9 +209,26 @@ async function uploadOne(item: QueuedPhoto) {
       await markFailed(item.id, msg);
       return;
     }
-    await removePhoto(item.id);
+    // Keep the blob locally as a backup. purgeOldBackups removes it
+    // 14 days later unless the tech pinned it for indefinite retention.
+    await markUploaded(item.id);
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+const PURGE_INTERVAL_MS = 60 * 60 * 1000; // run hourly at most
+let lastPurgeAt = 0;
+
+async function maybePurgeOldBackups() {
+  const now = Date.now();
+  if (now - lastPurgeAt < PURGE_INTERVAL_MS) return;
+  lastPurgeAt = now;
+  try {
+    const n = await purgeOldBackups(14);
+    if (n > 0) console.log(`[backup] purged ${n} expired local photo(s)`);
+  } catch (e) {
+    console.warn("[backup] purge error", e);
   }
 }
 
@@ -279,6 +297,9 @@ async function tick() {
         await markPending(p.id);
       }
     }
+    // Hourly housekeeping: drop any uploaded backups past the 14-day
+    // retention window so IndexedDB doesn't grow unboundedly.
+    await maybePurgeOldBackups();
   } catch (e) {
     console.warn("upload worker tick error", e);
   } finally {

@@ -20,11 +20,17 @@ export interface QueuedPhoto {
   capturedAt: number;
   attempts: number;
   lastError?: string;
-  status: "pending" | "uploading" | "failed";
+  status: "pending" | "uploading" | "failed" | "uploaded";
   /** When the most recent upload attempt completed (success or failure). Used for backoff. */
   lastAttemptAt?: number;
   /** When the current upload was started. Used for stuck-detection. */
   uploadStartedAt?: number;
+  /** When the photo was successfully delivered to Drive. Photos in this state
+   *  are kept around as a local backup and auto-purged after 14 days. */
+  uploadedAt?: number;
+  /** When set, the photo will not be auto-purged regardless of age. Lets the
+   *  tech "pin" a photo locally for indefinite retention. */
+  retainLocally?: boolean;
 }
 
 export interface DraftUnit {
@@ -103,14 +109,41 @@ export async function enqueuePhoto(
   await db.put(STORE_PHOTOS, { ...payload, attempts: 0, status: "pending" });
 }
 
-export async function listPending(): Promise<QueuedPhoto[]> {
+/** Every photo in the local store, regardless of status. */
+export async function listAllPhotos(): Promise<QueuedPhoto[]> {
   const db = await getDb();
   return db.getAll(STORE_PHOTOS);
 }
 
+/** Photos in pending/uploading/failed states (i.e. anything not yet on Drive). */
+export async function listPending(): Promise<QueuedPhoto[]> {
+  const all = await listAllPhotos();
+  return all.filter((p) => p.status !== "uploaded");
+}
+
+/** Photos that successfully uploaded to Drive but are still kept locally
+ *  as a recovery backup. Sorted newest first. */
+export async function listUploadedBackups(): Promise<QueuedPhoto[]> {
+  const all = await listAllPhotos();
+  return all
+    .filter((p) => p.status === "uploaded")
+    .sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0));
+}
+
+/** Count of photos still trying to reach Drive. The badge in the header
+ *  uses this — uploaded backups don't count, so the badge stays clean. */
 export async function pendingCount(): Promise<number> {
-  const db = await getDb();
-  return db.count(STORE_PHOTOS);
+  const list = await listPending();
+  return list.length;
+}
+
+/** Total bytes used across all photo blobs in IndexedDB. Used to surface
+ *  storage usage to the tech in the inspector. */
+export async function localStorageUsedBytes(): Promise<number> {
+  const all = await listAllPhotos();
+  let bytes = 0;
+  for (const p of all) bytes += p.blob.size;
+  return bytes;
 }
 
 export async function markUploading(id: string): Promise<void> {
@@ -193,6 +226,56 @@ export async function removePhoto(id: string): Promise<void> {
 export async function clearAll(): Promise<void> {
   const db = await getDb();
   await db.clear(STORE_PHOTOS);
+}
+
+/**
+ * Mark a photo as successfully uploaded to Drive but keep its blob in
+ * IndexedDB as a local backup. The auto-purge job will remove it after
+ * the configured retention window unless retainLocally is set.
+ */
+export async function markUploaded(id: string): Promise<void> {
+  const db = await getDb();
+  const item = (await db.get(STORE_PHOTOS, id)) as QueuedPhoto | undefined;
+  if (!item) return;
+  await db.put(STORE_PHOTOS, {
+    ...item,
+    status: "uploaded",
+    uploadedAt: Date.now(),
+    lastError: undefined,
+  });
+}
+
+export async function setPhotoRetention(
+  id: string,
+  retain: boolean
+): Promise<void> {
+  const db = await getDb();
+  const item = (await db.get(STORE_PHOTOS, id)) as QueuedPhoto | undefined;
+  if (!item) return;
+  await db.put(STORE_PHOTOS, { ...item, retainLocally: retain });
+}
+
+/**
+ * Remove uploaded photos older than the retention window (default 14 days).
+ * Skips photos with retainLocally === true. Returns the number purged.
+ */
+export async function purgeOldBackups(
+  retentionDays: number = 14
+): Promise<number> {
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const db = await getDb();
+  const tx = db.transaction(STORE_PHOTOS, "readwrite");
+  const all = (await tx.store.getAll()) as QueuedPhoto[];
+  let n = 0;
+  for (const p of all) {
+    if (p.status !== "uploaded") continue;
+    if (p.retainLocally) continue;
+    if ((p.uploadedAt ?? 0) > cutoff) continue;
+    await tx.store.delete(p.id);
+    n++;
+  }
+  await tx.done;
+  return n;
 }
 
 /**

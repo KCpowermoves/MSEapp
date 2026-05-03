@@ -252,8 +252,15 @@ async function waitForUploadQueue(page, ms = 120_000) {
           const db = dbReq.result;
           if (!db.objectStoreNames.contains("photos")) return resolve(0);
           const tx = db.transaction("photos", "readonly");
-          const req = tx.objectStore("photos").count();
-          req.onsuccess = () => resolve(req.result);
+          // Count only photos NOT in the "uploaded" backup state —
+          // those are intentionally kept as a local recovery copy.
+          const req = tx.objectStore("photos").getAll();
+          req.onsuccess = () => {
+            const active = (req.result ?? []).filter(
+              (p) => p.status !== "uploaded"
+            );
+            resolve(active.length);
+          };
           req.onerror = () => resolve(-1);
         };
         dbReq.onerror = () => resolve(-1);
@@ -274,14 +281,16 @@ async function waitForUploadQueue(page, ms = 120_000) {
           const req = tx.objectStore("photos").getAll();
           req.onsuccess = () =>
             resolve(
-              req.result.map((p) => ({
-                id: p.id,
-                slot: p.photoSlot,
-                status: p.status,
-                attempts: p.attempts,
-                error: p.lastError,
-                ageSec: Math.round((Date.now() - p.capturedAt) / 1000),
-              }))
+              (req.result ?? [])
+                .filter((p) => p.status !== "uploaded")
+                .map((p) => ({
+                  id: p.id,
+                  slot: p.photoSlot,
+                  status: p.status,
+                  attempts: p.attempts,
+                  error: p.lastError,
+                  ageSec: Math.round((Date.now() - p.capturedAt) / 1000),
+                }))
             );
           req.onerror = () => resolve([]);
         };

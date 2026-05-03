@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   listPending,
+  listUploadedBackups,
+  localStorageUsedBytes,
   pendingCount,
   type QueuedPhoto,
 } from "@/lib/upload-queue";
@@ -52,4 +54,30 @@ export function usePendingList() {
     };
   }, []);
   return items;
+}
+
+export function useLocalBackups() {
+  const [items, setItems] = useState<QueuedPhoto[]>([]);
+  const [bytes, setBytes] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const [list, used] = await Promise.all([
+          listUploadedBackups(),
+          localStorageUsedBytes(),
+        ]);
+        if (cancelled) return;
+        setItems(list);
+        setBytes(used);
+      } catch {}
+    };
+    tick();
+    const interval = setInterval(tick, POLL_MS * 2);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+  return { items, bytes };
 }
