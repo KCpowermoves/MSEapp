@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { useDraftUnits } from "@/hooks/useDraftUnits";
 import { getDraftJob, type DraftJob } from "@/lib/upload-queue";
-import { cn } from "@/lib/utils";
 
 /**
  * Renders a job-detail screen for an offline draft job (jobId starts
