@@ -98,6 +98,11 @@ export interface Dispatch {
    *  Empty when the email hasn't gone out yet — guards the auto-send
    *  path so we don't double-email from concurrent triggers. */
   reportEmailedAt: string;
+  /** Customer's opt-in to let MSE share their before/after photos and
+   *  service story for marketing. Captured on the 5-star feedback step
+   *  AFTER the Google review CTA so it never distracts from the
+   *  review. Empty/false means "no permission". */
+  marketingConsent: boolean;
 }
 
 export interface UnitServiced {

@@ -72,6 +72,7 @@ function rowToDispatch(row: string[]): Dispatch {
     customerRating: Number(row[14] ?? 0) || 0,
     customerFeedback: String(row[15] ?? ""),
     reportEmailedAt: String(row[16] ?? ""),
+    marketingConsent: String(row[17] ?? "").toUpperCase() === "TRUE",
   };
 }
 
@@ -129,7 +130,7 @@ export async function ensureDraftDispatch(
   const dispatchId = await nextDispatchId();
   await appendRow(
     TABS.dispatches,
-    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", "", "", "", 0, "", ""],
+    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", "", "", "", 0, "", "", "FALSE"],
     "RAW"
   );
   await bumpLastActivity(jobId);
@@ -151,6 +152,7 @@ export async function ensureDraftDispatch(
     customerRating: 0,
     customerFeedback: "",
     reportEmailedAt: "",
+    marketingConsent: false,
   };
 }
 
@@ -255,6 +257,21 @@ export async function setDispatchEmailed(
   const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
   if (!rowIndex) throw new Error("Dispatch row missing");
   await updateCell(`${TABS.dispatches}!Q${rowIndex}`, emailedAtIso, "RAW");
+}
+
+/** Save customer's marketing-consent decision (before/after photos +
+ *  story usable on the MSE site/social). Defaults to false. */
+export async function setDispatchMarketingConsent(
+  dispatchId: string,
+  consent: boolean
+): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
+  if (!rowIndex) throw new Error("Dispatch row missing");
+  await updateCell(
+    `${TABS.dispatches}!R${rowIndex}`,
+    consent ? "TRUE" : "FALSE",
+    "RAW"
+  );
 }
 
 /** Save customer's post-service rating + optional written feedback. */

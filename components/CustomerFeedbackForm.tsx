@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import {
   ArrowLeft,
   ArrowRight,
+  Camera,
   Check,
   Copy,
   Gift,
@@ -218,6 +219,8 @@ function FiveStarStage({
   );
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [savingConsent, setSavingConsent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,6 +245,22 @@ function FiveStarStage({
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
       console.warn("[feedback] copy failed:", e);
+    }
+  };
+
+  const toggleConsent = async (next: boolean) => {
+    setMarketingConsent(next);
+    setSavingConsent(true);
+    try {
+      await fetch("/api/dispatches/marketing-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dispatchId, consent: next }),
+      });
+    } catch (e) {
+      console.warn("[feedback] consent save failed:", e);
+    } finally {
+      setSavingConsent(false);
     }
   };
 
@@ -332,6 +351,39 @@ function FiveStarStage({
           </div>
         </div>
       </section>
+
+      <label
+        htmlFor="marketing-consent"
+        className={cn(
+          "block rounded-2xl border-2 bg-white p-4 cursor-pointer transition-[border-color,background-color]",
+          marketingConsent
+            ? "border-mse-navy/40 bg-mse-navy/5"
+            : "border-mse-light hover:border-mse-navy/20"
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <input
+            id="marketing-consent"
+            type="checkbox"
+            checked={marketingConsent}
+            disabled={savingConsent}
+            onChange={(e) => toggleConsent(e.target.checked)}
+            className="mt-0.5 w-5 h-5 accent-mse-navy shrink-0"
+          />
+          <div className="flex-1">
+            <div className="font-semibold text-mse-navy text-sm flex items-center gap-2">
+              <Camera className="w-4 h-4 text-mse-muted" />
+              Mind if we share your before / after photos?
+            </div>
+            <div className="text-xs text-mse-muted leading-relaxed mt-1.5">
+              Helps other Maryland customers see what real installs look
+              like. We&apos;d only share before / after photos and the
+              unit type — no name, address, or anything personal.
+              Optional, and your review still counts even if you skip.
+            </div>
+          </div>
+        </div>
+      </label>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
         <div className="max-w-2xl mx-auto">

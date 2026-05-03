@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { getDispatch, setDispatchEmailed } from "@/lib/data/dispatches";
 import { getJob } from "@/lib/data/jobs";
+import { listUnitsForDispatch } from "@/lib/data/units";
 import { tryRenderPdfIfReady } from "@/lib/data/maybe-render-pdf";
-import { sendReportEmail } from "@/lib/email/send-report";
+import { sendReportEmail, type HeroPhotos } from "@/lib/email/send-report";
 import { nowIso } from "@/lib/utils";
+import type { UnitServiced } from "@/lib/types";
 
 /**
  * Generates the dispatch's PDF report (if not already rendered) and
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
     );
   }
 
+  const units = await listUnitsForDispatch(dispatchId);
   const send = await sendReportEmail({
     to: recipient,
     customerName: job.customerName,
@@ -79,6 +82,7 @@ export async function POST(request: Request) {
     googleReviewUrl:
       process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
       "https://g.page/r/CW6VirUCAnCXEAI/review",
+    heroPhotos: pickHeroFromUnits(units),
   });
 
   // If the manual send actually went through, stamp it so the auto-send
@@ -93,4 +97,16 @@ export async function POST(request: Request) {
     recipient,
     ...send,
   });
+}
+
+function pickHeroFromUnits(units: UnitServiced[]): HeroPhotos | undefined {
+  for (const u of units) {
+    if (u.unitType === "PTAC / Ductless") {
+      if (u.pre1Url && u.pre2Url)
+        return { beforeUrl: u.pre1Url, afterUrl: u.pre2Url };
+    } else if (u.pre1Url && u.post1Url) {
+      return { beforeUrl: u.pre1Url, afterUrl: u.post1Url };
+    }
+  }
+  return undefined;
 }

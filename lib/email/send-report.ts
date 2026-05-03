@@ -1,5 +1,6 @@
 import "server-only";
 import { env } from "@/lib/env";
+import { extractDriveFileId } from "@/lib/utils";
 
 /**
  * Sends the auto-generated service report to a customer via HighLevel.
@@ -16,6 +17,15 @@ import { env } from "@/lib/env";
  * Drive PDF. Customers click through to view; we don't attach the PDF
  * directly because Drive will respect their account-level access.
  */
+export interface HeroPhotos {
+  /** Drive URL of the "before" photo. We extract the fileId and embed
+   *  via the Drive thumbnail proxy so the customer doesn't need to
+   *  click through to view it. */
+  beforeUrl: string;
+  /** Drive URL of the "after" photo. */
+  afterUrl: string;
+}
+
 export async function sendReportEmail(opts: {
   to: string;
   customerName: string;
@@ -27,6 +37,9 @@ export async function sendReportEmail(opts: {
   /** Public Google review link. When present and rating === 5, the
    *  email includes a "share us on Google" CTA. */
   googleReviewUrl?: string;
+  /** When present, embeds a side-by-side before/after photo pair near
+   *  the top of the email so customers see the work right away. */
+  heroPhotos?: HeroPhotos;
 }): Promise<{ sent: boolean; reason?: string }> {
   const token = env.highlevelApiToken();
   const locationId = env.highlevelLocationId();
@@ -45,7 +58,15 @@ export async function sendReportEmail(opts: {
       ? `Your MSE service report — and a quick favor`
       : `Your service report from Maryland Smart Energy`;
 
-  const html = buildEmailBody(opts);
+  const html = buildEmailBody({
+    customerName: opts.customerName,
+    pdfUrl: opts.pdfUrl,
+    jobAddress: opts.jobAddress,
+    dispatchDate: opts.dispatchDate,
+    rating: opts.rating,
+    googleReviewUrl: opts.googleReviewUrl,
+    heroPhotos: opts.heroPhotos,
+  });
 
   try {
     const res = await fetch(
@@ -101,8 +122,11 @@ function buildEmailBody(opts: {
   dispatchDate: string;
   rating?: number;
   googleReviewUrl?: string;
+  heroPhotos?: HeroPhotos;
 }): string {
   const greeting = `<p>Hi ${escapeHtml(opts.customerName)},</p>`;
+
+  const heroBlock = renderHeroBlock(opts.heroPhotos);
 
   const reportBlock = `
     <p>Your service report from today is ready — photos, work summary, and
@@ -179,12 +203,51 @@ function buildEmailBody(opts: {
 
   return [
     greeting,
+    heroBlock,
     reportBlock,
     fiveStarBlock,
     lowRatingBlock,
     giftBlock,
     footer,
   ].join("\n");
+}
+
+/**
+ * Builds the side-by-side before/after image pair. Uses the Drive
+ * thumbnail proxy so customers' email clients can render without auth
+ * (our uploads are share-with-anyone). Drops the block entirely when
+ * either URL is missing or unparseable.
+ */
+function renderHeroBlock(hero?: HeroPhotos): string {
+  if (!hero) return "";
+  const beforeId = extractDriveFileId(hero.beforeUrl);
+  const afterId = extractDriveFileId(hero.afterUrl);
+  if (!beforeId || !afterId) return "";
+  const beforeImg = `https://drive.google.com/thumbnail?id=${beforeId}&sz=w800`;
+  const afterImg = `https://drive.google.com/thumbnail?id=${afterId}&sz=w800`;
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+      style="border-collapse:collapse;margin:6px 0 18px">
+      <tr>
+        <td width="50%" style="padding-right:5px;vertical-align:top">
+          <div style="font-size:11px;text-transform:uppercase;color:#6b7280;
+            letter-spacing:0.5px;font-weight:bold;margin-bottom:4px">
+            Before
+          </div>
+          <img src="${escapeAttr(beforeImg)}" alt="Before service"
+            style="width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;display:block">
+        </td>
+        <td width="50%" style="padding-left:5px;vertical-align:top">
+          <div style="font-size:11px;text-transform:uppercase;color:#1A2332;
+            letter-spacing:0.5px;font-weight:bold;margin-bottom:4px">
+            After
+          </div>
+          <img src="${escapeAttr(afterImg)}" alt="After service"
+            style="width:100%;height:auto;border-radius:8px;border:1px solid #e5e7eb;display:block">
+        </td>
+      </tr>
+    </table>
+  `;
 }
 
 function escapeHtml(s: string): string {

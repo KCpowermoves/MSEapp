@@ -9,6 +9,7 @@ import {
   listUnitsForDispatch,
   unitHasAllRequiredPhotos,
 } from "@/lib/data/units";
+import type { UnitServiced } from "@/lib/types";
 import {
   getOrCreateFolder,
   getRootFolderId,
@@ -126,6 +127,12 @@ async function maybeAutoEmail(
     process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
     "https://g.page/r/CW6VirUCAnCXEAI/review";
 
+  // Pick a before/after pair from the dispatch's units to embed at the
+  // top of the email. Best-effort — if no unit has both, the email
+  // skips the hero block but still goes out.
+  const units = await listUnitsForDispatch(dispatchId);
+  const heroPhotos = pickHeroPhotos(units);
+
   try {
     const result = await sendReportEmail({
       to: dispatch.customerEmail,
@@ -135,6 +142,7 @@ async function maybeAutoEmail(
       dispatchDate: dispatch.dispatchDate,
       rating: dispatch.customerRating || 0,
       googleReviewUrl,
+      heroPhotos,
     });
     if (result.sent) {
       await setDispatchEmailed(dispatchId, nowIso());
@@ -148,4 +156,25 @@ async function maybeAutoEmail(
     console.warn("[pdf] auto-send email error:", e);
     return false;
   }
+}
+
+/**
+ * Pick a "hero" before/after pair from the dispatch's units. Mapping:
+ *   - PTAC / Ductless: pre1Url ("pre" slot) + pre2Url ("post" slot)
+ *   - RTU + Split:     pre1Url + post1Url (first coil / outdoor angle)
+ * Returns undefined if no unit has both photos populated.
+ */
+function pickHeroPhotos(
+  units: UnitServiced[]
+): { beforeUrl: string; afterUrl: string } | undefined {
+  for (const u of units) {
+    if (u.unitType === "PTAC / Ductless") {
+      if (u.pre1Url && u.pre2Url) {
+        return { beforeUrl: u.pre1Url, afterUrl: u.pre2Url };
+      }
+    } else if (u.pre1Url && u.post1Url) {
+      return { beforeUrl: u.pre1Url, afterUrl: u.post1Url };
+    }
+  }
+  return undefined;
 }
