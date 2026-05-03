@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
@@ -64,13 +63,13 @@ export function EditJobForm({
   return (
     <div className="space-y-6 pb-24">
       <div className="flex items-center gap-2">
-        <Link
+        <a
           href={`/jobs/${encodeURIComponent(job.jobId)}`}
           className="p-2 -ml-2 text-mse-muted hover:text-mse-navy"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5" />
-        </Link>
+        </a>
         <h1 className="text-2xl font-bold text-mse-navy">Edit job</h1>
       </div>
 

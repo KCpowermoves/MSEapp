@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import imageCompression from "browser-image-compression";
@@ -212,13 +211,13 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
       />
 
       <div className="flex items-center gap-2">
-        <Link
+        <a
           href={`/jobs/${encodeURIComponent(job.jobId)}`}
           className="p-2 -ml-2 text-mse-muted hover:text-mse-navy"
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5" />
-        </Link>
+        </a>
         <h1 className="text-2xl font-bold text-mse-navy">
           Edit {displayName}
         </h1>

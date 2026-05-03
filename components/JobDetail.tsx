@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   ArrowLeft,
   ExternalLink,
@@ -42,13 +41,13 @@ export function JobDetail({
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-2">
-        <Link
+        <a
           href="/jobs"
           className="p-2 -ml-2 text-mse-muted hover:text-mse-navy"
           aria-label="Back to jobs"
         >
           <ArrowLeft className="w-5 h-5" />
-        </Link>
+        </a>
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-mse-navy truncate">
             {job.customerName}
@@ -64,13 +63,13 @@ export function JobDetail({
             <span className="text-xs text-mse-muted font-mono">{job.jobId}</span>
           </div>
         </div>
-        <Link
+        <a
           href={`/jobs/${encodeURIComponent(job.jobId)}/edit`}
           className="p-2 text-mse-muted hover:text-mse-navy"
           aria-label="Edit job"
         >
           <Pencil className="w-4 h-4" />
-        </Link>
+        </a>
         {job.driveFolderUrl && (
           <a
             href={job.driveFolderUrl}
@@ -87,13 +86,13 @@ export function JobDetail({
       </div>
 
       <div className="grid grid-cols-1 gap-3">
-        <Link
+        <a
           href={`/jobs/${encodeURIComponent(job.jobId)}/units/new`}
           className="rounded-2xl bg-mse-navy hover:bg-mse-navy-soft active:scale-[0.98] transition-[background-color,transform] p-5 flex items-center justify-center gap-2 shadow-elevated text-white"
         >
           <Wrench className="w-6 h-6" />
           <span className="font-bold text-lg">Add unit</span>
-        </Link>
+        </a>
       </div>
 
       <UnitsSection jobId={job.jobId} hasServerUnits={todaysUnits.length > 0}>
@@ -102,7 +101,7 @@ export function JobDetail({
         ))}
       </UnitsSection>
 
-      <Link
+      <a
         href={`/jobs/${encodeURIComponent(job.jobId)}/submit`}
         aria-disabled={!canSubmit}
         onClick={(e) => {
@@ -117,7 +116,7 @@ export function JobDetail({
         )}
       >
         Submit job
-      </Link>
+      </a>
     </div>
   );
 }
@@ -184,13 +183,13 @@ function UnitRow({
       >
         {requiredFilled}/{requiredCount}
       </div>
-      <Link
+      <a
         href={`/jobs/${encodeURIComponent(jobId)}/units/${encodeURIComponent(unit.unitId)}/edit`}
         className="p-1.5 text-mse-muted hover:text-mse-navy"
         aria-label="Edit unit"
       >
         <Pencil className="w-4 h-4" />
-      </Link>
+      </a>
     </li>
   );
 }
