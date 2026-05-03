@@ -45,6 +45,9 @@ export interface Tech {
   pinHash: string;
   active: boolean;
   phone: string;
+  /** Whether this tech can access the /admin dashboard. Set in column F
+   *  of the Techs tab — TRUE/false. Defaults to false. */
+  isAdmin: boolean;
 }
 
 export interface Job {
@@ -130,4 +133,5 @@ export interface SessionData {
   techId: string;
   name: string;
   loggedInAt: number;
+  isAdmin?: boolean;
 }

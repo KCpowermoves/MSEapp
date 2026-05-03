@@ -3,16 +3,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LayoutDashboard, LogOut } from "lucide-react";
 import { PendingBadge } from "@/components/PendingBadge";
 import { LocationConsent } from "@/components/LocationConsent";
 
 export function AppShell({
   children,
   techName,
+  isAdmin = false,
 }: {
   children: React.ReactNode;
   techName: string;
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const logout = async () => {
@@ -35,6 +37,15 @@ export function AppShell({
           </Link>
           <div className="ml-auto flex items-center gap-2">
             <PendingBadge />
+            {isAdmin && (
+              <Link
+                href="/admin"
+                aria-label="Admin dashboard"
+                className="p-2 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
+              >
+                <LayoutDashboard className="w-5 h-5" />
+              </Link>
+            )}
             <span className="hidden sm:inline text-sm text-white/70">{techName}</span>
             <button
               type="button"

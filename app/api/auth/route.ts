@@ -25,8 +25,13 @@ export async function POST(request: Request) {
   session.techId = tech.techId;
   session.name = tech.name;
   session.loggedInAt = Date.now();
+  session.isAdmin = tech.isAdmin === true;
   await session.save();
-  return NextResponse.json({ techId: tech.techId, name: tech.name });
+  return NextResponse.json({
+    techId: tech.techId,
+    name: tech.name,
+    isAdmin: tech.isAdmin === true,
+  });
 }
 
 export async function DELETE() {

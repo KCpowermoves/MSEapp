@@ -46,6 +46,7 @@ export async function loadActiveTechs(): Promise<Tech[]> {
       pinHash: String(r[2] ?? ""),
       active: String(r[3] ?? "").toUpperCase() === "TRUE",
       phone: String(r[4] ?? ""),
+      isAdmin: String(r[5] ?? "").toUpperCase() === "TRUE",
     }))
     .filter((t) => t.active);
 }
@@ -60,6 +61,7 @@ export async function loadAllTechs(): Promise<Tech[]> {
       pinHash: String(r[2] ?? ""),
       active: String(r[3] ?? "").toUpperCase() === "TRUE",
       phone: String(r[4] ?? ""),
+      isAdmin: String(r[5] ?? "").toUpperCase() === "TRUE",
     }));
 }
 
