@@ -76,7 +76,9 @@ export async function POST(request: Request) {
     jobAddress: job.siteAddress,
     dispatchDate: dispatch.dispatchDate,
     rating: fresh?.customerRating || 0,
-    googleReviewUrl: process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL,
+    googleReviewUrl:
+      process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
+      "https://g.page/r/CW6VirUCAnCXEAI/review",
   });
 
   // If the manual send actually went through, stamp it so the auto-send

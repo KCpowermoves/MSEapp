@@ -28,12 +28,12 @@ export default async function CustomerFeedbackPage({
     redirect(`/jobs/${encodeURIComponent(jobId)}/submit`);
   }
 
-  // The Google Reviews URL is configured per-environment so we can
-  // point staging traffic somewhere harmless. Falls back to the live
-  // MSE Maps page when not set.
+  // The Google Reviews URL is configurable per-environment so we can
+  // point staging traffic somewhere harmless. Defaults to the live
+  // Maryland Smart Energy short link.
   const googleReviewUrl =
     process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
-    "https://search.google.com/local/writereview?placeid=";
+    "https://g.page/r/CW6VirUCAnCXEAI/review";
 
   // Lead tech = first name in techsOnSite (the dispatch was just
   // submitted, so this list is populated). Falls back to "the MSE crew".

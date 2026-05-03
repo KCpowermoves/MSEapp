@@ -123,7 +123,8 @@ async function maybeAutoEmail(
   if (!job) return false;
 
   const googleReviewUrl =
-    process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ?? undefined;
+    process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
+    "https://g.page/r/CW6VirUCAnCXEAI/review";
 
   try {
     const result = await sendReportEmail({
