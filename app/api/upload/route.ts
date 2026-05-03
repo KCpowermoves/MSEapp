@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { getJob } from "@/lib/data/jobs";
 import { getUnit, setUnitPhotoUrl } from "@/lib/data/units";
 import { appendServicePhotoUrl } from "@/lib/data/services";
+import { setDispatchSignature } from "@/lib/data/dispatches";
 import {
   getOrCreateFolder,
   getRootFolderId,
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
   const jobId = String(formData.get("jobId") ?? "");
   const unitId = String(formData.get("unitId") ?? "");
   const serviceId = String(formData.get("serviceId") ?? "");
+  const dispatchId = String(formData.get("dispatchId") ?? "");
+  const kind = String(formData.get("kind") ?? "");
+  const signedByName = String(formData.get("signedByName") ?? "").slice(0, 200);
   const slot = String(formData.get("slot") ?? "");
 
   if (!(file instanceof File)) {
@@ -101,6 +105,20 @@ export async function POST(request: Request) {
         body: buffer,
       });
       await appendServicePhotoUrl(serviceId, uploaded.url);
+      return NextResponse.json({ url: uploaded.url });
+    }
+
+    if (dispatchId && kind === "signature") {
+      const shortId = dispatchId.split("-").at(-1) ?? dispatchId;
+      const filename = `Dispatch-${shortId}_signature.png`;
+      const uploaded = await uploadImage({
+        folderId: rootFolderId,
+        filename,
+        mimeType: "image/png",
+        body: buffer,
+      });
+      await setDispatchSignature(dispatchId, uploaded.url, signedByName);
+      revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
     }
   } catch (e) {

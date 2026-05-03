@@ -65,6 +65,8 @@ function rowToDispatch(row: string[]): Dispatch {
     travelDispatchBonus: Number(row[7] ?? 0),
     photosComplete: String(row[8] ?? "").toUpperCase() === "TRUE",
     submittedAt: String(row[9] ?? ""),
+    signatureUrl: String(row[10] ?? ""),
+    signedByName: String(row[11] ?? ""),
   };
 }
 
@@ -102,7 +104,7 @@ export async function ensureDraftDispatch(
   const dispatchId = await nextDispatchId();
   await appendRow(
     TABS.dispatches,
-    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", ""],
+    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", ""],
     "RAW"
   );
   await bumpLastActivity(jobId);
@@ -117,6 +119,8 @@ export async function ensureDraftDispatch(
     travelDispatchBonus: 0,
     photosComplete: false,
     submittedAt: "",
+    signatureUrl: "",
+    signedByName: "",
   };
 }
 
@@ -183,4 +187,22 @@ export async function submitDispatch(opts: {
     photosComplete,
     submittedAt: nowIso(),
   };
+}
+
+/** Stamp the customer signature URL + signed-by name on a dispatch row. */
+export async function setDispatchSignature(
+  dispatchId: string,
+  signatureUrl: string,
+  signedByName: string
+): Promise<void> {
+  const rowIndex = await findRowIndex(
+    TABS.dispatches,
+    "A",
+    dispatchId
+  );
+  if (!rowIndex) throw new Error("Dispatch row missing");
+  await Promise.all([
+    updateCell(`${TABS.dispatches}!K${rowIndex}`, signatureUrl, "RAW"),
+    updateCell(`${TABS.dispatches}!L${rowIndex}`, signedByName, "RAW"),
+  ]);
 }

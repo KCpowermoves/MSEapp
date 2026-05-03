@@ -74,6 +74,12 @@ export interface Dispatch {
   travelDispatchBonus: number;
   photosComplete: boolean;
   submittedAt: string;
+  /** Drive URL of the customer's on-site signature (PNG). Empty when
+   *  the tech submitted without capturing one. */
+  signatureUrl: string;
+  /** Printed name of the person who signed (defaults to customer name
+   *  but can be overridden — e.g. property manager). */
+  signedByName: string;
 }
 
 export interface UnitServiced {

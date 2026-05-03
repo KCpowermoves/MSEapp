@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Eraser, Loader2, PenLine } from "lucide-react";
+import SignatureCanvas from "react-signature-canvas";
 import { CrewPicker } from "@/components/CrewPicker";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { captureLocationEvent } from "@/lib/location";
@@ -52,6 +53,18 @@ export function SubmitDispatchForm({
   const [crewSplit, setCrewSplit] = useState<CrewSplit>("Solo");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Customer signature pad (optional — captured when present, ignored when blank)
+  const sigRef = useRef<SignatureCanvas | null>(null);
+  const [signedByName, setSignedByName] = useState(job.customerName);
+  const [hasSignature, setHasSignature] = useState(false);
+  const onSignatureChange = () => {
+    if (sigRef.current) setHasSignature(!sigRef.current.isEmpty());
+  };
+  const clearSignature = () => {
+    sigRef.current?.clear();
+    setHasSignature(false);
+  };
 
   // Auto-select split based on crew size
   useEffect(() => {
@@ -107,6 +120,26 @@ export function SubmitDispatchForm({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Could not submit");
       }
+
+      // If the customer signed, upload the signature PNG to Drive +
+      // stamp the URL on the dispatch row. This is best-effort — if
+      // the signature upload fails, the dispatch is still submitted.
+      if (sigRef.current && !sigRef.current.isEmpty()) {
+        try {
+          const dataUrl = sigRef.current.toDataURL("image/png");
+          const blob = await (await fetch(dataUrl)).blob();
+          const formData = new FormData();
+          formData.append("file", blob, "signature.png");
+          formData.append("jobId", job.jobId);
+          formData.append("dispatchId", dispatchId);
+          formData.append("kind", "signature");
+          formData.append("signedByName", signedByName.trim());
+          await fetch("/api/upload", { method: "POST", body: formData });
+        } catch (sigErr) {
+          console.warn("[submit] signature upload failed:", sigErr);
+        }
+      }
+
       captureLocationEvent(
         "dispatch-submit",
         { jobId: job.jobId },
@@ -242,6 +275,54 @@ export function SubmitDispatchForm({
           </div>
         )}
       </section>
+
+      <Field label="Customer signature">
+        <div className="text-xs text-mse-muted mb-2">
+          Optional. Have the customer sign on the device to confirm the work
+          was completed. Skipping is fine if no one&apos;s on site.
+        </div>
+        <div className="space-y-2">
+          <div className="rounded-2xl border-2 border-dashed border-mse-light bg-white relative overflow-hidden touch-none">
+            <SignatureCanvas
+              ref={sigRef}
+              onEnd={onSignatureChange}
+              penColor="#1A2332"
+              canvasProps={{
+                className: "w-full h-44 block",
+              }}
+              backgroundColor="rgba(255,255,255,0)"
+            />
+            {!hasSignature && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-mse-muted text-sm">
+                <PenLine className="w-4 h-4 mr-1.5" />
+                Sign here
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={signedByName}
+              onChange={(e) => setSignedByName(e.target.value)}
+              placeholder="Print name"
+              className="flex-1 px-3 py-2 rounded-xl border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
+            />
+            <button
+              type="button"
+              onClick={clearSignature}
+              disabled={!hasSignature}
+              className={cn(
+                "px-3 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1",
+                "border border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/40",
+                !hasSignature && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <Eraser className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+        </div>
+      </Field>
 
       {error && (
         <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">
