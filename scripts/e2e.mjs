@@ -555,10 +555,10 @@ async function main() {
       territory: "BGE",
       selfSold: false,
     });
-    await setCrew(page, job1, ["Kevin Lee"]);
+    await setCrew(page, job1, ["Kevin Cheung"]);
     await addUnit(page, job1, "PTAC / Ductless");
     await waitForUploadQueue(page);
-    const dsp1 = await submitDispatch(page, job1, { crew: ["Kevin Lee"], split: "Solo" });
+    const dsp1 = await submitDispatch(page, job1, { crew: ["Kevin Cheung"], split: "Solo" });
     if (dsp1) runDispatchIds.push(dsp1);
     await shot(page, "scenario-1-end");
 
@@ -572,14 +572,14 @@ async function main() {
       address: "200 Bay Ave, Salisbury MD 21801",
       territory: "Delmarva",
       selfSold: true,
-      soldBy: "Kevin Lee",
+      soldBy: "Kevin Cheung",
     });
-    await setCrew(page, job2, ["Kevin Lee"]);
+    await setCrew(page, job2, ["Kevin Cheung"]);
     await addUnit(page, job2, "PTAC / Ductless");
     await addUnit(page, job2, "RTU-S");
     await addService(page, job2, "Thermostat (regular)", 2);
     await waitForUploadQueue(page);
-    const dsp2 = await submitDispatch(page, job2, { crew: ["Kevin Lee"], split: "Solo" });
+    const dsp2 = await submitDispatch(page, job2, { crew: ["Kevin Cheung"], split: "Solo" });
     if (dsp2) runDispatchIds.push(dsp2);
     await shot(page, "scenario-2-end");
 
@@ -652,7 +652,7 @@ async function main() {
     // Stipend & travel removed per company policy — no longer asserted
 
     // Verify Pay Calc tab actually rolls up correctly
-    step("Verify Pay Calc rollup for Kevin Lee");
+    step("Verify Pay Calc rollup for Kevin Cheung");
     const payCalc = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
       range: "Pay Calc!A4:H4",
@@ -662,7 +662,7 @@ async function main() {
     console.log(
       `  Pay Calc row 4: tech=${row[0]} install=${row[1]} salesPaid=${row[2]} salesPending=${row[3]} service=${row[4]} stipend=${row[5]} travel=${row[6]} total=${row[7]}`
     );
-    expect(row[0] === "Kevin Lee", `tech name in Pay Calc row 4 = "Kevin Lee"`);
+    expect(row[0] === "Kevin Cheung", `tech name in Pay Calc row 4 = "Kevin Cheung"`);
     const thisRunTotal =
       expectedInstall + expectedSalesPaid + expectedSalesPending + expectedService;
     // Pay Calc tab is cumulative across all test runs — just verify it's

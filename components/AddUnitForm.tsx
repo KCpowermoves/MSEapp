@@ -48,29 +48,32 @@ function slotsForType(unitType: UnitType | null): SlotDef[] {
     ];
   }
   if (RTU_TYPES.includes(unitType)) {
+    // Order: all BEFORES first, then all AFTERS, then nameplate. Matches
+    // the natural workflow — tech walks the unit shooting all before
+    // photos, does the work, then walks again shooting all afters.
     return [
       { slot: "coil1_pre", label: "Coil 1 · before", hint: "First coil before tune-up", required: true },
-      { slot: "coil1_post", label: "Coil 1 · after", hint: "First coil after tune-up", required: true },
       { slot: "coil2_pre", label: "Coil 2 · before", hint: "Second coil before tune-up", required: true },
-      { slot: "coil2_post", label: "Coil 2 · after", hint: "Second coil after tune-up", required: true },
-      { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
       { slot: "filter_pre", label: "Filter · before", hint: "Filter condition before cleaning", required: true },
+      { slot: "coil1_post", label: "Coil 1 · after", hint: "First coil after tune-up", required: true },
+      { slot: "coil2_post", label: "Coil 2 · after", hint: "Second coil after tune-up", required: true },
       { slot: "filter_post", label: "Filter · after", hint: "Filter after replacement", required: true },
+      { slot: "nameplate", label: "Nameplate", hint: "Make / model / serial label", required: true },
     ];
   }
-  // Split System — 11 required
+  // Split System — 11 required, same before-then-after grouping
   return [
     { slot: "out_pre_1", label: "Outdoor · side 1 · before", hint: "Outdoor unit, first angle", required: true },
     { slot: "out_pre_2", label: "Outdoor · side 2 · before", hint: "Different angle", required: true },
     { slot: "out_pre_3", label: "Outdoor · side 3 · before", hint: "Third angle", required: true },
+    { slot: "in_pre", label: "Air handler · before", hint: "Indoor unit before service", required: true },
     { slot: "out_post_1", label: "Outdoor · side 1 · after", hint: "After tune-up", required: true },
     { slot: "out_post_2", label: "Outdoor · side 2 · after", hint: "After tune-up", required: true },
     { slot: "out_post_3", label: "Outdoor · side 3 · after", hint: "After tune-up", required: true },
-    { slot: "out_nameplate", label: "Outdoor nameplate", hint: "Outdoor unit make / model / serial", required: true },
-    { slot: "in_pre", label: "Air handler · before", hint: "Indoor unit before service", required: true },
     { slot: "in_post", label: "Air handler · after", hint: "Indoor unit after service", required: true },
-    { slot: "in_nameplate", label: "Air handler nameplate", hint: "Indoor unit make / model / serial", required: true },
     { slot: "filter", label: "Filter", hint: "Filter condition / replacement", required: true },
+    { slot: "out_nameplate", label: "Outdoor nameplate", hint: "Outdoor unit make / model / serial", required: true },
+    { slot: "in_nameplate", label: "Air handler nameplate", hint: "Indoor unit make / model / serial", required: true },
   ];
 }
 

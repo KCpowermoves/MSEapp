@@ -1,12 +1,21 @@
 // MSE Field service worker — caches the app shell for offline use.
 // Photo uploads use IndexedDB (see lib/upload-queue.ts) and don't go through here.
 
-// IMPORTANT: only bump this when sw.js LOGIC changes — bumping wipes the
-// offline cache, which means the next time the user goes offline the app
-// won't load. App-code changes don't need a bump; the stale-while-
-// revalidate fetch handler picks up new HTML/JS automatically when online.
-const CACHE = "mse-field-v5";
-const PRECACHE = ["/login", "/jobs", "/manifest.json", "/logo.png", "/icon-192.png", "/icon-512.png"];
+// Bump this only when sw.js LOGIC changes — bumping wipes the offline
+// cache, so the next time the user goes offline the dynamic pages they
+// haven't re-visited won't load. App-code changes don't need a bump;
+// the stale-while-revalidate fetch handler picks up new HTML/JS
+// automatically when online.
+const CACHE = "mse-field-v6";
+const PRECACHE = [
+  "/login",
+  "/jobs",
+  "/offline",
+  "/manifest.json",
+  "/logo.png",
+  "/icon-192.png",
+  "/icon-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -46,11 +55,23 @@ self.addEventListener("fetch", (event) => {
           if (fresh.ok) cache.put(request, fresh.clone());
           return fresh;
         } catch {
+          // Try the exact URL first.
           const cached = await cache.match(request);
           if (cached) return cached;
-          const fallback = await cache.match("/login");
+
+          // For any /jobs/* path the user hasn't visited online yet
+          // (most importantly: brand new offline-created local-job-XXX
+          // URLs), serve the offline shell, which reads the pathname on
+          // the client and renders the right offline view from IDB.
+          if (url.pathname.startsWith("/jobs/")) {
+            const offlineShell = await cache.match("/offline");
+            if (offlineShell) return offlineShell;
+          }
+
+          // Last resort — login is always pre-cached.
+          const loginShell = await cache.match("/login");
           return (
-            fallback ||
+            loginShell ||
             new Response("Offline", { status: 503, statusText: "Offline" })
           );
         }
