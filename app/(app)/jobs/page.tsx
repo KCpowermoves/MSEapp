@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus, DollarSign } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { listActiveJobs } from "@/lib/data/jobs";
+import { listJobsForTech } from "@/lib/data/jobs";
 import { listAllDispatches } from "@/lib/data/dispatches";
 import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
 import { payForTechOnDate } from "@/lib/data/pay-attribution";
@@ -25,9 +25,10 @@ export default async function JobsHomePage({
 }) {
   const session = await getSession();
   const techName = session.name ?? "";
+  const isAdmin = session.isAdmin === true;
   const today = todayIsoDate();
   const [jobs, dispatches, units, todaysPay] = await Promise.all([
-    listActiveJobs(),
+    listJobsForTech({ techName, isAdmin }),
     listAllDispatches(),
     listAllUnits(),
     payForTechOnDate({ techName, dateIso: today }),
@@ -69,11 +70,20 @@ export default async function JobsHomePage({
   return (
     <div className="space-y-6">
       {searchParams.submitted === "1" && <SubmittedToast />}
-      <div>
-        <div className="text-sm text-mse-muted">Hi,</div>
-        <h1 className="text-3xl font-bold text-mse-navy tracking-tight">
-          {firstName}
-        </h1>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm text-mse-muted">Hi,</div>
+          <h1 className="text-3xl font-bold text-mse-navy tracking-tight">
+            {firstName}
+          </h1>
+        </div>
+        <Link
+          href="/jobs/new"
+          className="inline-flex items-center gap-1.5 bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] transition-[transform,background-color] text-white font-bold rounded-2xl px-4 py-3 shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2 shrink-0"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="text-sm">New job</span>
+        </Link>
       </div>
 
       {todaysPay.total > 0 && (
@@ -120,15 +130,6 @@ export default async function JobsHomePage({
         />
       </section>
 
-      <Link
-        href="/jobs/new"
-        className="block w-full bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] transition-[transform,background-color] text-white font-bold rounded-2xl py-4 text-center shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2"
-      >
-        <span className="inline-flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          New job
-        </span>
-      </Link>
     </div>
   );
 }

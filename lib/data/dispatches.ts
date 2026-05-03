@@ -68,6 +68,9 @@ function rowToDispatch(row: string[]): Dispatch {
     signatureUrl: String(row[10] ?? ""),
     signedByName: String(row[11] ?? ""),
     reportPdfUrl: String(row[12] ?? ""),
+    customerEmail: String(row[13] ?? ""),
+    customerRating: Number(row[14] ?? 0) || 0,
+    customerFeedback: String(row[15] ?? ""),
   };
 }
 
@@ -95,6 +98,26 @@ export async function findDraftDispatch(
   );
 }
 
+/** Most recent dispatch on a job for the given date, regardless of
+ *  whether it's been submitted. Used by the post-submit customer
+ *  confirmation + feedback screens, which run AFTER the dispatch is
+ *  finalized and therefore can't use findDraftDispatch. */
+export async function findDispatchByDate(
+  jobId: string,
+  date: string
+): Promise<Dispatch | null> {
+  const all = await listAllDispatches();
+  const matches = all.filter(
+    (d) => d.jobId === jobId && d.dispatchDate === date
+  );
+  if (matches.length === 0) return null;
+  // Prefer the latest submitted one, falling back to any match.
+  matches.sort((a, b) =>
+    (b.submittedAt || "").localeCompare(a.submittedAt || "")
+  );
+  return matches[0];
+}
+
 export async function ensureDraftDispatch(
   jobId: string
 ): Promise<Dispatch> {
@@ -105,7 +128,7 @@ export async function ensureDraftDispatch(
   const dispatchId = await nextDispatchId();
   await appendRow(
     TABS.dispatches,
-    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", "", ""],
+    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", "", "", "", 0, ""],
     "RAW"
   );
   await bumpLastActivity(jobId);
@@ -123,6 +146,9 @@ export async function ensureDraftDispatch(
     signatureUrl: "",
     signedByName: "",
     reportPdfUrl: "",
+    customerEmail: "",
+    customerRating: 0,
+    customerFeedback: "",
   };
 }
 
@@ -191,11 +217,13 @@ export async function submitDispatch(opts: {
   };
 }
 
-/** Stamp the customer signature URL + signed-by name on a dispatch row. */
+/** Stamp the customer signature URL + signed-by name on a dispatch row.
+ *  customerEmail is optional and written to col N when provided. */
 export async function setDispatchSignature(
   dispatchId: string,
   signatureUrl: string,
-  signedByName: string
+  signedByName: string,
+  customerEmail?: string
 ): Promise<void> {
   const rowIndex = await findRowIndex(
     TABS.dispatches,
@@ -203,9 +231,29 @@ export async function setDispatchSignature(
     dispatchId
   );
   if (!rowIndex) throw new Error("Dispatch row missing");
-  await Promise.all([
+  const writes: Promise<void>[] = [
     updateCell(`${TABS.dispatches}!K${rowIndex}`, signatureUrl, "RAW"),
     updateCell(`${TABS.dispatches}!L${rowIndex}`, signedByName, "RAW"),
+  ];
+  if (customerEmail !== undefined && customerEmail !== "") {
+    writes.push(
+      updateCell(`${TABS.dispatches}!N${rowIndex}`, customerEmail, "RAW")
+    );
+  }
+  await Promise.all(writes);
+}
+
+/** Save customer's post-service rating + optional written feedback. */
+export async function setDispatchFeedback(
+  dispatchId: string,
+  rating: number,
+  feedback: string
+): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
+  if (!rowIndex) throw new Error("Dispatch row missing");
+  await Promise.all([
+    updateCell(`${TABS.dispatches}!O${rowIndex}`, rating, "RAW"),
+    updateCell(`${TABS.dispatches}!P${rowIndex}`, feedback, "RAW"),
   ]);
 }
 

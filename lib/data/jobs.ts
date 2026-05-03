@@ -43,6 +43,62 @@ export async function listActiveJobs(): Promise<Job[]> {
     .sort((a, b) => (b.lastActivityDate || "").localeCompare(a.lastActivityDate || ""));
 }
 
+/**
+ * Active jobs visible to a specific tech. Admins see everything. Regular
+ * techs see only jobs they're connected to: jobs they created, jobs
+ * they're the seller on (self-sold), or jobs where they appear in any
+ * dispatch's techsOnSite list.
+ */
+export async function listJobsForTech(opts: {
+  techName: string;
+  isAdmin: boolean;
+}): Promise<Job[]> {
+  const active = await listActiveJobs();
+  if (opts.isAdmin) return active;
+  if (!opts.techName) return [];
+
+  // Defer the dispatches import to avoid a top-level circular import
+  // between jobs.ts and dispatches.ts.
+  const { listAllDispatches } = await import("@/lib/data/dispatches");
+  const dispatches = await listAllDispatches();
+  const jobIdsFromDispatches = new Set<string>();
+  for (const d of dispatches) {
+    if (d.techsOnSite.some((t) => t === opts.techName)) {
+      jobIdsFromDispatches.add(d.jobId);
+    }
+  }
+
+  return active.filter(
+    (j) =>
+      j.createdBy === opts.techName ||
+      (j.selfSold && j.soldBy === opts.techName) ||
+      jobIdsFromDispatches.has(j.jobId)
+  );
+}
+
+/**
+ * True if the tech is connected to this job (created it, sold it, or
+ * was on a dispatch). Admins always pass.
+ */
+export async function techCanAccessJob(opts: {
+  job: Job;
+  techName: string;
+  isAdmin: boolean;
+}): Promise<boolean> {
+  if (opts.isAdmin) return true;
+  if (!opts.techName) return false;
+  if (opts.job.createdBy === opts.techName) return true;
+  if (opts.job.selfSold && opts.job.soldBy === opts.techName) return true;
+
+  const { listAllDispatches } = await import("@/lib/data/dispatches");
+  const dispatches = await listAllDispatches();
+  return dispatches.some(
+    (d) =>
+      d.jobId === opts.job.jobId &&
+      d.techsOnSite.some((t) => t === opts.techName)
+  );
+}
+
 export async function getJob(jobId: string): Promise<Job | null> {
   const all = await listAllJobs();
   return all.find((j) => j.jobId === jobId) ?? null;

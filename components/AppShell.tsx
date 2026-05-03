@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut } from "lucide-react";
 import { PendingBadge } from "@/components/PendingBadge";
 import { LocationConsent } from "@/components/LocationConsent";
@@ -16,10 +15,35 @@ export function AppShell({
   techName: string;
   isAdmin?: boolean;
 }) {
-  const router = useRouter();
   const logout = async () => {
-    await fetch("/api/auth", { method: "DELETE" });
-    router.replace("/login");
+    try {
+      await fetch("/api/auth", { method: "DELETE" });
+    } catch {
+      // Network failure on logout is fine — we still clear local state below.
+    }
+    // Tell the SW to drop cached HTML for /jobs and /admin so the next
+    // user doesn't see the previous user's pages from the cache.
+    if (typeof navigator !== "undefined" && navigator.serviceWorker?.controller) {
+      try {
+        await new Promise<void>((resolve) => {
+          const channel = new MessageChannel();
+          const timeout = setTimeout(resolve, 500);
+          channel.port1.onmessage = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          navigator.serviceWorker.controller!.postMessage(
+            { type: "clear-user-data" },
+            [channel.port2]
+          );
+        });
+      } catch {
+        // Best-effort — full page reload below is the real safety net.
+      }
+    }
+    // Hard reload to /login: drops in-memory React state from the previous
+    // user (router.replace would keep the SPA shell mounted).
+    window.location.replace("/login");
   };
   return (
     <div className="min-h-screen flex flex-col bg-white">

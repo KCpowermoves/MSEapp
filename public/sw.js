@@ -6,7 +6,7 @@
 // haven't re-visited won't load. App-code changes don't need a bump;
 // the stale-while-revalidate fetch handler picks up new HTML/JS
 // automatically when online.
-const CACHE = "mse-field-v6";
+const CACHE = "mse-field-v7";
 const PRECACHE = [
   "/login",
   "/jobs",
@@ -34,6 +34,34 @@ self.addEventListener("activate", (event) => {
         keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
       );
       await self.clients.claim();
+    })()
+  );
+});
+
+// On logout the AppShell posts {type: "clear-user-data"}. We purge any
+// cached HTML for authenticated routes so the next user doesn't see the
+// previous user's pages from the SW cache.
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "clear-user-data") return;
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(CACHE);
+      const keys = await cache.keys();
+      await Promise.all(
+        keys
+          .filter((req) => {
+            const p = new URL(req.url).pathname;
+            return (
+              p === "/jobs" ||
+              p.startsWith("/jobs/") ||
+              p === "/admin" ||
+              p.startsWith("/admin/")
+            );
+          })
+          .map((req) => cache.delete(req))
+      );
+      if (event.ports && event.ports[0]) event.ports[0].postMessage({ ok: true });
     })()
   );
 });

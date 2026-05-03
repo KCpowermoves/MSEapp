@@ -17,6 +17,7 @@ import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
 import { TABS, readTab } from "@/lib/google/sheets";
 import { ageInDays, formatCurrency, todayIsoDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { AdminSendReportButton } from "@/components/AdminSendReportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -345,6 +346,14 @@ export default async function AdminDashboard() {
                         {d.dispatchDate} · {d.techsOnSite.join(", ") || "no crew"} ·{" "}
                         {d.crewSplit}
                         {d.signatureUrl && " · signed"}
+                        {d.customerRating > 0 && (
+                          <>
+                            {" · "}
+                            <span className="text-mse-navy font-semibold">
+                              {d.customerRating}★
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <span
@@ -367,6 +376,22 @@ export default async function AdminDashboard() {
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
+                    )}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-mse-light">
+                    <AdminSendReportButton
+                      dispatchId={d.dispatchId}
+                      defaultEmail={d.customerEmail}
+                      hasPdf={Boolean(d.reportPdfUrl)}
+                      pdfUrl={d.reportPdfUrl}
+                    />
+                    {d.customerFeedback && (
+                      <div className="mt-2 text-xs bg-mse-red/5 border border-mse-red/20 rounded-md px-2 py-1.5 text-mse-text">
+                        <span className="font-semibold text-mse-red">
+                          Customer feedback:
+                        </span>{" "}
+                        {d.customerFeedback}
+                      </div>
                     )}
                   </div>
                 </li>

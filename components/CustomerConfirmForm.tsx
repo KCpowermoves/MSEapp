@@ -8,25 +8,28 @@ import { cn } from "@/lib/utils";
 import type { Job } from "@/lib/types";
 
 /**
- * Step 1 of the submit flow — customer confirmation. The tech hands the
- * device to the customer (or property manager), who signs and prints
- * their name. Both fields are optional — the tech can tap "Continue
- * without signature" to skip.
+ * Step 2 of the submit flow — customer confirmation. By the time we get
+ * here, the tech has already entered crew + pay info on /submit and the
+ * dispatch is finalized server-side. The customer signs and (optionally)
+ * provides an email so we can send the auto-generated PDF report.
  *
- * On Continue, if the pad has ink, we upload the signature PNG to the
- * job's Drive folder and stamp the URL on the dispatch row before
- * navigating to the pay-calc step.
+ * Tech can hit "Skip" if no one's available to sign or the customer
+ * doesn't want to give an email — we still proceed to the feedback
+ * screen and the dispatch stays submitted.
  */
 export function CustomerConfirmForm({
   job,
   dispatchId,
+  defaultEmail,
 }: {
   job: Job;
   dispatchId: string;
+  defaultEmail: string;
 }) {
   const router = useRouter();
   const sigRef = useRef<SignatureCanvas | null>(null);
   const [signedByName, setSignedByName] = useState(job.customerName);
+  const [customerEmail, setCustomerEmail] = useState(defaultEmail);
   const [hasSignature, setHasSignature] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,45 +42,70 @@ export function CustomerConfirmForm({
     setHasSignature(false);
   };
 
-  const goToPayCalc = () => {
-    router.replace(`/jobs/${encodeURIComponent(job.jobId)}/submit`);
+  const goToFeedback = () => {
+    router.replace(`/jobs/${encodeURIComponent(job.jobId)}/submit/feedback`);
   };
 
-  const continueWithSignature = async () => {
+  const onContinue = async () => {
     if (submitting) return;
-    if (!sigRef.current || sigRef.current.isEmpty()) {
-      goToPayCalc();
+    const email = customerEmail.trim();
+    const hasInk = sigRef.current && !sigRef.current.isEmpty();
+
+    // Nothing to upload — skip straight to feedback.
+    if (!hasInk && !email) {
+      goToFeedback();
       return;
     }
+
     setSubmitting(true);
     setError(null);
     try {
-      const dataUrl = sigRef.current.toDataURL("image/png");
-      const blob = await (await fetch(dataUrl)).blob();
       const formData = new FormData();
-      formData.append("file", blob, "signature.png");
       formData.append("jobId", job.jobId);
       formData.append("dispatchId", dispatchId);
       formData.append("kind", "signature");
       formData.append("signedByName", signedByName.trim());
+      if (email) formData.append("customerEmail", email);
+      if (hasInk) {
+        const dataUrl = sigRef.current!.toDataURL("image/png");
+        const blob = await (await fetch(dataUrl)).blob();
+        formData.append("file", blob, "signature.png");
+      } else {
+        // /api/upload requires a file. Send a 1-pixel transparent PNG
+        // when only the email needs to land — we'll still get the email
+        // saved, but won't pollute the Drive folder with a blank sig.
+        // Easier: hit a separate path that takes only email. Skip the
+        // /api/upload route in this case and PUT to a thin endpoint.
+        const res = await fetch("/api/dispatches/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dispatchId, customerEmail: email }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn("[confirm] email-only save failed:", data);
+        }
+        goToFeedback();
+        return;
+      }
+
       const res = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
       if (!res.ok) {
-        // Don't block on a signature-upload failure — proceed to pay calc
-        // and the tech can still finalize the dispatch. Log for diagnosis.
+        // Don't block on a signature-upload failure. The pay/dispatch
+        // is already finalized; the tech can still complete the flow.
         const data = await res.json().catch(() => ({}));
         console.warn("[confirm] signature upload failed:", data);
       }
-      goToPayCalc();
+      goToFeedback();
     } catch (e) {
-      console.warn("[confirm] signature error:", e);
+      console.warn("[confirm] error:", e);
       setError(
-        "Could not save the signature. Continuing to pay step — you can submit anyway."
+        "Could not save signature. Continuing — the dispatch is already submitted."
       );
-      // Brief pause so the tech sees the message, then push through.
-      setTimeout(goToPayCalc, 1500);
+      setTimeout(goToFeedback, 1500);
     }
   };
 
@@ -98,7 +126,7 @@ export function CustomerConfirmForm({
 
       <section className="bg-mse-light/60 rounded-2xl p-4">
         <div className="text-xs text-mse-muted uppercase tracking-wide font-semibold">
-          Step 1 of 2
+          Step 2 of 3
         </div>
         <div className="font-bold text-mse-navy mt-0.5">
           {job.customerName}
@@ -108,15 +136,16 @@ export function CustomerConfirmForm({
         )}
       </section>
 
-      <div>
-        <div className="text-sm font-semibold text-mse-navy mb-2">
-          Have the customer sign
+      <section className="rounded-2xl border-2 border-mse-navy/15 bg-white p-4">
+        <div className="font-bold text-mse-navy text-base">
+          Please confirm our technician was here and completed the work.
         </div>
-        <div className="text-xs text-mse-muted mb-3">
-          Hand the device to the customer (or property manager). Optional —
-          if no one&apos;s available to sign, skip below.
+        <div className="text-sm text-mse-muted mt-1.5">
+          Sign below to confirm. Optional — skip if no one&apos;s available.
         </div>
+      </section>
 
+      <div>
         <div className="rounded-2xl border-2 border-dashed border-mse-light bg-white relative overflow-hidden touch-none">
           <SignatureCanvas
             ref={sigRef}
@@ -157,6 +186,25 @@ export function CustomerConfirmForm({
         </div>
       </div>
 
+      <div>
+        <label className="block text-sm font-semibold text-mse-navy mb-1.5">
+          Where should we send your service report?
+        </label>
+        <div className="text-xs text-mse-muted mb-2">
+          We&apos;ll email a copy of the photos and work summary once it&apos;s ready.
+        </div>
+        <input
+          type="email"
+          inputMode="email"
+          autoCapitalize="off"
+          autoCorrect="off"
+          value={customerEmail}
+          onChange={(e) => setCustomerEmail(e.target.value)}
+          placeholder="customer@example.com"
+          className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
+        />
+      </div>
+
       {error && (
         <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">
           {error}
@@ -167,7 +215,7 @@ export function CustomerConfirmForm({
         <div className="max-w-2xl mx-auto space-y-2">
           <button
             type="button"
-            onClick={continueWithSignature}
+            onClick={onContinue}
             disabled={submitting}
             className={cn(
               "w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
@@ -180,16 +228,11 @@ export function CustomerConfirmForm({
             {submitting ? (
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Saving signature…
-              </span>
-            ) : hasSignature ? (
-              <span className="inline-flex items-center gap-2">
-                Continue to pay <ArrowRight className="w-4 h-4" />
+                Saving…
               </span>
             ) : (
               <span className="inline-flex items-center gap-2">
-                Continue without signature{" "}
-                <ArrowRight className="w-4 h-4" />
+                Continue <ArrowRight className="w-4 h-4" />
               </span>
             )}
           </button>

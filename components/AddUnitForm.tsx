@@ -179,7 +179,9 @@ export function AddUnitForm({
   const requiredCount = requiredSlots.length;
   const allRequiredReady =
     unitType !== null && filledRequired === requiredCount;
-  const canSubmit = unitType !== null && allRequiredReady && !submitting;
+  const modelOk = model.trim().length > 0;
+  const canSubmit =
+    unitType !== null && allRequiredReady && modelOk && !submitting;
 
   // Slots whose capture should trigger nameplate OCR. Whichever
   // nameplate the tech captures first kicks off the read; subsequent
@@ -486,7 +488,7 @@ export function AddUnitForm({
               className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
             />
           </Field>
-          <Field label="Model">
+          <Field label="Model" required>
             <input
               type="text"
               value={model}
@@ -494,6 +496,12 @@ export function AddUnitForm({
               placeholder="from the nameplate"
               className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
             />
+            {!modelOk && (
+              <div className="text-xs text-mse-muted mt-1">
+                Required — read it from the nameplate (the OCR usually fills
+                this in for you).
+              </div>
+            )}
           </Field>
           <Field label="Serial">
             <input
@@ -575,11 +583,11 @@ export function AddUnitForm({
                 Saving...
               </span>
             ) : (
-              `Save unit${
-                allRequiredReady
-                  ? ""
-                  : ` · ${filledRequired}/${requiredCount} required photos`
-              }`
+              !allRequiredReady
+                ? `Save unit · ${filledRequired}/${requiredCount} required photos`
+                : !modelOk
+                ? "Save unit · model number required"
+                : "Save unit"
             )}
           </button>
         </div>

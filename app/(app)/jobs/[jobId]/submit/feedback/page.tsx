@@ -3,11 +3,11 @@ import { getSession } from "@/lib/auth";
 import { getJob, techCanAccessJob } from "@/lib/data/jobs";
 import { findDispatchByDate } from "@/lib/data/dispatches";
 import { todayIsoDate } from "@/lib/utils";
-import { CustomerConfirmForm } from "@/components/CustomerConfirmForm";
+import { CustomerFeedbackForm } from "@/components/CustomerFeedbackForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function CustomerConfirmPage({
+export default async function CustomerFeedbackPage({
   params,
 }: {
   params: { jobId: string };
@@ -22,20 +22,24 @@ export default async function CustomerConfirmPage({
     isAdmin: session.isAdmin === true,
   });
   if (!canAccess) notFound();
-  // /submit/confirm runs AFTER /submit has finalized today's dispatch,
-  // so the dispatch already has submittedAt set. Use findDispatchByDate
-  // (which returns submitted dispatches too) instead of findDraftDispatch.
+
   const dispatch = await findDispatchByDate(jobId, todayIsoDate());
   if (!dispatch || !dispatch.submittedAt) {
-    // No submitted dispatch yet — tech needs to do the crew/pay step
-    // first. Bounce them to /submit.
     redirect(`/jobs/${encodeURIComponent(jobId)}/submit`);
   }
+
+  // The Google Reviews URL is configured per-environment so we can
+  // point staging traffic somewhere harmless. Falls back to the live
+  // MSE Maps page when not set.
+  const googleReviewUrl =
+    process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
+    "https://search.google.com/local/writereview?placeid=";
+
   return (
-    <CustomerConfirmForm
+    <CustomerFeedbackForm
       job={job}
       dispatchId={dispatch.dispatchId}
-      defaultEmail={dispatch.customerEmail}
+      googleReviewUrl={googleReviewUrl}
     />
   );
 }

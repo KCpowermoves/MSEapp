@@ -3,21 +3,28 @@
 import { useState } from "react";
 import {
   AlertTriangle,
+  Briefcase,
   CheckCircle2,
+  Clock,
   CloudUpload,
   HardDrive,
   RefreshCw,
   Save,
   Trash2,
+  Wrench,
 } from "lucide-react";
 import {
+  useDraftJobs,
+  useDraftUnits,
   useLocalBackups,
   usePendingCount,
   usePendingList,
 } from "@/hooks/useUploadQueue";
 import {
-  forceRetryAllFailedPhotos,
+  forceRetryEverything,
   forceRetryPhoto,
+  removeDraft,
+  removeDraftJob,
   removePhoto,
   setPhotoRetention,
 } from "@/lib/upload-queue";
@@ -26,13 +33,17 @@ import { cn } from "@/lib/utils";
 
 export function PendingBadge() {
   const pending = usePendingCount();
+  const draftUnits = useDraftUnits();
+  const draftJobs = useDraftJobs();
   const { items: backups } = useLocalBackups();
   const [open, setOpen] = useState(false);
 
-  // Show nothing if there's no queue activity AND no local backup.
-  if (pending === 0 && backups.length === 0) return null;
+  const totalQueued = pending + draftUnits.length + draftJobs.length;
 
-  const hasPending = pending > 0;
+  // Show nothing if there's no queue activity AND no local backup.
+  if (totalQueued === 0 && backups.length === 0) return null;
+
+  const hasPending = totalQueued > 0;
 
   return (
     <>
@@ -48,14 +59,14 @@ export function PendingBadge() {
         )}
         aria-label={
           hasPending
-            ? `${pending} pending uploads`
+            ? `${totalQueued} items waiting to sync`
             : `${backups.length} photos backed up locally`
         }
       >
         {hasPending ? (
           <>
             <CloudUpload className="w-4 h-4" />
-            <span>{pending} pending</span>
+            <span>{totalQueued} pending</span>
           </>
         ) : (
           <>
@@ -71,13 +82,21 @@ export function PendingBadge() {
 
 function QueueInspector({ onClose }: { onClose: () => void }) {
   const items = usePendingList();
+  const draftUnits = useDraftUnits();
+  const draftJobs = useDraftJobs();
   const { items: backups, bytes: backupBytes } = useLocalBackups();
-  const failedCount = items.filter(
+  const photoFailedCount = items.filter(
     (p) => p.status === "failed" || (p.attempts ?? 0) > 0
   ).length;
+  const draftStuckCount =
+    draftUnits.filter((d) => d.status === "failed" || (d.attempts ?? 0) > 0)
+      .length +
+    draftJobs.filter((d) => d.status === "failed" || (d.attempts ?? 0) > 0)
+      .length;
+  const anythingStuck = photoFailedCount + draftStuckCount > 0;
 
   const retryAll = async () => {
-    await forceRetryAllFailedPhotos();
+    await forceRetryEverything();
     kickWorker();
   };
 
@@ -90,17 +109,17 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
         className="w-full max-w-md bg-white rounded-2xl shadow-elevated max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b border-mse-light p-4 flex items-center justify-between gap-2">
-          <h2 className="font-bold text-mse-navy">Pending uploads</h2>
+        <div className="sticky top-0 bg-white border-b border-mse-light p-4 flex items-center justify-between gap-2 z-10">
+          <h2 className="font-bold text-mse-navy">Sync queue</h2>
           <div className="flex items-center gap-2">
-            {failedCount > 0 && (
+            {anythingStuck && (
               <button
                 type="button"
                 onClick={retryAll}
                 className="text-xs font-semibold text-mse-navy bg-mse-gold/15 hover:bg-mse-gold/25 px-3 py-1.5 rounded-lg flex items-center gap-1"
               >
                 <RefreshCw className="w-3 h-3" />
-                Retry all
+                Retry everything
               </button>
             )}
             <button
@@ -112,12 +131,94 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
-        {items.length === 0 && backups.length === 0 ? (
+
+        {items.length === 0 &&
+        draftUnits.length === 0 &&
+        draftJobs.length === 0 &&
+        backups.length === 0 ? (
           <div className="p-8 text-center text-mse-muted text-sm">
-            No photos in the local queue or backup.
+            Nothing waiting to sync. You&apos;re all caught up.
           </div>
         ) : (
           <>
+            {draftJobs.length > 0 && (
+              <SectionHeader
+                icon={<Briefcase className="w-3 h-3 text-mse-navy" />}
+                label="Jobs waiting to sync"
+                count={draftJobs.length}
+              />
+            )}
+            {draftJobs.length > 0 && (
+              <ul className="divide-y divide-mse-light">
+                {draftJobs.map((d) => (
+                  <li key={d.id} className="p-4 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate text-mse-navy">
+                        {d.customerName || "(no customer name)"}
+                      </div>
+                      <div className="text-xs text-mse-muted">
+                        <DraftStatus status={d.status} attempts={d.attempts} error={d.lastError} />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDraftJob(d.id)}
+                      aria-label="Discard draft job"
+                      className="p-2 text-mse-muted hover:text-mse-red"
+                      title="Discard this draft (lost forever)"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {draftUnits.length > 0 && (
+              <SectionHeader
+                icon={<Wrench className="w-3 h-3 text-mse-navy" />}
+                label="Units waiting to sync"
+                count={draftUnits.length}
+              />
+            )}
+            {draftUnits.length > 0 && (
+              <ul className="divide-y divide-mse-light">
+                {draftUnits.map((d) => (
+                  <li key={d.id} className="p-4 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate text-mse-navy">
+                        {d.label || `${d.unitType}`}
+                      </div>
+                      <div className="text-xs text-mse-muted">
+                        <DraftStatus status={d.status} attempts={d.attempts} error={d.lastError} />
+                        {d.jobId.startsWith("local-job-") && (
+                          <span className="ml-1 text-mse-muted/70">
+                            · waiting on parent job
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDraft(d.id)}
+                      aria-label="Discard draft unit"
+                      className="p-2 text-mse-muted hover:text-mse-red"
+                      title="Discard this draft (lost forever)"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {items.length > 0 && (
+              <SectionHeader
+                icon={<CloudUpload className="w-3 h-3 text-mse-navy" />}
+                label="Photos uploading"
+                count={items.length}
+              />
+            )}
             {items.length > 0 && (
               <ul className="divide-y divide-mse-light">
                 {items.map((p) => (
@@ -138,6 +239,11 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
                         ) : p.status === "uploading" ? (
                           <span className="text-mse-navy font-semibold">
                             Uploading…
+                          </span>
+                        ) : p.unitId?.startsWith("local-") ||
+                          p.jobId.startsWith("local-job-") ? (
+                          <span className="text-mse-muted">
+                            Waiting for parent {p.jobId.startsWith("local-job-") ? "job" : "unit"} to sync
                           </span>
                         ) : (
                           <>{ageLabel(p.capturedAt)}</>
@@ -248,6 +354,60 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+function SectionHeader({
+  icon,
+  label,
+  count,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+}) {
+  return (
+    <div className="px-4 pt-4 pb-2 bg-mse-light/30 border-y border-mse-light">
+      <div className="text-xs font-semibold text-mse-navy uppercase tracking-wide flex items-center gap-1.5">
+        {icon}
+        {label}
+        <span className="ml-auto text-mse-muted normal-case font-normal tracking-normal">
+          {count}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function DraftStatus({
+  status,
+  attempts,
+  error,
+}: {
+  status: "pending" | "syncing" | "synced" | "failed";
+  attempts: number;
+  error?: string;
+}) {
+  if (status === "syncing") {
+    return (
+      <span className="text-mse-navy font-semibold">Syncing…</span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="text-mse-red flex items-center gap-1">
+        <AlertTriangle className="w-3 h-3 shrink-0" />
+        <span className="truncate" title={error}>
+          {error ?? "Sync failed"} · attempt {attempts}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="text-mse-muted flex items-center gap-1">
+      <Clock className="w-3 h-3 shrink-0" />
+      Waiting to sync
+    </span>
   );
 }
 

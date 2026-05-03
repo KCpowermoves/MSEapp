@@ -15,6 +15,7 @@ import {
   uploadFile,
 } from "@/lib/google/drive";
 import { buildJobPdf } from "@/lib/pdf-report";
+import { sendReportEmail } from "@/lib/email/send-report";
 
 /**
  * Server-side PDF generator for a submitted dispatch. Idempotent and
@@ -76,6 +77,28 @@ export async function tryRenderPdfIfReady(
     });
 
     await setDispatchReportPdf(dispatchId, uploaded.url);
+
+    // Auto-send the report to the customer if we captured an email at
+    // the signature step. Fire-and-forget — render success shouldn't be
+    // blocked by HighLevel hiccups, and the admin can always Resend
+    // from the dashboard if delivery didn't go through.
+    if (dispatch.customerEmail) {
+      sendReportEmail({
+        to: dispatch.customerEmail,
+        customerName: job.customerName,
+        pdfUrl: uploaded.url,
+        jobAddress: job.siteAddress,
+        dispatchDate: dispatch.dispatchDate,
+      })
+        .then((res) => {
+          if (!res.sent) {
+            console.warn(
+              `[pdf] auto-send email skipped (${res.reason ?? "unknown"})`
+            );
+          }
+        })
+        .catch((e) => console.warn("[pdf] auto-send email error:", e));
+    }
     return { rendered: true, url: uploaded.url };
   } catch (e) {
     console.error("[pdf] tryRenderPdfIfReady failed:", e);

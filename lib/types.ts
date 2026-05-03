@@ -85,6 +85,15 @@ export interface Dispatch {
   signedByName: string;
   /** Drive URL of the auto-generated service report PDF. */
   reportPdfUrl: string;
+  /** Customer email captured at signature step — where the report PDF
+   *  should be emailed once it's ready. Empty when not provided. */
+  customerEmail: string;
+  /** Customer's self-reported star rating (1–5) from the post-signature
+   *  screen. 0 means not yet captured. */
+  customerRating: number;
+  /** Free-text feedback from customers who rated below 5 stars. Empty
+   *  for 5-star ratings (those route to Google Reviews instead). */
+  customerFeedback: string;
 }
 
 export interface UnitServiced {

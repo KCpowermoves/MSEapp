@@ -39,6 +39,12 @@ export async function POST(request: Request) {
   if (!UNIT_TYPES.includes(unitType)) {
     return NextResponse.json({ error: "Pick a unit type" }, { status: 400 });
   }
+  if (!model) {
+    return NextResponse.json(
+      { error: "Model number is required" },
+      { status: 400 }
+    );
+  }
 
   const label = String(body.label ?? "").trim();
 
@@ -89,7 +95,16 @@ export async function PATCH(request: Request) {
   }
   if (body.label !== undefined) patch.label = String(body.label).trim();
   if (body.make !== undefined) patch.make = String(body.make).trim();
-  if (body.model !== undefined) patch.model = String(body.model).trim();
+  if (body.model !== undefined) {
+    const trimmed = String(body.model).trim();
+    if (!trimmed) {
+      return NextResponse.json(
+        { error: "Model number is required" },
+        { status: 400 }
+      );
+    }
+    patch.model = trimmed;
+  }
   if (body.serial !== undefined) patch.serial = String(body.serial).trim();
   if (body.notes !== undefined) patch.notes = String(body.notes).trim();
 

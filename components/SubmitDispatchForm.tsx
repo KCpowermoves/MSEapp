@@ -108,22 +108,22 @@ export function SubmitDispatchForm({
         throw new Error(data.error ?? "Could not submit");
       }
 
-      // Customer signature is captured on the prior /submit/confirm
-      // page, not here. By the time we POST /api/dispatches, the
-      // signature URL is already on the dispatch row (if the tech
-      // collected one).
-
-      // PDF generation is now handled server-side — triggered by
-      // /api/dispatches POST and /api/upload (per-photo). Whichever
-      // call ends up satisfying "all photos uploaded + dispatch
-      // submitted" wins. Idempotent.
+      // Dispatch is finalized server-side here (submittedAt + pay
+      // attributions). The customer signature, email, and rating are
+      // captured on the next two screens. PDF render is fired from the
+      // server but stays idempotent — final upload may happen during
+      // the customer steps. No matter who wins the race, the PDF only
+      // generates once.
 
       captureLocationEvent(
         "dispatch-submit",
         { jobId: job.jobId },
         { force: true }
       ).catch(() => {});
-      router.replace("/jobs?submitted=1");
+      // Hand off to the customer confirmation step (signature + email).
+      router.replace(
+        `/jobs/${encodeURIComponent(job.jobId)}/submit/confirm`
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not submit");
       setSubmitting(false);
@@ -144,7 +144,10 @@ export function SubmitDispatchForm({
       </div>
 
       <section className="bg-mse-light/60 rounded-2xl p-4">
-        <div className="font-bold text-mse-navy">{job.customerName}</div>
+        <div className="text-xs text-mse-muted uppercase tracking-wide font-semibold">
+          Step 1 of 3
+        </div>
+        <div className="font-bold text-mse-navy mt-0.5">{job.customerName}</div>
         <div className="text-sm text-mse-muted">{job.siteAddress}</div>
         <div className="text-xs text-mse-muted mt-2">
           {units.length} unit{units.length === 1 ? "" : "s"} ·{" "}
@@ -279,7 +282,7 @@ export function SubmitDispatchForm({
                 Submitting...
               </span>
             ) : (
-              "Submit"
+              "Hand to customer"
             )}
           </button>
         </div>

@@ -25,4 +25,10 @@ export const env = {
   // OCR endpoint returns a no-op result so the app silently degrades to
   // manual entry.
   anthropicApiKey: () => optional("ANTHROPIC_API_KEY"),
+  // Optional — HighLevel API token for sending the customer report
+  // email. When absent, /api/dispatches/send-report saves the request
+  // but no actual email goes out (placeholder behavior).
+  highlevelApiToken: () => optional("HIGHLEVEL_API_TOKEN"),
+  highlevelLocationId: () => optional("HIGHLEVEL_LOCATION_ID"),
+  highlevelReportTemplateId: () => optional("HIGHLEVEL_REPORT_TEMPLATE_ID"),
 };

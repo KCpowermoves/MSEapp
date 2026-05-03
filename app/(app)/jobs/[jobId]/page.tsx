@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { getJob } from "@/lib/data/jobs";
+import { getJob, techCanAccessJob } from "@/lib/data/jobs";
 import { findDraftDispatch, listAllDispatches } from "@/lib/data/dispatches";
 import { listUnitsForJob } from "@/lib/data/units";
 import { listActiveTechNames } from "@/lib/data/techs";
@@ -24,12 +24,18 @@ export default async function JobDetailPage({
     return <OfflineJobDetail jobId={jobId} />;
   }
 
+  const session = await getSession();
+  const techName = session.name ?? "";
+  const isAdmin = session.isAdmin === true;
+
   const job = await getJob(jobId);
   if (!job) notFound();
 
+  const canAccess = await techCanAccessJob({ job, techName, isAdmin });
+  if (!canAccess) notFound();
+
   const draft = await findDraftDispatch(jobId, todayIsoDate());
-  const [session, allUnits, dispatches, activeTechs] = await Promise.all([
-    getSession(),
+  const [allUnits, dispatches, activeTechs] = await Promise.all([
     listUnitsForJob(jobId),
     listAllDispatches(),
     listActiveTechNames(),

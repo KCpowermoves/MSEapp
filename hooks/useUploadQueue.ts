@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 import {
+  listAllDraftJobs,
+  listAllDrafts,
   listPending,
   listUploadedBackups,
   localStorageUsedBytes,
   pendingCount,
+  type DraftJob,
+  type DraftUnit,
   type QueuedPhoto,
 } from "@/lib/upload-queue";
 
@@ -44,6 +48,50 @@ export function usePendingList() {
       try {
         const list = await listPending();
         if (!cancelled) setItems(list);
+      } catch {}
+    };
+    tick();
+    const interval = setInterval(tick, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+  return items;
+}
+
+/** Draft units (offline-created, not yet synced server-side). */
+export function useDraftUnits() {
+  const [items, setItems] = useState<DraftUnit[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const all = await listAllDrafts();
+        if (cancelled) return;
+        setItems(all.filter((d) => d.status !== "synced"));
+      } catch {}
+    };
+    tick();
+    const interval = setInterval(tick, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+  return items;
+}
+
+/** Draft jobs (offline-created, not yet synced server-side). */
+export function useDraftJobs() {
+  const [items, setItems] = useState<DraftJob[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const all = await listAllDraftJobs();
+        if (cancelled) return;
+        setItems(all.filter((d) => d.status !== "synced"));
       } catch {}
     };
     tick();

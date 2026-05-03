@@ -25,7 +25,6 @@ const MAX_CONCURRENCY = 1;
 
 let started = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
-let inFlight = 0;
 
 const UPLOAD_TIMEOUT_MS = 45_000;
 const SYNC_TIMEOUT_MS = 30_000;
@@ -234,10 +233,18 @@ async function maybePurgeOldBackups() {
 
 async function tick() {
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    // Don't try anything while the OS reports offline. We'll get woken
+    // by the "online" event when connectivity returns.
     schedule();
     return;
   }
   try {
+    if (typeof window !== "undefined") {
+      // Lightweight signal so a tech (or me looking over their shoulder
+      // at the console) can confirm the worker is alive.
+      const fingerprint = new Date().toISOString().slice(11, 19);
+      console.debug(`[upload-worker] tick ${fingerprint}`);
+    }
     // 1a) Sync any offline-created jobs first. Until the job row exists
     //     server-side, units that reference its local- id can't sync.
     await syncPendingDraftJobs();
@@ -265,6 +272,13 @@ async function tick() {
     }
 
     const fresh = await listPending();
+    // Compute concurrency from IDB instead of a module-local counter so
+    // we recover from ANY weirdness (page reload, abort mid-upload,
+    // etc.). The "uploading" rows that were stranded longer than the
+    // stuck threshold have already been bumped back to "failed" above.
+    const currentlyUploading = fresh.filter(
+      (p) => p.status === "uploading"
+    ).length;
     const drainable = fresh
       .filter((p) => p.status === "pending")
       .filter((p) => (p.attempts ?? 0) < PHOTO_MAX_ATTEMPTS)
@@ -272,17 +286,12 @@ async function tick() {
       // next tick will pick them up after the parent record syncs
       .filter((p) => !p.unitId || !p.unitId.startsWith("local-"))
       .filter((p) => !p.jobId || !p.jobId.startsWith("local-job-"))
-      .slice(0, MAX_CONCURRENCY - inFlight);
+      .slice(0, Math.max(0, MAX_CONCURRENCY - currentlyUploading));
 
     for (const item of drainable) {
-      inFlight++;
-      uploadOne(item)
-        .catch(async (e) => {
-          await markFailed(item.id, e instanceof Error ? e.message : String(e));
-        })
-        .finally(() => {
-          inFlight--;
-        });
+      uploadOne(item).catch(async (e) => {
+        await markFailed(item.id, e instanceof Error ? e.message : String(e));
+      });
     }
 
     // Schedule retries on failed photos. Backoff against lastAttemptAt
@@ -316,18 +325,22 @@ export function startUploadWorker() {
   if (typeof window === "undefined" || started) return;
   started = true;
   const onOnline = () => {
+    console.debug("[upload-worker] online event — kicking now");
     if (timer) clearTimeout(timer);
     tick();
   };
   const onVis = () => {
     if (document.visibilityState === "visible") {
+      console.debug("[upload-worker] tab visible — kicking now");
       if (timer) clearTimeout(timer);
       tick();
     }
   };
   window.addEventListener("online", onOnline);
   document.addEventListener("visibilitychange", onVis);
-  schedule();
+  // Fire immediately on app boot so we don't sit idle for the first
+  // POLL_MS on launch — common with PWA cold starts.
+  tick();
 }
 
 export function kickWorker() {

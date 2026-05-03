@@ -44,6 +44,9 @@ export async function POST(request: Request) {
   const dispatchId = String(formData.get("dispatchId") ?? "");
   const kind = String(formData.get("kind") ?? "");
   const signedByName = String(formData.get("signedByName") ?? "").slice(0, 200);
+  const customerEmail = String(formData.get("customerEmail") ?? "")
+    .trim()
+    .slice(0, 200);
   const slot = String(formData.get("slot") ?? "");
 
   if (!(file instanceof File)) {
@@ -124,7 +127,18 @@ export async function POST(request: Request) {
         mimeType: "image/png",
         body: buffer,
       });
-      await setDispatchSignature(dispatchId, uploaded.url, signedByName);
+      await setDispatchSignature(
+        dispatchId,
+        uploaded.url,
+        signedByName,
+        customerEmail
+      );
+      // Try the PDF render now too — if all photos already happened to
+      // be uploaded by the time the customer signs, this completes the
+      // dispatch's report immediately.
+      tryRenderPdfIfReady(dispatchId).catch((e) =>
+        console.warn("[upload] post-signature PDF render error:", e)
+      );
       revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
     }

@@ -114,8 +114,14 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
     ? unit.additionalUrls.split(",").map((u) => u.trim()).filter(Boolean)
     : [];
 
+  const modelOk = model.trim().length > 0;
+
   const submit = async () => {
     if (submitting) return;
+    if (!modelOk) {
+      setError("Model number is required.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -272,7 +278,7 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
         />
       </Field>
 
-      <Field label="Model">
+      <Field label="Model" required>
         <input
           type="text"
           value={model}
@@ -376,11 +382,11 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || deleting}
+            disabled={submitting || deleting || !modelOk}
             className={cn(
               "w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
-              !submitting && !deleting
+              !submitting && !deleting && modelOk
                 ? "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card"
                 : "bg-mse-light text-mse-muted cursor-not-allowed"
             )}
@@ -390,6 +396,8 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Saving...
               </span>
+            ) : !modelOk ? (
+              "Save changes · model required"
             ) : (
               "Save changes"
             )}

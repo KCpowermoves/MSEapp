@@ -360,6 +360,31 @@ export async function removeDraft(id: string): Promise<void> {
   await db.delete(STORE_DRAFTS, id);
 }
 
+/** Reset every failed/exhausted draft unit back to pending so the worker
+ *  picks it up on the next tick. Returns how many were reset. */
+export async function forceRetryAllFailedDrafts(): Promise<number> {
+  const db = await getDb();
+  const tx = db.transaction(STORE_DRAFTS, "readwrite");
+  const all = (await tx.store.getAll()) as DraftUnit[];
+  let n = 0;
+  for (const d of all) {
+    if (d.status === "synced") continue;
+    if (d.status === "failed" || (d.attempts ?? 0) > 0) {
+      await tx.store.put({
+        ...d,
+        status: "pending",
+        attempts: 0,
+        lastError: undefined,
+        lastAttemptAt: undefined,
+        syncStartedAt: undefined,
+      });
+      n++;
+    }
+  }
+  await tx.done;
+  return n;
+}
+
 /**
  * Replace the jobId on every queued draft unit AND every queued photo
  * currently keyed to oldJobId. Called by the worker after a draft job
@@ -441,4 +466,43 @@ export async function bumpDraftJobAttempt(
 export async function removeDraftJob(id: string): Promise<void> {
   const db = await getDb();
   await db.delete(STORE_DRAFT_JOBS, id);
+}
+
+/** Reset every failed/exhausted draft job back to pending. */
+export async function forceRetryAllFailedDraftJobs(): Promise<number> {
+  const db = await getDb();
+  const tx = db.transaction(STORE_DRAFT_JOBS, "readwrite");
+  const all = (await tx.store.getAll()) as DraftJob[];
+  let n = 0;
+  for (const d of all) {
+    if (d.status === "synced") continue;
+    if (d.status === "failed" || (d.attempts ?? 0) > 0) {
+      await tx.store.put({
+        ...d,
+        status: "pending",
+        attempts: 0,
+        lastError: undefined,
+        lastAttemptAt: undefined,
+        syncStartedAt: undefined,
+      });
+      n++;
+    }
+  }
+  await tx.done;
+  return n;
+}
+
+/** "Try everything again" — combines force-retry of jobs, units, and
+ *  photos. Returns how many of each were reset. */
+export async function forceRetryEverything(): Promise<{
+  jobs: number;
+  units: number;
+  photos: number;
+}> {
+  const [jobs, units, photos] = await Promise.all([
+    forceRetryAllFailedDraftJobs(),
+    forceRetryAllFailedDrafts(),
+    forceRetryAllFailedPhotos(),
+  ]);
+  return { jobs, units, photos };
 }
