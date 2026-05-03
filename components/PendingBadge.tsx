@@ -6,9 +6,8 @@ import {
   CheckCircle2,
   CloudUpload,
   HardDrive,
-  Pin,
-  PinOff,
   RefreshCw,
+  Save,
   Trash2,
 } from "lucide-react";
 import {
@@ -208,20 +207,28 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
                           setPhotoRetention(p.id, !p.retainLocally)
                         }
                         aria-label={
-                          p.retainLocally ? "Unpin" : "Pin (keep forever)"
+                          p.retainLocally
+                            ? "Stop saving forever (will auto-purge)"
+                            : "Save forever (skip auto-purge)"
                         }
                         title={
                           p.retainLocally
-                            ? "Pinned — won't auto-purge. Tap to unpin."
-                            : "Pin to keep this backup beyond 14 days."
+                            ? "Saved forever — won't auto-purge. Tap to release."
+                            : "Save forever — keep beyond the 14-day window."
                         }
-                        className="p-2 text-mse-muted hover:text-mse-navy"
-                      >
-                        {p.retainLocally ? (
-                          <Pin className="w-3.5 h-3.5 fill-mse-navy text-mse-navy" />
-                        ) : (
-                          <PinOff className="w-3.5 h-3.5" />
+                        className={cn(
+                          "p-2 transition-colors",
+                          p.retainLocally
+                            ? "text-mse-navy"
+                            : "text-mse-muted hover:text-mse-navy"
                         )}
+                      >
+                        <Save
+                          className={cn(
+                            "w-3.5 h-3.5",
+                            p.retainLocally && "fill-mse-navy/15"
+                          )}
+                        />
                       </button>
                       <button
                         type="button"
