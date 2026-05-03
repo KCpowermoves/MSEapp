@@ -94,6 +94,10 @@ export interface Dispatch {
   /** Free-text feedback from customers who rated below 5 stars. Empty
    *  for 5-star ratings (those route to Google Reviews instead). */
   customerFeedback: string;
+  /** ISO timestamp when the auto-send email was last fired successfully.
+   *  Empty when the email hasn't gone out yet — guards the auto-send
+   *  path so we don't double-email from concurrent triggers. */
+  reportEmailedAt: string;
 }
 
 export interface UnitServiced {

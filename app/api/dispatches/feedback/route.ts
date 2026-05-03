@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { setDispatchFeedback, getDispatch } from "@/lib/data/dispatches";
+import { tryRenderPdfIfReady } from "@/lib/data/maybe-render-pdf";
 
 /**
  * Saves the customer's post-service rating (1–5) plus optional written
@@ -31,6 +32,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Dispatch not found" }, { status: 404 });
   }
   await setDispatchFeedback(dispatchId, rating, feedback);
+
+  // Now that the rating is on file, retry render+email. If the PDF is
+  // ready and the email hasn't gone out yet, this fires the auto-email
+  // with the rating-aware CTA (5★ gets the Google review nudge, lower
+  // ratings get the "what could we do better" line). Idempotent.
+  tryRenderPdfIfReady(dispatchId).catch((e) =>
+    console.warn("[feedback] post-rating render/email error:", e)
+  );
+
   revalidatePath(`/jobs/${existing.jobId}`);
   return NextResponse.json({ ok: true });
 }

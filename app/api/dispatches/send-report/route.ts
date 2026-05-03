@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import { getDispatch } from "@/lib/data/dispatches";
+import { getDispatch, setDispatchEmailed } from "@/lib/data/dispatches";
 import { getJob } from "@/lib/data/jobs";
 import { tryRenderPdfIfReady } from "@/lib/data/maybe-render-pdf";
 import { sendReportEmail } from "@/lib/email/send-report";
+import { nowIso } from "@/lib/utils";
 
 /**
  * Generates the dispatch's PDF report (if not already rendered) and
@@ -42,7 +43,11 @@ export async function POST(request: Request) {
   }
 
   // Make sure the PDF actually exists before we email a link to it.
-  const renderResult = await tryRenderPdfIfReady(dispatchId);
+  // Pass autoEmail=false so we don't double-fire alongside the manual
+  // send below.
+  const renderResult = await tryRenderPdfIfReady(dispatchId, {
+    autoEmail: false,
+  });
   // Re-read dispatch so we have the freshest reportPdfUrl.
   const fresh = await getDispatch(dispatchId);
   const pdfUrl = fresh?.reportPdfUrl ?? renderResult.url ?? "";
@@ -70,7 +75,16 @@ export async function POST(request: Request) {
     pdfUrl,
     jobAddress: job.siteAddress,
     dispatchDate: dispatch.dispatchDate,
+    rating: fresh?.customerRating || 0,
+    googleReviewUrl: process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL,
   });
+
+  // If the manual send actually went through, stamp it so the auto-send
+  // path knows we're done (and the admin can still resend afterward —
+  // setDispatchEmailed overwrites with the latest timestamp).
+  if (send.sent) {
+    await setDispatchEmailed(dispatchId, nowIso());
+  }
 
   return NextResponse.json({
     pdfUrl,

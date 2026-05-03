@@ -2,10 +2,31 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Eraser, Loader2, PenLine } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ClipboardList,
+  Eraser,
+  Loader2,
+  PenLine,
+} from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import { cn } from "@/lib/utils";
 import type { Job } from "@/lib/types";
+
+interface PreviewUnit {
+  unitNumberOnJob: number;
+  unitType: string;
+  label: string;
+  make: string;
+  model: string;
+}
+
+interface ReportPreview {
+  dispatchDate: string;
+  techsOnSite: string[];
+  unitsServiced: PreviewUnit[];
+}
 
 /**
  * Step 2 of the submit flow — customer confirmation. By the time we get
@@ -21,10 +42,12 @@ export function CustomerConfirmForm({
   job,
   dispatchId,
   defaultEmail,
+  preview,
 }: {
   job: Job;
   dispatchId: string;
   defaultEmail: string;
+  preview: ReportPreview;
 }) {
   const router = useRouter();
   const sigRef = useRef<SignatureCanvas | null>(null);
@@ -145,6 +168,8 @@ export function CustomerConfirmForm({
         </div>
       </section>
 
+      <ReportSummary preview={preview} job={job} />
+
       <div>
         <div className="rounded-2xl border-2 border-dashed border-mse-light bg-white relative overflow-hidden touch-none">
           <SignatureCanvas
@@ -238,6 +263,91 @@ export function CustomerConfirmForm({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReportSummary({
+  preview,
+  job,
+}: {
+  preview: ReportPreview;
+  job: Job;
+}) {
+  const techList =
+    preview.techsOnSite.length === 0
+      ? "—"
+      : preview.techsOnSite.length === 1
+      ? preview.techsOnSite[0]
+      : preview.techsOnSite.slice(0, -1).join(", ") +
+        " and " +
+        preview.techsOnSite[preview.techsOnSite.length - 1];
+
+  return (
+    <section className="rounded-2xl border border-mse-light bg-white shadow-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-mse-light bg-mse-light/40 flex items-center gap-2">
+        <ClipboardList className="w-4 h-4 text-mse-navy" />
+        <div className="text-xs uppercase tracking-wide font-semibold text-mse-navy">
+          What you&apos;re confirming
+        </div>
+      </div>
+      <dl className="divide-y divide-mse-light text-sm">
+        <Row label="Date" value={preview.dispatchDate} />
+        <Row label="Site" value={job.siteAddress || "—"} />
+        <Row label="Technician" value={techList} />
+        <Row
+          label="Units serviced"
+          value={
+            preview.unitsServiced.length === 0
+              ? "—"
+              : `${preview.unitsServiced.length} unit${
+                  preview.unitsServiced.length === 1 ? "" : "s"
+                }`
+          }
+        />
+      </dl>
+      {preview.unitsServiced.length > 0 && (
+        <ul className="divide-y divide-mse-light bg-white">
+          {preview.unitsServiced.map((u) => {
+            const display = u.label?.trim()
+              ? u.label
+              : `Unit ${String(u.unitNumberOnJob).padStart(3, "0")}`;
+            const detail = [u.unitType, u.make, u.model]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li
+                key={u.unitNumberOnJob}
+                className="px-4 py-2.5 text-sm flex items-start justify-between gap-3"
+              >
+                <span className="font-semibold text-mse-navy truncate">
+                  {display}
+                </span>
+                <span className="text-mse-muted text-xs text-right shrink-0">
+                  {detail}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="px-4 py-2.5 text-[11px] text-mse-muted bg-mse-light/30 border-t border-mse-light">
+        We&apos;ll email you the full report (with all the photos and a
+        work summary) right after you finish.
+      </div>
+    </section>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-4 py-2.5 flex items-center justify-between gap-3">
+      <dt className="text-mse-muted text-xs uppercase tracking-wide font-semibold">
+        {label}
+      </dt>
+      <dd className="text-mse-navy font-semibold text-right truncate">
+        {value}
+      </dd>
     </div>
   );
 }

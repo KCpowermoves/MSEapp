@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getJob, techCanAccessJob } from "@/lib/data/jobs";
 import { findDispatchByDate } from "@/lib/data/dispatches";
+import { listUnitsForDispatch } from "@/lib/data/units";
 import { todayIsoDate } from "@/lib/utils";
 import { CustomerConfirmForm } from "@/components/CustomerConfirmForm";
 
@@ -31,11 +32,23 @@ export default async function CustomerConfirmPage({
     // first. Bounce them to /submit.
     redirect(`/jobs/${encodeURIComponent(jobId)}/submit`);
   }
+  const units = await listUnitsForDispatch(dispatch.dispatchId);
   return (
     <CustomerConfirmForm
       job={job}
       dispatchId={dispatch.dispatchId}
       defaultEmail={dispatch.customerEmail}
+      preview={{
+        dispatchDate: dispatch.dispatchDate,
+        techsOnSite: dispatch.techsOnSite,
+        unitsServiced: units.map((u) => ({
+          unitNumberOnJob: u.unitNumberOnJob,
+          unitType: u.unitType,
+          label: u.label,
+          make: u.make,
+          model: u.model,
+        })),
+      }}
     />
   );
 }

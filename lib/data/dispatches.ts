@@ -71,6 +71,7 @@ function rowToDispatch(row: string[]): Dispatch {
     customerEmail: String(row[13] ?? ""),
     customerRating: Number(row[14] ?? 0) || 0,
     customerFeedback: String(row[15] ?? ""),
+    reportEmailedAt: String(row[16] ?? ""),
   };
 }
 
@@ -128,7 +129,7 @@ export async function ensureDraftDispatch(
   const dispatchId = await nextDispatchId();
   await appendRow(
     TABS.dispatches,
-    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", "", "", "", 0, ""],
+    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", "", "", "", 0, "", ""],
     "RAW"
   );
   await bumpLastActivity(jobId);
@@ -149,6 +150,7 @@ export async function ensureDraftDispatch(
     customerEmail: "",
     customerRating: 0,
     customerFeedback: "",
+    reportEmailedAt: "",
   };
 }
 
@@ -241,6 +243,18 @@ export async function setDispatchSignature(
     );
   }
   await Promise.all(writes);
+}
+
+/** Stamp the timestamp when the auto-email actually went out. Used as
+ *  a guard so concurrent send paths (PDF render auto-send + feedback
+ *  step send) don't double-email the customer. */
+export async function setDispatchEmailed(
+  dispatchId: string,
+  emailedAtIso: string
+): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
+  if (!rowIndex) throw new Error("Dispatch row missing");
+  await updateCell(`${TABS.dispatches}!Q${rowIndex}`, emailedAtIso, "RAW");
 }
 
 /** Save customer's post-service rating + optional written feedback. */

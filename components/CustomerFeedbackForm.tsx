@@ -1,33 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Loader2, Star, Sparkles } from "lucide-react";
+import QRCode from "qrcode";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Copy,
+  Gift,
+  Loader2,
+  Smartphone,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { pickReviewTemplate } from "@/lib/review-templates";
 import type { Job } from "@/lib/types";
 
 /**
- * Step 3 of the submit flow — quick post-service screening. We ask the
- * customer how the visit went on a 1–5 scale. A 5-star tap routes them
- * to the public Google review page (where they can leave a real review).
- * Anything below stays private — we capture the comment in-app so the
- * team can address it without a public bad review.
+ * Step 3 of the submit flow — short customer feedback step.
  *
- * Either way we POST the rating + optional comment to /api/dispatches/feedback
- * before navigating away.
+ * Framing: "share your honest feedback — we'll send a thank-you gift
+ * either way." This keeps it Google-policy-safe (the gift isn't tied
+ * to a 5★ rating, just to completing the survey).
+ *
+ * 5★ flow:
+ *   - Pre-generated review text suggestion (rotates per dispatch so
+ *     Google's spam filter doesn't catch identical wording).
+ *   - QR code on the tech's screen → customer scans with their own
+ *     phone → opens Google Reviews already signed in. Avoids the
+ *     awkward "log into Google on someone else's device" moment.
+ *
+ * 1–4★ flow:
+ *   - No on-device text input (customer would sandbag with the tech
+ *     standing there). Just confirms we'll follow up by email and
+ *     records the rating.
  */
 export function CustomerFeedbackForm({
   job,
   dispatchId,
+  techFirstName,
   googleReviewUrl,
 }: {
   job: Job;
   dispatchId: string;
+  techFirstName: string;
   googleReviewUrl: string;
 }) {
   const router = useRouter();
   const [rating, setRating] = useState<number>(0);
-  const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [stage, setStage] = useState<"rate" | "lowRating" | "fiveStar">("rate");
 
@@ -51,7 +73,7 @@ export function CustomerFeedbackForm({
         }),
       });
     } catch (e) {
-      console.warn("[feedback] initial save failed:", e);
+      console.warn("[feedback] rating save failed:", e);
     }
     setSubmitting(false);
     setStage(nextStage);
@@ -60,40 +82,8 @@ export function CustomerFeedbackForm({
   const onPickStar = (n: number) => {
     if (submitting) return;
     setRating(n);
-    if (n === 5) {
-      saveAndContinue("fiveStar", 5);
-    } else {
-      saveAndContinue("lowRating", n);
-    }
-  };
-
-  const submitWrittenFeedback = async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    try {
-      await fetch("/api/dispatches/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dispatchId,
-          rating,
-          feedback: feedback.trim(),
-        }),
-      });
-    } catch (e) {
-      console.warn("[feedback] write save failed:", e);
-    }
-    finishToJobs();
-  };
-
-  const goToGoogleReview = () => {
-    // Open in a new tab so the tech can still finish the flow on this
-    // device. We immediately route the in-app shell to /jobs so the
-    // device is ready for the next stop.
-    if (typeof window !== "undefined") {
-      window.open(googleReviewUrl, "_blank", "noopener,noreferrer");
-    }
-    finishToJobs();
+    if (n === 5) saveAndContinue("fiveStar", 5);
+    else saveAndContinue("lowRating", n);
   };
 
   return (
@@ -124,24 +114,22 @@ export function CustomerFeedbackForm({
 
       {stage === "fiveStar" && (
         <FiveStarStage
-          onShare={goToGoogleReview}
-          onSkip={finishToJobs}
+          job={job}
+          dispatchId={dispatchId}
+          techFirstName={techFirstName}
+          googleReviewUrl={googleReviewUrl}
+          onDone={finishToJobs}
         />
       )}
 
       {stage === "lowRating" && (
-        <LowRatingStage
-          rating={rating}
-          feedback={feedback}
-          setFeedback={setFeedback}
-          submitting={submitting}
-          onSubmit={submitWrittenFeedback}
-          onSkip={finishToJobs}
-        />
+        <LowRatingStage rating={rating} onDone={finishToJobs} />
       )}
     </div>
   );
 }
+
+// ── Stage: rating ─────────────────────────────────────────────────────
 
 function RateStage({
   rating,
@@ -156,10 +144,11 @@ function RateStage({
     <>
       <section className="rounded-2xl border-2 border-mse-navy/15 bg-white p-5">
         <div className="text-lg font-bold text-mse-navy">
-          Did you enjoy your service today?
+          Share your honest feedback
         </div>
-        <div className="text-sm text-mse-muted mt-1">
-          Tap a star to let us know.
+        <div className="text-sm text-mse-muted mt-1.5 leading-relaxed">
+          Tap a star — we&apos;ll email you a thank-you gift either way.
+          Takes about 10 seconds.
         </div>
         <div className="flex justify-between items-center gap-1 mt-5">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -202,13 +191,60 @@ function RateStage({
   );
 }
 
+// ── Stage: 5★ ─────────────────────────────────────────────────────────
+
 function FiveStarStage({
-  onShare,
-  onSkip,
+  job,
+  dispatchId,
+  techFirstName,
+  googleReviewUrl,
+  onDone,
 }: {
-  onShare: () => void;
-  onSkip: () => void;
+  job: Job;
+  dispatchId: string;
+  techFirstName: string;
+  googleReviewUrl: string;
+  onDone: () => void;
 }) {
+  const reviewText = useMemo(
+    () =>
+      pickReviewTemplate({
+        customerName: job.customerName,
+        techFirstName,
+        serviceLabel: "HVAC tune-up",
+        seed: dispatchId,
+      }),
+    [job.customerName, techFirstName, dispatchId]
+  );
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(googleReviewUrl, {
+      width: 220,
+      margin: 1,
+      color: { dark: "#1A2332", light: "#ffffff" },
+    })
+      .then((url) => {
+        if (!cancelled) setQrDataUrl(url);
+      })
+      .catch((e) => console.warn("[feedback] QR gen failed:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [googleReviewUrl]);
+
+  const copyReview = async () => {
+    try {
+      await navigator.clipboard.writeText(reviewText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.warn("[feedback] copy failed:", e);
+    }
+  };
+
   return (
     <>
       <section className="rounded-2xl border-2 border-mse-gold/40 bg-mse-gold/5 p-5">
@@ -217,16 +253,91 @@ function FiveStarStage({
           Awesome — thank you!
         </div>
         <div className="text-sm text-mse-text/90 mt-2 leading-relaxed">
-          Would you mind sharing that on Google? It helps a small Maryland
-          team like ours more than you&apos;d believe — takes about 30 seconds.
+          Would you mind sharing that on Google? Helps a small Maryland team
+          like ours more than you&apos;d believe — about 30 seconds.
+        </div>
+      </section>
+
+      <section className="rounded-2xl border-2 border-mse-navy/15 bg-white p-5 space-y-4">
+        <div className="flex items-center gap-2 text-sm font-bold text-mse-navy">
+          <Smartphone className="w-4 h-4" />
+          Scan with your phone
+        </div>
+        <div className="flex justify-center">
+          {qrDataUrl ? (
+            <div className="rounded-2xl bg-white p-3 border border-mse-light shadow-card">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrDataUrl}
+                alt="Google review QR code"
+                width={220}
+                height={220}
+                className="block"
+              />
+            </div>
+          ) : (
+            <div className="w-[220px] h-[220px] flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-mse-muted" />
+            </div>
+          )}
+        </div>
+        <div className="text-xs text-mse-muted text-center leading-relaxed">
+          Open your phone&apos;s camera and point it at the code — your
+          browser will open Google Reviews already signed in.
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-mse-light bg-white p-4 space-y-3">
+        <div className="text-xs uppercase tracking-wide font-semibold text-mse-muted">
+          Need a starting point? Tap copy.
+        </div>
+        <div className="text-sm text-mse-text leading-relaxed bg-mse-light/40 rounded-xl p-3">
+          {reviewText}
+        </div>
+        <button
+          type="button"
+          onClick={copyReview}
+          className={cn(
+            "w-full font-semibold rounded-xl py-2.5 text-sm",
+            "border border-mse-navy/20 bg-white text-mse-navy",
+            "hover:bg-mse-navy/5 active:scale-[0.99] transition-[background-color,transform]",
+            "inline-flex items-center justify-center gap-1.5"
+          )}
+        >
+          {copied ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-mse-gold" />
+              Copied — paste into your review
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5" />
+              Copy review text
+            </>
+          )}
+        </button>
+        <div className="text-[11px] text-mse-muted leading-relaxed">
+          Feel free to change any of this — Google looks for authentic,
+          personal reviews.
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-mse-gold/30 bg-mse-gold/5 p-4">
+        <div className="flex items-start gap-3">
+          <Gift className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
+          <div className="text-sm text-mse-text leading-relaxed">
+            <span className="font-bold text-mse-navy">A thank-you from MSE.</span>{" "}
+            Watch your inbox — we&apos;re sending a small token of
+            appreciation for the honest feedback.
+          </div>
         </div>
       </section>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
-        <div className="max-w-2xl mx-auto space-y-2">
+        <div className="max-w-2xl mx-auto">
           <button
             type="button"
-            onClick={onShare}
+            onClick={onDone}
             className={cn(
               "w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
               "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card",
@@ -234,15 +345,8 @@ function FiveStarStage({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              Leave a Google review <ArrowRight className="w-4 h-4" />
+              All done <ArrowRight className="w-4 h-4" />
             </span>
-          </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            className="w-full text-sm text-mse-muted py-2 underline-offset-4 hover:underline"
-          >
-            Maybe later
           </button>
         </div>
       </div>
@@ -250,20 +354,14 @@ function FiveStarStage({
   );
 }
 
+// ── Stage: 1–4★ ───────────────────────────────────────────────────────
+
 function LowRatingStage({
   rating,
-  feedback,
-  setFeedback,
-  submitting,
-  onSubmit,
-  onSkip,
+  onDone,
 }: {
   rating: number;
-  feedback: string;
-  setFeedback: (s: string) => void;
-  submitting: boolean;
-  onSubmit: () => void;
-  onSkip: () => void;
+  onDone: () => void;
 }) {
   return (
     <>
@@ -271,49 +369,39 @@ function LowRatingStage({
         <div className="text-mse-navy font-bold text-lg">
           Thanks for the honest rating.
         </div>
-        <div className="text-sm text-mse-muted mt-1.5">
-          You rated us {rating} star{rating === 1 ? "" : "s"}. What can we do
-          to make it a 5-star experience next time? Stays between you and our
-          team.
+        <div className="text-sm text-mse-muted mt-2 leading-relaxed">
+          You rated us {rating} star{rating === 1 ? "" : "s"}. We&apos;ll
+          follow up by email shortly so you can share what would&apos;ve
+          made it a 5-star visit. Stays between you and our team — the
+          tech doesn&apos;t see your reply.
         </div>
-        <textarea
-          value={feedback}
-          onChange={(e) => setFeedback(e.target.value)}
-          placeholder="What could have gone better?"
-          rows={5}
-          className="w-full mt-4 px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy resize-none"
-        />
+      </section>
+
+      <section className="rounded-2xl border border-mse-gold/30 bg-mse-gold/5 p-4">
+        <div className="flex items-start gap-3">
+          <Gift className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
+          <div className="text-sm text-mse-text leading-relaxed">
+            <span className="font-bold text-mse-navy">Thank-you gift on its way.</span>{" "}
+            Keep an eye on your inbox — even when we miss the mark, we
+            appreciate honest feedback.
+          </div>
+        </div>
       </section>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
-        <div className="max-w-2xl mx-auto space-y-2">
+        <div className="max-w-2xl mx-auto">
           <button
             type="button"
-            onClick={onSubmit}
-            disabled={submitting}
+            onClick={onDone}
             className={cn(
               "w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
-              !submitting
-                ? "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card"
-                : "bg-mse-light text-mse-muted cursor-not-allowed"
+              "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2"
             )}
           >
-            {submitting ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Sending…
-              </span>
-            ) : (
-              "Send to MSE team"
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            className="w-full text-sm text-mse-muted py-2 underline-offset-4 hover:underline"
-          >
-            Skip
+            <span className="inline-flex items-center gap-2">
+              All done <ArrowRight className="w-4 h-4" />
+            </span>
           </button>
         </div>
       </div>

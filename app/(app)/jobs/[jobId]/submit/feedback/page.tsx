@@ -35,10 +35,16 @@ export default async function CustomerFeedbackPage({
     process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
     "https://search.google.com/local/writereview?placeid=";
 
+  // Lead tech = first name in techsOnSite (the dispatch was just
+  // submitted, so this list is populated). Falls back to "the MSE crew".
+  const leadTech = dispatch.techsOnSite[0] ?? "";
+  const techFirstName = leadTech.split(/\s+/)[0] ?? "";
+
   return (
     <CustomerFeedbackForm
       job={job}
       dispatchId={dispatch.dispatchId}
+      techFirstName={techFirstName}
       googleReviewUrl={googleReviewUrl}
     />
   );
