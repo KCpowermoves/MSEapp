@@ -102,7 +102,7 @@ export function JobDetail({
       </UnitsSection>
 
       <a
-        href={`/jobs/${encodeURIComponent(job.jobId)}/submit`}
+        href={`/jobs/${encodeURIComponent(job.jobId)}/submit/confirm`}
         aria-disabled={!canSubmit}
         onClick={(e) => {
           if (!canSubmit) e.preventDefault();

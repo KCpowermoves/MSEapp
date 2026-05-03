@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { submitDispatch } from "@/lib/data/dispatches";
+import { tryRenderPdfIfReady } from "@/lib/data/maybe-render-pdf";
 import type { CrewSplit } from "@/lib/types";
 
 const SPLITS: CrewSplit[] = ["Solo", "50-50", "33-33-33"];
@@ -43,6 +44,13 @@ export async function POST(request: Request) {
       crewSplit,
       driver,
     });
+    // Fire-and-forget PDF render. Catches the "all photos already
+    // uploaded by submit time" case. The /api/upload handler also
+    // calls this on each photo write — whichever finishes the
+    // condition wins, the helper is idempotent.
+    tryRenderPdfIfReady(dispatchId).catch((e) =>
+      console.warn("[dispatches] post-submit PDF render error:", e)
+    );
     return NextResponse.json(dispatch);
   } catch (e) {
     console.error("Dispatch submit failed:", e);

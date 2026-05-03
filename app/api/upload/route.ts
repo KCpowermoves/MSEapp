@@ -5,6 +5,7 @@ import { getJob } from "@/lib/data/jobs";
 import { getUnit, setUnitPhotoUrl } from "@/lib/data/units";
 import { appendServicePhotoUrl } from "@/lib/data/services";
 import { setDispatchSignature } from "@/lib/data/dispatches";
+import { tryRenderPdfIfReady } from "@/lib/data/maybe-render-pdf";
 import {
   getOrCreateFolder,
   getRootFolderId,
@@ -92,6 +93,12 @@ export async function POST(request: Request) {
       await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
       revalidatePath(`/jobs/${jobId}`);
       revalidatePath("/jobs");
+      // After every successful unit photo write, see if the parent
+      // dispatch is now fully photographed. If yes, render the PDF.
+      // Idempotent — does nothing if a PDF is already on file.
+      tryRenderPdfIfReady(unit.dispatchId).catch((e) =>
+        console.warn("[upload] post-photo PDF render error:", e)
+      );
       return NextResponse.json({ url: uploaded.url });
     }
 
