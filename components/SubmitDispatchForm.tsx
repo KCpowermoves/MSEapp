@@ -122,8 +122,8 @@ export function SubmitDispatchForm({
       }
 
       // If the customer signed, upload the signature PNG to Drive +
-      // stamp the URL on the dispatch row. This is best-effort — if
-      // the signature upload fails, the dispatch is still submitted.
+      // stamp the URL on the dispatch row. Best-effort — if the
+      // signature upload fails, the dispatch is still submitted.
       if (sigRef.current && !sigRef.current.isEmpty()) {
         try {
           const dataUrl = sigRef.current.toDataURL("image/png");
@@ -139,6 +139,16 @@ export function SubmitDispatchForm({
           console.warn("[submit] signature upload failed:", sigErr);
         }
       }
+
+      // Trigger server-side PDF report generation. Fire-and-forget;
+      // user is redirected immediately. PDF lands in the job's Drive
+      // folder a few seconds later.
+      fetch("/api/dispatches/render-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dispatchId }),
+        keepalive: true,
+      }).catch(() => {});
 
       captureLocationEvent(
         "dispatch-submit",

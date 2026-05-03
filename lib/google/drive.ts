@@ -79,6 +79,17 @@ export async function uploadImage(opts: {
   return { id, url: res.data.webViewLink ?? fileUrl(id) };
 }
 
+/** Upload a PDF (or any binary) to a Drive folder. */
+export async function uploadFile(opts: {
+  folderId: string;
+  filename: string;
+  mimeType: string;
+  body: Buffer;
+}): Promise<UploadedFile> {
+  // Same shape as uploadImage — kept as a separate name for clarity.
+  return uploadImage(opts);
+}
+
 async function ensureAnyoneCanView(fileId: string): Promise<void> {
   const drive = getDriveClient();
   try {

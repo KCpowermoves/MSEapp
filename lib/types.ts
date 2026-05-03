@@ -83,6 +83,8 @@ export interface Dispatch {
   /** Printed name of the person who signed (defaults to customer name
    *  but can be overridden — e.g. property manager). */
   signedByName: string;
+  /** Drive URL of the auto-generated service report PDF. */
+  reportPdfUrl: string;
 }
 
 export interface UnitServiced {

@@ -67,6 +67,7 @@ function rowToDispatch(row: string[]): Dispatch {
     submittedAt: String(row[9] ?? ""),
     signatureUrl: String(row[10] ?? ""),
     signedByName: String(row[11] ?? ""),
+    reportPdfUrl: String(row[12] ?? ""),
   };
 }
 
@@ -104,7 +105,7 @@ export async function ensureDraftDispatch(
   const dispatchId = await nextDispatchId();
   await appendRow(
     TABS.dispatches,
-    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", ""],
+    [dispatchId, jobId, today, "", "Solo", "", 0, 0, "FALSE", "", "", "", ""],
     "RAW"
   );
   await bumpLastActivity(jobId);
@@ -121,6 +122,7 @@ export async function ensureDraftDispatch(
     submittedAt: "",
     signatureUrl: "",
     signedByName: "",
+    reportPdfUrl: "",
   };
 }
 
@@ -205,4 +207,18 @@ export async function setDispatchSignature(
     updateCell(`${TABS.dispatches}!K${rowIndex}`, signatureUrl, "RAW"),
     updateCell(`${TABS.dispatches}!L${rowIndex}`, signedByName, "RAW"),
   ]);
+}
+
+/** Stamp the auto-generated PDF report URL on a dispatch row. */
+export async function setDispatchReportPdf(
+  dispatchId: string,
+  reportPdfUrl: string
+): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
+  if (!rowIndex) throw new Error("Dispatch row missing");
+  await updateCell(
+    `${TABS.dispatches}!M${rowIndex}`,
+    reportPdfUrl,
+    "RAW"
+  );
 }
