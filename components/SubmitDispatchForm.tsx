@@ -140,7 +140,7 @@ export function SubmitDispatchForm({
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-2xl font-bold text-mse-navy">Submit job</h1>
+        <h1 className="text-2xl font-bold text-mse-navy">Submit</h1>
       </div>
 
       <section className="bg-mse-light/60 rounded-2xl p-4">
@@ -282,7 +282,7 @@ export function SubmitDispatchForm({
                 Submitting...
               </span>
             ) : (
-              "Hand to customer"
+              "Submit and hand to customer"
             )}
           </button>
         </div>

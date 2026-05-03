@@ -37,12 +37,21 @@ export function invalidateCacheForTab(tabName: string): void {
   }
 }
 
-export async function readRange(range: string): Promise<string[][]> {
+export async function readRange(
+  range: string,
+  opts: { fresh?: boolean } = {}
+): Promise<string[][]> {
   const now = Date.now();
-  const hit = readCache.get(range);
-  if (hit) {
-    if (hit.inflight) return hit.inflight;
-    if (hit.expires > now) return hit.data;
+  if (!opts.fresh) {
+    const hit = readCache.get(range);
+    if (hit) {
+      if (hit.inflight) return hit.inflight;
+      if (hit.expires > now) return hit.data;
+    }
+  } else {
+    // Caller asked for a fresh read — drop any cached entry so we
+    // don't mask the staleness for concurrent callers either.
+    readCache.delete(range);
   }
   const sheets = getSheetsClient();
   const inflight = sheets.spreadsheets.values
@@ -65,8 +74,11 @@ export async function readRange(range: string): Promise<string[][]> {
   return inflight;
 }
 
-export async function readTab(tabName: string): Promise<string[][]> {
-  return readRange(`${tabName}!A2:ZZ`);
+export async function readTab(
+  tabName: string,
+  opts: { fresh?: boolean } = {}
+): Promise<string[][]> {
+  return readRange(`${tabName}!A2:ZZ`, opts);
 }
 
 type InputOption = "USER_ENTERED" | "RAW";

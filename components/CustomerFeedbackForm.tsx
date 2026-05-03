@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import {
   ArrowLeft,
   ArrowRight,
-  Camera,
-  Check,
-  Copy,
   Gift,
   Loader2,
   Smartphone,
@@ -16,7 +13,6 @@ import {
   Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { pickReviewTemplate } from "@/lib/review-templates";
 import type { Job } from "@/lib/types";
 
 /**
@@ -41,13 +37,9 @@ import type { Job } from "@/lib/types";
 export function CustomerFeedbackForm({
   job,
   dispatchId,
-  techFirstName,
-  googleReviewUrl,
 }: {
   job: Job;
   dispatchId: string;
-  techFirstName: string;
-  googleReviewUrl: string;
 }) {
   const router = useRouter();
   const [rating, setRating] = useState<number>(0);
@@ -114,13 +106,7 @@ export function CustomerFeedbackForm({
       )}
 
       {stage === "fiveStar" && (
-        <FiveStarStage
-          job={job}
-          dispatchId={dispatchId}
-          techFirstName={techFirstName}
-          googleReviewUrl={googleReviewUrl}
-          onDone={finishToJobs}
-        />
+        <FiveStarStage dispatchId={dispatchId} onDone={finishToJobs} />
       )}
 
       {stage === "lowRating" && (
@@ -195,37 +181,26 @@ function RateStage({
 // ── Stage: 5★ ─────────────────────────────────────────────────────────
 
 function FiveStarStage({
-  job,
   dispatchId,
-  techFirstName,
-  googleReviewUrl,
   onDone,
 }: {
-  job: Job;
   dispatchId: string;
-  techFirstName: string;
-  googleReviewUrl: string;
   onDone: () => void;
 }) {
-  const reviewText = useMemo(
-    () =>
-      pickReviewTemplate({
-        customerName: job.customerName,
-        techFirstName,
-        serviceLabel: "HVAC tune-up",
-        seed: dispatchId,
-      }),
-    [job.customerName, techFirstName, dispatchId]
-  );
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [marketingConsent, setMarketingConsent] = useState(false);
-  const [savingConsent, setSavingConsent] = useState(false);
 
   useEffect(() => {
+    // Build the helper-page URL on the client so we get the right
+    // origin (vercel preview / production / local). The helper page is
+    // public, no auth — customer scans, gets pre-filled review text on
+    // their own device, taps through to Google.
+    if (typeof window === "undefined") return;
+    const helperUrl = `${window.location.origin}/review/${encodeURIComponent(
+      dispatchId
+    )}`;
     let cancelled = false;
-    QRCode.toDataURL(googleReviewUrl, {
-      width: 220,
+    QRCode.toDataURL(helperUrl, {
+      width: 240,
       margin: 1,
       color: { dark: "#1A2332", light: "#ffffff" },
     })
@@ -236,33 +211,7 @@ function FiveStarStage({
     return () => {
       cancelled = true;
     };
-  }, [googleReviewUrl]);
-
-  const copyReview = async () => {
-    try {
-      await navigator.clipboard.writeText(reviewText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      console.warn("[feedback] copy failed:", e);
-    }
-  };
-
-  const toggleConsent = async (next: boolean) => {
-    setMarketingConsent(next);
-    setSavingConsent(true);
-    try {
-      await fetch("/api/dispatches/marketing-consent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dispatchId, consent: next }),
-      });
-    } catch (e) {
-      console.warn("[feedback] consent save failed:", e);
-    } finally {
-      setSavingConsent(false);
-    }
-  };
+  }, [dispatchId]);
 
   return (
     <>
@@ -272,8 +221,9 @@ function FiveStarStage({
           Awesome — thank you!
         </div>
         <div className="text-sm text-mse-text/90 mt-2 leading-relaxed">
-          Would you mind sharing that on Google? Helps a small Maryland team
-          like ours more than you&apos;d believe — about 30 seconds.
+          Would you mind sharing that on Google? Scan the code below with
+          your own phone — we&apos;ll suggest some words to start with so
+          it only takes a few seconds.
         </div>
       </section>
 
@@ -289,55 +239,21 @@ function FiveStarStage({
               <img
                 src={qrDataUrl}
                 alt="Google review QR code"
-                width={220}
-                height={220}
+                width={240}
+                height={240}
                 className="block"
               />
             </div>
           ) : (
-            <div className="w-[220px] h-[220px] flex items-center justify-center">
+            <div className="w-[240px] h-[240px] flex items-center justify-center">
               <Loader2 className="w-6 h-6 animate-spin text-mse-muted" />
             </div>
           )}
         </div>
         <div className="text-xs text-mse-muted text-center leading-relaxed">
-          Open your phone&apos;s camera and point it at the code — your
-          browser will open Google Reviews already signed in.
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-mse-light bg-white p-4 space-y-3">
-        <div className="text-xs uppercase tracking-wide font-semibold text-mse-muted">
-          Need a starting point? Tap copy.
-        </div>
-        <div className="text-sm text-mse-text leading-relaxed bg-mse-light/40 rounded-xl p-3">
-          {reviewText}
-        </div>
-        <button
-          type="button"
-          onClick={copyReview}
-          className={cn(
-            "w-full font-semibold rounded-xl py-2.5 text-sm",
-            "border border-mse-navy/20 bg-white text-mse-navy",
-            "hover:bg-mse-navy/5 active:scale-[0.99] transition-[background-color,transform]",
-            "inline-flex items-center justify-center gap-1.5"
-          )}
-        >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-mse-gold" />
-              Copied — paste into your review
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              Copy review text
-            </>
-          )}
-        </button>
-        <div className="text-[11px] text-mse-muted leading-relaxed">
-          Feel free to change any of this — Google looks for authentic,
-          personal reviews.
+          Open your camera, point at the code, and tap the link. We&apos;ll
+          drop a suggested review on your clipboard so you can paste it
+          straight into Google.
         </div>
       </section>
 
@@ -351,39 +267,6 @@ function FiveStarStage({
           </div>
         </div>
       </section>
-
-      <label
-        htmlFor="marketing-consent"
-        className={cn(
-          "block rounded-2xl border-2 bg-white p-4 cursor-pointer transition-[border-color,background-color]",
-          marketingConsent
-            ? "border-mse-navy/40 bg-mse-navy/5"
-            : "border-mse-light hover:border-mse-navy/20"
-        )}
-      >
-        <div className="flex items-start gap-3">
-          <input
-            id="marketing-consent"
-            type="checkbox"
-            checked={marketingConsent}
-            disabled={savingConsent}
-            onChange={(e) => toggleConsent(e.target.checked)}
-            className="mt-0.5 w-5 h-5 accent-mse-navy shrink-0"
-          />
-          <div className="flex-1">
-            <div className="font-semibold text-mse-navy text-sm flex items-center gap-2">
-              <Camera className="w-4 h-4 text-mse-muted" />
-              Mind if we share your before / after photos?
-            </div>
-            <div className="text-xs text-mse-muted leading-relaxed mt-1.5">
-              Helps other Maryland customers see what real installs look
-              like. We&apos;d only share before / after photos and the
-              unit type — no name, address, or anything personal.
-              Optional, and your review still counts even if you skip.
-            </div>
-          </div>
-        </div>
-      </label>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
         <div className="max-w-2xl mx-auto">

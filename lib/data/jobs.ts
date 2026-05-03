@@ -30,8 +30,10 @@ function rowToJob(row: string[]): Job {
   };
 }
 
-export async function listAllJobs(): Promise<Job[]> {
-  const rows = await readTab(TABS.jobs);
+export async function listAllJobs(
+  opts: { fresh?: boolean } = {}
+): Promise<Job[]> {
+  const rows = await readTab(TABS.jobs, opts);
   return rows.filter((r) => r[0]).map(rowToJob);
 }
 
@@ -99,9 +101,22 @@ export async function techCanAccessJob(opts: {
   );
 }
 
-export async function getJob(jobId: string): Promise<Job | null> {
-  const all = await listAllJobs();
-  return all.find((j) => j.jobId === jobId) ?? null;
+export async function getJob(
+  jobId: string,
+  opts: { fresh?: boolean } = {}
+): Promise<Job | null> {
+  const cached = await listAllJobs(opts);
+  const hit = cached.find((j) => j.jobId === jobId);
+  if (hit) return hit;
+  // Self-heal across Vercel's per-process sheets cache. If we missed
+  // on a cached read, the row may have been appended on a different
+  // serverless instance and the local cache is stale — retry once
+  // with a fresh sheet read before declaring not-found.
+  if (!opts.fresh) {
+    const fresh = await listAllJobs({ fresh: true });
+    return fresh.find((j) => j.jobId === jobId) ?? null;
+  }
+  return null;
 }
 
 export async function createJob(opts: {

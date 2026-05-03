@@ -28,24 +28,8 @@ export default async function CustomerFeedbackPage({
     redirect(`/jobs/${encodeURIComponent(jobId)}/submit`);
   }
 
-  // The Google Reviews URL is configurable per-environment so we can
-  // point staging traffic somewhere harmless. Defaults to the live
-  // Maryland Smart Energy short link.
-  const googleReviewUrl =
-    process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ??
-    "https://g.page/r/CW6VirUCAnCXEAI/review";
-
-  // Lead tech = first name in techsOnSite (the dispatch was just
-  // submitted, so this list is populated). Falls back to "the MSE crew".
-  const leadTech = dispatch.techsOnSite[0] ?? "";
-  const techFirstName = leadTech.split(/\s+/)[0] ?? "";
-
-  return (
-    <CustomerFeedbackForm
-      job={job}
-      dispatchId={dispatch.dispatchId}
-      techFirstName={techFirstName}
-      googleReviewUrl={googleReviewUrl}
-    />
-  );
+  // The QR code on the 5★ stage now points at our public review-helper
+  // page (/review/[dispatchId]) — that page handles the suggested
+  // review text + Google redirect on the customer's own device.
+  return <CustomerFeedbackForm job={job} dispatchId={dispatch.dispatchId} />;
 }

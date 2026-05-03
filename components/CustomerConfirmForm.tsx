@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  Camera,
   ClipboardList,
   Eraser,
   Loader2,
@@ -54,8 +55,38 @@ export function CustomerConfirmForm({
   const [signedByName, setSignedByName] = useState(job.customerName);
   const [customerEmail, setCustomerEmail] = useState(defaultEmail);
   const [hasSignature, setHasSignature] = useState(false);
+  // Marketing consent defaults to TRUE — Kevin's call. Customers can
+  // uncheck if they object. Saved on every toggle so even if the tech
+  // skips the rest of the flow we still record the latest state.
+  const [marketingConsent, setMarketingConsent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const toggleConsent = async (next: boolean) => {
+    setMarketingConsent(next);
+    try {
+      await fetch("/api/dispatches/marketing-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dispatchId, consent: next }),
+      });
+    } catch (e) {
+      console.warn("[confirm] consent save failed:", e);
+    }
+  };
+
+  // Persist the default-TRUE state once on mount so we capture consent
+  // even if the customer never touches the box. The stored value still
+  // updates if they later untick it.
+  useEffect(() => {
+    fetch("/api/dispatches/marketing-consent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dispatchId, consent: true }),
+    }).catch(() => {});
+    // Run once for this dispatch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatchId]);
 
   const onSignatureChange = () => {
     if (sigRef.current) setHasSignature(!sigRef.current.isEmpty());
@@ -133,7 +164,7 @@ export function CustomerConfirmForm({
   };
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-5 pb-28">
       <div className="flex items-center gap-2">
         <a
           href={`/jobs/${encodeURIComponent(job.jobId)}`}
@@ -142,82 +173,64 @@ export function CustomerConfirmForm({
         >
           <ArrowLeft className="w-5 h-5" />
         </a>
-        <h1 className="text-2xl font-bold text-mse-navy">
-          Customer confirmation
-        </h1>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] uppercase tracking-wider text-mse-muted font-semibold">
+            Step 2 of 3
+          </div>
+          <h1 className="text-2xl font-bold text-mse-navy leading-tight">
+            Confirm and sign
+          </h1>
+        </div>
       </div>
 
-      <section className="bg-mse-light/60 rounded-2xl p-4">
-        <div className="text-xs text-mse-muted uppercase tracking-wide font-semibold">
-          Step 2 of 3
-        </div>
-        <div className="font-bold text-mse-navy mt-0.5">
-          {job.customerName}
-        </div>
-        {job.siteAddress && (
-          <div className="text-sm text-mse-muted">{job.siteAddress}</div>
-        )}
-      </section>
-
-      <section className="rounded-2xl border-2 border-mse-navy/15 bg-white p-4">
-        <div className="font-bold text-mse-navy text-base">
-          Please confirm our technician was here and completed the work.
-        </div>
-        <div className="text-sm text-mse-muted mt-1.5">
-          Sign below to confirm. Optional — skip if no one&apos;s available.
-        </div>
-      </section>
+      <p className="text-sm text-mse-text leading-relaxed">
+        Please confirm our technician was here and completed the work today.
+      </p>
 
       <ReportSummary preview={preview} job={job} />
 
       <div>
-        <div className="rounded-2xl border-2 border-dashed border-mse-light bg-white relative overflow-hidden touch-none">
+        <div className="text-sm font-semibold text-mse-navy mb-2 flex items-center justify-between">
+          <span>Sign here</span>
+          {hasSignature && (
+            <button
+              type="button"
+              onClick={clearSignature}
+              className="text-xs font-semibold inline-flex items-center gap-1 text-mse-muted hover:text-mse-navy"
+            >
+              <Eraser className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="rounded-2xl border-2 border-mse-navy bg-white relative overflow-hidden touch-none shadow-card">
           <SignatureCanvas
             ref={sigRef}
             onEnd={onSignatureChange}
             penColor="#1A2332"
-            canvasProps={{ className: "w-full h-56 block" }}
+            canvasProps={{ className: "w-full h-72 block" }}
             backgroundColor="rgba(255,255,255,0)"
           />
           {!hasSignature && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-mse-muted text-sm">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-mse-navy/40 text-sm font-medium">
               <PenLine className="w-4 h-4 mr-1.5" />
-              Sign here
+              Sign with your finger or stylus
             </div>
           )}
         </div>
-
-        <div className="flex items-center gap-2 mt-3">
-          <input
-            type="text"
-            value={signedByName}
-            onChange={(e) => setSignedByName(e.target.value)}
-            placeholder="Print name"
-            className="flex-1 px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
-          />
-          <button
-            type="button"
-            onClick={clearSignature}
-            disabled={!hasSignature}
-            className={cn(
-              "px-3 py-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1 shrink-0",
-              "border border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/40",
-              !hasSignature && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            <Eraser className="w-3.5 h-3.5" />
-            Clear
-          </button>
-        </div>
+        <input
+          type="text"
+          value={signedByName}
+          onChange={(e) => setSignedByName(e.target.value)}
+          placeholder="Print name"
+          className="w-full mt-3 px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
+        />
       </div>
 
       <div>
         <label className="block text-sm font-semibold text-mse-navy mb-1.5">
-          Where should we send your service report?
+          Where should we email your report?
         </label>
-        <div className="text-xs text-mse-muted mb-2">
-          We&apos;ll email a copy of the photos and work summary once it&apos;s ready.
-        </div>
         <input
           type="email"
           inputMode="email"
@@ -228,7 +241,44 @@ export function CustomerConfirmForm({
           placeholder="customer@example.com"
           className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
         />
+        <div className="text-xs text-mse-muted mt-1.5">
+          Photos, work summary, and a thank-you gift will land in your
+          inbox shortly.
+        </div>
       </div>
+
+      <label
+        htmlFor="marketing-consent"
+        className={cn(
+          "block rounded-2xl border-2 bg-white p-4 cursor-pointer transition-[border-color,background-color]",
+          marketingConsent
+            ? "border-mse-navy bg-mse-navy/5"
+            : "border-mse-light hover:border-mse-navy/30"
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <input
+            id="marketing-consent"
+            type="checkbox"
+            checked={marketingConsent}
+            onChange={(e) => toggleConsent(e.target.checked)}
+            className="mt-0.5 w-5 h-5 accent-mse-navy shrink-0"
+          />
+          <div className="flex-1">
+            <div className="font-semibold text-mse-navy text-sm flex items-center gap-2">
+              <Camera className="w-4 h-4 text-mse-muted" />
+              Maryland Smart Energy may share my review and before /
+              after photos
+            </div>
+            <div className="text-xs text-mse-muted leading-relaxed mt-1.5">
+              Helps other Maryland customers see real installs. We
+              never share names, addresses, or anything personal —
+              only the photos and unit type. Untick if you&apos;d
+              rather we didn&apos;t.
+            </div>
+          </div>
+        </div>
+      </label>
 
       {error && (
         <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">

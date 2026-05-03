@@ -20,8 +20,16 @@ import {
   type QueuedPhoto,
 } from "@/lib/upload-queue";
 
-const POLL_MS = 5000;
-const MAX_CONCURRENCY = 1;
+// Idle poll cadence. The worker also kicks immediately after every
+// successful upload so back-to-back photos drain in real time — this
+// only matters as a safety net for retry-of-failed-photos and for
+// catching photos enqueued while the worker is sleeping.
+const POLL_MS = 2000;
+// Two concurrent uploads is a sweet spot: cuts wall-clock time roughly
+// in half on WiFi without saturating cellular when the tech's offline.
+// Each upload is bounded by UPLOAD_TIMEOUT_MS so a stuck request can't
+// block the slot indefinitely.
+const MAX_CONCURRENCY = 2;
 
 let started = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -211,6 +219,11 @@ async function uploadOne(item: QueuedPhoto) {
     // Keep the blob locally as a backup. purgeOldBackups removes it
     // 14 days later unless the tech pinned it for indefinite retention.
     await markUploaded(item.id);
+    // Kick the worker right away so the next pending photo starts
+    // uploading without waiting for the next idle poll. Big wall-clock
+    // win for a unit that has 11 photos to drain.
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(tick, 0);
   } finally {
     clearTimeout(timeoutId);
   }
