@@ -21,7 +21,7 @@ const screenshotsDir = path.join(projectRoot, "e2e-screenshots");
 fs.mkdirSync(screenshotsDir, { recursive: true });
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const PIN = process.argv[3] || "1234";
+const PIN = process.argv[3] || "7950";
 
 const ok = (msg) => console.log(`  \x1b[32m✓\x1b[0m ${msg}`);
 const fail = (msg) => console.log(`  \x1b[31m✗\x1b[0m ${msg}`);
