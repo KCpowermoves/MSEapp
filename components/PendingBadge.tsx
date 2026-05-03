@@ -1,9 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { CloudUpload, AlertTriangle, Trash2 } from "lucide-react";
+import {
+  CloudUpload,
+  AlertTriangle,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { usePendingCount, usePendingList } from "@/hooks/useUploadQueue";
-import { removePhoto } from "@/lib/upload-queue";
+import {
+  forceRetryAllFailedPhotos,
+  forceRetryPhoto,
+  removePhoto,
+} from "@/lib/upload-queue";
+import { kickWorker } from "@/lib/upload-worker";
 import { cn } from "@/lib/utils";
 
 export function PendingBadge() {
@@ -34,6 +44,15 @@ export function PendingBadge() {
 
 function QueueInspector({ onClose }: { onClose: () => void }) {
   const items = usePendingList();
+  const failedCount = items.filter(
+    (p) => p.status === "failed" || (p.attempts ?? 0) > 0
+  ).length;
+
+  const retryAll = async () => {
+    await forceRetryAllFailedPhotos();
+    kickWorker();
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 bg-mse-navy/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fade-in"
@@ -43,15 +62,27 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
         className="w-full max-w-md bg-white rounded-2xl shadow-elevated max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b border-mse-light p-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-white border-b border-mse-light p-4 flex items-center justify-between gap-2">
           <h2 className="font-bold text-mse-navy">Pending uploads</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-sm text-mse-muted hover:text-mse-navy"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            {failedCount > 0 && (
+              <button
+                type="button"
+                onClick={retryAll}
+                className="text-xs font-semibold text-mse-navy bg-mse-gold/15 hover:bg-mse-gold/25 px-3 py-1.5 rounded-lg flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Retry all
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm text-mse-muted hover:text-mse-navy"
+            >
+              Close
+            </button>
+          </div>
         </div>
         {items.length === 0 ? (
           <div className="p-8 text-center text-mse-muted text-sm">
@@ -60,7 +91,7 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
         ) : (
           <ul className="divide-y divide-mse-light">
             {items.map((p) => (
-              <li key={p.id} className="p-4 flex items-center gap-3">
+              <li key={p.id} className="p-4 flex items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate text-mse-navy">
                     {p.filename}
@@ -68,14 +99,35 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
                   <div className="text-xs text-mse-muted">
                     {p.status === "failed" ? (
                       <span className="text-mse-red flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        {p.lastError ?? "Upload failed"} · attempt {p.attempts}
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        <span className="truncate" title={p.lastError}>
+                          {p.lastError ?? "Upload failed"} · attempt{" "}
+                          {p.attempts}
+                        </span>
+                      </span>
+                    ) : p.status === "uploading" ? (
+                      <span className="text-mse-navy font-semibold">
+                        Uploading…
                       </span>
                     ) : (
                       <>{ageLabel(p.capturedAt)}</>
                     )}
                   </div>
                 </div>
+                {(p.status === "failed" || (p.attempts ?? 0) > 0) && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await forceRetryPhoto(p.id);
+                      kickWorker();
+                    }}
+                    aria-label="Retry now"
+                    className="p-2 text-mse-muted hover:text-mse-navy"
+                    title="Retry now"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => removePhoto(p.id)}

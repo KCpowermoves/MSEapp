@@ -21,6 +21,10 @@ export interface QueuedPhoto {
   attempts: number;
   lastError?: string;
   status: "pending" | "uploading" | "failed";
+  /** When the most recent upload attempt completed (success or failure). Used for backoff. */
+  lastAttemptAt?: number;
+  /** When the current upload was started. Used for stuck-detection. */
+  uploadStartedAt?: number;
 }
 
 export interface DraftUnit {
@@ -38,6 +42,10 @@ export interface DraftUnit {
   realUnitId?: string;    // populated after server sync
   lastError?: string;
   attempts: number;
+  /** When the most recent sync attempt completed. */
+  lastAttemptAt?: number;
+  /** When the current sync was started. Used to recover stuck "syncing" rows. */
+  syncStartedAt?: number;
 }
 
 export interface DraftJob {
@@ -52,6 +60,10 @@ export interface DraftJob {
   realJobId?: string;     // populated after server sync
   lastError?: string;
   attempts: number;
+  /** When the most recent sync attempt completed. */
+  lastAttemptAt?: number;
+  /** When the current sync was started. Used to recover stuck "syncing" rows. */
+  syncStartedAt?: number;
 }
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
@@ -105,7 +117,11 @@ export async function markUploading(id: string): Promise<void> {
   const db = await getDb();
   const item = await db.get(STORE_PHOTOS, id);
   if (!item) return;
-  await db.put(STORE_PHOTOS, { ...item, status: "uploading" });
+  await db.put(STORE_PHOTOS, {
+    ...item,
+    status: "uploading",
+    uploadStartedAt: Date.now(),
+  });
 }
 
 export async function markFailed(id: string, error: string): Promise<void> {
@@ -117,6 +133,7 @@ export async function markFailed(id: string, error: string): Promise<void> {
     status: "failed",
     attempts: (item.attempts ?? 0) + 1,
     lastError: error,
+    lastAttemptAt: Date.now(),
   });
 }
 
@@ -125,6 +142,47 @@ export async function markPending(id: string): Promise<void> {
   const item = await db.get(STORE_PHOTOS, id);
   if (!item) return;
   await db.put(STORE_PHOTOS, { ...item, status: "pending" });
+}
+
+/**
+ * Manual force-retry — clears attempt count + error and puts the photo
+ * back in pending so the worker picks it up immediately, even if it had
+ * exceeded the max-attempts cap.
+ */
+export async function forceRetryPhoto(id: string): Promise<void> {
+  const db = await getDb();
+  const item = await db.get(STORE_PHOTOS, id);
+  if (!item) return;
+  await db.put(STORE_PHOTOS, {
+    ...item,
+    status: "pending",
+    attempts: 0,
+    lastError: undefined,
+    lastAttemptAt: undefined,
+    uploadStartedAt: undefined,
+  });
+}
+
+export async function forceRetryAllFailedPhotos(): Promise<number> {
+  const db = await getDb();
+  const tx = db.transaction(STORE_PHOTOS, "readwrite");
+  const all = (await tx.store.getAll()) as QueuedPhoto[];
+  let n = 0;
+  for (const p of all) {
+    if (p.status === "failed" || (p.attempts ?? 0) >= 1) {
+      await tx.store.put({
+        ...p,
+        status: "pending",
+        attempts: 0,
+        lastError: undefined,
+        lastAttemptAt: undefined,
+        uploadStartedAt: undefined,
+      });
+      n++;
+    }
+  }
+  await tx.done;
+  return n;
 }
 
 export async function removePhoto(id: string): Promise<void> {
@@ -190,7 +248,12 @@ export async function setDraftStatus(
   const db = await getDb();
   const item = (await db.get(STORE_DRAFTS, id)) as DraftUnit | undefined;
   if (!item) return;
-  await db.put(STORE_DRAFTS, { ...item, ...patch, status });
+  const stamped: Partial<DraftUnit> = { ...patch };
+  if (status === "syncing") stamped.syncStartedAt = Date.now();
+  if (status === "synced" || status === "failed") {
+    stamped.lastAttemptAt = Date.now();
+  }
+  await db.put(STORE_DRAFTS, { ...item, ...stamped, status });
 }
 
 export async function bumpDraftAttempt(
@@ -205,6 +268,7 @@ export async function bumpDraftAttempt(
     status: "failed",
     attempts: (item.attempts ?? 0) + 1,
     lastError: error,
+    lastAttemptAt: Date.now(),
   });
 }
 
@@ -267,7 +331,12 @@ export async function setDraftJobStatus(
   const db = await getDb();
   const item = (await db.get(STORE_DRAFT_JOBS, id)) as DraftJob | undefined;
   if (!item) return;
-  await db.put(STORE_DRAFT_JOBS, { ...item, ...patch, status });
+  const stamped: Partial<DraftJob> = { ...patch };
+  if (status === "syncing") stamped.syncStartedAt = Date.now();
+  if (status === "synced" || status === "failed") {
+    stamped.lastAttemptAt = Date.now();
+  }
+  await db.put(STORE_DRAFT_JOBS, { ...item, ...stamped, status });
 }
 
 export async function bumpDraftJobAttempt(
@@ -282,6 +351,7 @@ export async function bumpDraftJobAttempt(
     status: "failed",
     attempts: (item.attempts ?? 0) + 1,
     lastError: error,
+    lastAttemptAt: Date.now(),
   });
 }
 

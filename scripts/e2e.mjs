@@ -383,7 +383,7 @@ async function readTab(tab) {
   return res.data.values ?? [];
 }
 
-async function verifySheetState(expected, baseline = {}) {
+async function verifySheetState(expected, baseline = {}, runDispatchIds = new Set()) {
   step("Verify Sheet state");
   const [jobs, dispatches, units, services, payAttr] = await Promise.all([
     readTab("Jobs"),
@@ -408,17 +408,20 @@ async function verifySheetState(expected, baseline = {}) {
   expect(newPayAttr >= expected.minPayAttr,
     `Pay Attribution added: expected ≥ ${expected.minPayAttr}, got ${newPayAttr}`);
 
-  // Spot-check that every Submitted dispatch has photosComplete = TRUE
-  // and a real driver field
-  const submitted = dispatches.filter((d) => d[9]); // J = submittedAt
-  for (const d of submitted) {
+  // Spot-check that every dispatch from THIS run is submitted +
+  // photos-complete. Don't fault historical dispatches from prior runs
+  // that may have left partial state behind.
+  const submittedThisRun = dispatches.filter(
+    (d) => d[9] && runDispatchIds.has(d[0])
+  );
+  for (const d of submittedThisRun) {
     if (d[8] !== "TRUE") {
       fail(`dispatch ${d[0]} not photos-complete`);
       failures++;
     }
   }
-  if (submitted.length === expected.dispatches) {
-    ok(`all ${submitted.length} dispatches submitted with photos-complete`);
+  if (submittedThisRun.length === expected.dispatches) {
+    ok(`all ${submittedThisRun.length} dispatches submitted with photos-complete`);
   }
 
   // Verify only units from this run have required photo URLs
@@ -580,7 +583,7 @@ async function main() {
       units: 3, // 1 PTAC/Ductless + 1 PTAC/Ductless + 1 RTU-S
       services: 1,
       minPayAttr: 8,
-    }, baseline);
+    }, baseline, new Set(runDispatchIds));
     await verifyDriveState(2);
 
     // Pay math:
