@@ -5,17 +5,21 @@ import { extractDriveFileId } from "@/lib/utils";
 /**
  * Sends the auto-generated service report to a customer via HighLevel.
  *
- * Returns:
- *  - { sent: true } when HighLevel accepted the request
- *  - { sent: false, reason: "not configured" } when env vars are
- *    missing (we still want the rest of the flow to succeed in dev /
- *    pre-launch — wire HIGHLEVEL_API_TOKEN to enable real sends)
- *  - { sent: false, reason: <error> } when HighLevel rejected the call
+ * Two-call flow (per LeadConnector v2 contract):
+ *   1. POST /contacts/upsert (Version 2021-07-28) — idempotent
+ *      create-or-find by email. Returns the contactId.
+ *   2. POST /conversations/messages (Version 2021-04-15) with
+ *      type=Email + contactId. Location is implied by the contact, so
+ *      we don't pass locationId or raw `to` on this call.
  *
- * The HighLevel side expects a contact + outbound email. We POST to the
- * v2 conversations API with a bare-bones HTML body that links to the
- * Drive PDF. Customers click through to view; we don't attach the PDF
- * directly because Drive will respect their account-level access.
+ * Returns:
+ *  - { sent: true } when HighLevel accepted both calls
+ *  - { sent: false, reason: "not configured" } when env vars missing
+ *    (so the rest of the flow keeps working in dev / pre-launch)
+ *  - { sent: false, reason: <error> } when HighLevel rejected either call
+ *
+ * The HTML body just links to the Drive PDF — we don't attach because
+ * Drive's share-with-anyone permission handles delivery cleanly.
  */
 export interface HeroPhotos {
   /** Drive URL of the "before" photo. We extract the fileId and embed
@@ -68,6 +72,51 @@ export async function sendReportEmail(opts: {
     heroPhotos: opts.heroPhotos,
   });
 
+  // HighLevel's /conversations/messages endpoint with type=Email is
+  // contact-scoped — it wants a contactId, not a raw `to` email. We do
+  // a two-call dance: upsert a contact by email (idempotent on
+  // [locationId, email]), then send the message bound to that contact.
+  // The upsert call uses Version: 2021-07-28; the messages call uses
+  // Version: 2021-04-15. Don't mix them.
+  let contactId: string;
+  try {
+    const upsert = await fetch(
+      "https://services.leadconnectorhq.com/contacts/upsert",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Version: "2021-07-28",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ locationId, email: opts.to }),
+      }
+    );
+    if (!upsert.ok) {
+      const text = await upsert.text().catch(() => "");
+      return {
+        sent: false,
+        reason: `highlevel upsert ${upsert.status}: ${text.slice(0, 300)}`,
+      };
+    }
+    const upsertData = (await upsert.json().catch(() => ({}))) as {
+      contact?: { id?: string };
+    };
+    contactId = upsertData.contact?.id ?? "";
+    if (!contactId) {
+      return {
+        sent: false,
+        reason: "highlevel upsert returned no contactId",
+      };
+    }
+  } catch (e) {
+    return {
+      sent: false,
+      reason: e instanceof Error ? e.message : "highlevel upsert failed",
+    };
+  }
+
   try {
     const res = await fetch(
       "https://services.leadconnectorhq.com/conversations/messages",
@@ -79,10 +128,12 @@ export async function sendReportEmail(opts: {
           Version: "2021-04-15",
           Accept: "application/json",
         },
+        // Per LeadConnector docs: when contactId is set the location
+        // is implied by the contact, so we don't pass locationId or
+        // raw `to` here.
         body: JSON.stringify({
           type: "Email",
-          locationId,
-          to: opts.to,
+          contactId,
           subject,
           html,
         }),
@@ -92,14 +143,14 @@ export async function sendReportEmail(opts: {
       const text = await res.text().catch(() => "");
       return {
         sent: false,
-        reason: `highlevel ${res.status}: ${text.slice(0, 300)}`,
+        reason: `highlevel send ${res.status}: ${text.slice(0, 300)}`,
       };
     }
     return { sent: true };
   } catch (e) {
     return {
       sent: false,
-      reason: e instanceof Error ? e.message : "highlevel call failed",
+      reason: e instanceof Error ? e.message : "highlevel send failed",
     };
   }
 }
