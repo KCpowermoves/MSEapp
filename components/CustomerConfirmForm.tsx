@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  Camera,
   ClipboardList,
   Eraser,
   Loader2,
@@ -52,7 +51,10 @@ export function CustomerConfirmForm({
 }) {
   const router = useRouter();
   const sigRef = useRef<SignatureCanvas | null>(null);
-  const [signedByName, setSignedByName] = useState(job.customerName);
+  // Print-name field starts empty — the customer fills in their own
+  // name. Don't pre-populate with job.customerName (the customer is
+  // signing on behalf of themselves, not reading our internal label).
+  const [signedByName, setSignedByName] = useState("");
   const [customerEmail, setCustomerEmail] = useState(defaultEmail);
   const [hasSignature, setHasSignature] = useState(false);
   // Marketing consent defaults to TRUE — Kevin's call. Customers can
@@ -170,6 +172,26 @@ export function CustomerConfirmForm({
       <ReportSummary preview={preview} job={job} />
 
       <div>
+        <label className="block text-sm font-semibold text-mse-navy mb-1.5">
+          Where should we email your report?
+        </label>
+        <input
+          type="email"
+          inputMode="email"
+          autoCapitalize="off"
+          autoCorrect="off"
+          value={customerEmail}
+          onChange={(e) => setCustomerEmail(e.target.value)}
+          placeholder="customer@example.com"
+          className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
+        />
+        <div className="text-xs text-mse-muted mt-1.5">
+          Photos, work summary, and a thank-you gift will land in your
+          inbox shortly.
+        </div>
+      </div>
+
+      <div>
         <div className="text-sm font-semibold text-mse-navy mb-2 flex items-center justify-between">
           <span>Sign here</span>
           {hasSignature && (
@@ -207,57 +229,26 @@ export function CustomerConfirmForm({
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-semibold text-mse-navy mb-1.5">
-          Where should we email your report?
-        </label>
-        <input
-          type="email"
-          inputMode="email"
-          autoCapitalize="off"
-          autoCorrect="off"
-          value={customerEmail}
-          onChange={(e) => setCustomerEmail(e.target.value)}
-          placeholder="customer@example.com"
-          className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
-        />
-        <div className="text-xs text-mse-muted mt-1.5">
-          Photos, work summary, and a thank-you gift will land in your
-          inbox shortly.
-        </div>
-      </div>
-
+      {/* Marketing consent — intentionally low-key: small inline
+          checkbox + muted fine-print text, no border, no card. Pre-
+          checked. Customers who want to opt out see it but it doesn't
+          compete with the signature/email for attention. */}
       <label
         htmlFor="marketing-consent"
-        className={cn(
-          "block rounded-2xl border-2 bg-white p-4 cursor-pointer transition-[border-color,background-color]",
-          marketingConsent
-            ? "border-mse-navy bg-mse-navy/5"
-            : "border-mse-light hover:border-mse-navy/30"
-        )}
+        className="flex items-start gap-2 text-[11px] text-mse-muted leading-relaxed cursor-pointer px-1"
       >
-        <div className="flex items-start gap-3">
-          <input
-            id="marketing-consent"
-            type="checkbox"
-            checked={marketingConsent}
-            onChange={(e) => toggleConsent(e.target.checked)}
-            className="mt-0.5 w-5 h-5 accent-mse-navy shrink-0"
-          />
-          <div className="flex-1">
-            <div className="font-semibold text-mse-navy text-sm flex items-center gap-2">
-              <Camera className="w-4 h-4 text-mse-muted" />
-              Maryland Smart Energy may share my review and before /
-              after photos
-            </div>
-            <div className="text-xs text-mse-muted leading-relaxed mt-1.5">
-              Helps other Maryland customers see real installs. We
-              never share names, addresses, or anything personal —
-              only the photos and unit type. Untick if you&apos;d
-              rather we didn&apos;t.
-            </div>
-          </div>
-        </div>
+        <input
+          id="marketing-consent"
+          type="checkbox"
+          checked={marketingConsent}
+          onChange={(e) => toggleConsent(e.target.checked)}
+          className="mt-0.5 w-3.5 h-3.5 accent-mse-navy shrink-0"
+        />
+        <span>
+          I&apos;m OK with Maryland Smart Energy sharing my review and
+          the before/after photos from today&apos;s visit. No name or
+          address is ever shared.
+        </span>
       </label>
 
       {error && (
