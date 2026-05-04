@@ -134,7 +134,7 @@ export function NewJobForm({
       </div>
 
       <div className="space-y-5">
-        <Field label="Customer name">
+        <Field label="Business name" hint="The business or property — not the contact person.">
           <input
             type="text"
             value={customerName}
@@ -262,16 +262,21 @@ export function NewJobForm({
 
 function Field({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="block text-sm font-semibold text-mse-navy mb-2">
+      <span className="block text-sm font-semibold text-mse-navy mb-1">
         {label}
       </span>
+      {hint && (
+        <span className="block text-xs text-mse-muted mb-2">{hint}</span>
+      )}
       {children}
     </label>
   );

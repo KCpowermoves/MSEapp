@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const soldBy = String(body.soldBy ?? "").trim();
   if (!customerName) {
     return NextResponse.json(
-      { error: "Customer name is required" },
+      { error: "Business name is required" },
       { status: 400 }
     );
   }

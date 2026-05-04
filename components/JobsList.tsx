@@ -135,7 +135,7 @@ export function JobsList({ jobs, statsByJob }: Props) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search customer, address, or seller…"
+            placeholder="Search business, address, or seller…"
             className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
           />
           {query && (

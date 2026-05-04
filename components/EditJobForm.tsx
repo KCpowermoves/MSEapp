@@ -73,7 +73,11 @@ export function EditJobForm({
         <h1 className="text-2xl font-bold text-mse-navy">Edit job</h1>
       </div>
 
-      <Field label="Customer name" required>
+      <Field
+        label="Business name"
+        hint="The business or property — not the contact person."
+        required
+      >
         <input
           type="text"
           value={customerName}
@@ -226,19 +230,22 @@ export function EditJobForm({
 
 function Field({
   label,
+  hint,
   children,
   required,
 }: {
   label: string;
+  hint?: string;
   children: React.ReactNode;
   required?: boolean;
 }) {
   return (
     <div>
-      <div className="text-sm font-semibold text-mse-navy mb-2">
+      <div className="text-sm font-semibold text-mse-navy mb-1">
         {label}
         {required && <span className="text-mse-red ml-1">*</span>}
       </div>
+      {hint && <div className="text-xs text-mse-muted mb-2">{hint}</div>}
       {children}
     </div>
   );

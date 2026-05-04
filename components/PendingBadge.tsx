@@ -154,7 +154,7 @@ function QueueInspector({ onClose }: { onClose: () => void }) {
                   <li key={d.id} className="p-4 flex items-center gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate text-mse-navy">
-                        {d.customerName || "(no customer name)"}
+                        {d.customerName || "(no business name)"}
                       </div>
                       <div className="text-xs text-mse-muted">
                         <DraftStatus status={d.status} attempts={d.attempts} error={d.lastError} />
