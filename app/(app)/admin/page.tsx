@@ -384,6 +384,7 @@ export default async function AdminDashboard() {
                       defaultEmail={d.customerEmail}
                       hasPdf={Boolean(d.reportPdfUrl)}
                       pdfUrl={d.reportPdfUrl}
+                      reportEmailedAt={d.reportEmailedAt}
                     />
                     {d.customerFeedback && (
                       <div className="mt-2 text-xs bg-mse-red/5 border border-mse-red/20 rounded-md px-2 py-1.5 text-mse-text">

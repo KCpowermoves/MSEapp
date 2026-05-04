@@ -173,6 +173,20 @@ export function CustomerConfirmForm({
 
       <div>
         <label className="block text-sm font-semibold text-mse-navy mb-1.5">
+          Enter your name
+        </label>
+        <input
+          type="text"
+          value={signedByName}
+          onChange={(e) => setSignedByName(e.target.value)}
+          placeholder="First and last name"
+          autoCapitalize="words"
+          className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-mse-navy mb-1.5">
           Where should we email your report?
         </label>
         <input
@@ -210,6 +224,12 @@ export function CustomerConfirmForm({
             ref={sigRef}
             onEnd={onSignatureChange}
             penColor="#1A2332"
+            // Critical: defaults to true, which clears the pad on
+            // every window resize — including iOS soft-keyboard
+            // open/close. Without this flag the customer signs, taps
+            // the email field, the keyboard pops up, the canvas
+            // resizes, and their signature disappears.
+            clearOnResize={false}
             canvasProps={{ className: "w-full h-72 block" }}
             backgroundColor="rgba(255,255,255,0)"
           />
@@ -220,36 +240,7 @@ export function CustomerConfirmForm({
             </div>
           )}
         </div>
-        <input
-          type="text"
-          value={signedByName}
-          onChange={(e) => setSignedByName(e.target.value)}
-          placeholder="Print name"
-          className="w-full mt-3 px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
-        />
       </div>
-
-      {/* Marketing consent — intentionally low-key: small inline
-          checkbox + muted fine-print text, no border, no card. Pre-
-          checked. Customers who want to opt out see it but it doesn't
-          compete with the signature/email for attention. */}
-      <label
-        htmlFor="marketing-consent"
-        className="flex items-start gap-2 text-[11px] text-mse-muted leading-relaxed cursor-pointer px-1"
-      >
-        <input
-          id="marketing-consent"
-          type="checkbox"
-          checked={marketingConsent}
-          onChange={(e) => toggleConsent(e.target.checked)}
-          className="mt-0.5 w-3.5 h-3.5 accent-mse-navy shrink-0"
-        />
-        <span>
-          I&apos;m OK with Maryland Smart Energy sharing my review and
-          the before/after photos from today&apos;s visit. No name or
-          address is ever shared.
-        </span>
-      </label>
 
       {error && (
         <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">
@@ -258,7 +249,7 @@ export function CustomerConfirmForm({
       )}
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
-        <div className="max-w-2xl mx-auto space-y-2">
+        <div className="max-w-2xl mx-auto space-y-3">
           <button
             type="button"
             onClick={onContinue}
@@ -284,6 +275,26 @@ export function CustomerConfirmForm({
               </span>
             )}
           </button>
+          {/* Marketing-consent fine print — sits under the save
+              button, intentionally low-key (no border, no icon, small
+              muted text). Pre-checked; opt out by tapping. */}
+          <label
+            htmlFor="marketing-consent"
+            className="flex items-start gap-2 text-[11px] text-mse-muted leading-relaxed cursor-pointer px-1"
+          >
+            <input
+              id="marketing-consent"
+              type="checkbox"
+              checked={marketingConsent}
+              onChange={(e) => toggleConsent(e.target.checked)}
+              className="mt-0.5 w-3.5 h-3.5 accent-mse-navy shrink-0"
+            />
+            <span>
+              I&apos;m OK with Maryland Smart Energy sharing my review
+              and the before/after photos from today&apos;s visit. No
+              name or address is ever shared.
+            </span>
+          </label>
         </div>
       </div>
     </div>

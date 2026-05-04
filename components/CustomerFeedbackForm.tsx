@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Gift,
+  Handshake,
   Loader2,
   Smartphone,
   Sparkles,
@@ -44,8 +45,14 @@ export function CustomerFeedbackForm({
   const router = useRouter();
   const [rating, setRating] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
-  const [stage, setStage] = useState<"rate" | "lowRating" | "fiveStar">("rate");
+  const [stage, setStage] = useState<
+    "rate" | "lowRating" | "fiveStar" | "thanks"
+  >("rate");
 
+  // After every rating path the customer lands on the thanks/handoff
+  // screen so the tech sees a clean "pass the device back" state
+  // instead of a half-loaded /jobs page when they take the phone back.
+  const goToThanks = () => setStage("thanks");
   const finishToJobs = () => {
     router.replace("/jobs?submitted=1");
   };
@@ -102,16 +109,23 @@ export function CustomerFeedbackForm({
       </section>
 
       {stage === "rate" && (
-        <RateStage rating={rating} onPick={onPickStar} submitting={submitting} />
+        <RateStage
+          rating={rating}
+          onPick={onPickStar}
+          submitting={submitting}
+          onSkip={goToThanks}
+        />
       )}
 
       {stage === "fiveStar" && (
-        <FiveStarStage dispatchId={dispatchId} onDone={finishToJobs} />
+        <FiveStarStage dispatchId={dispatchId} onDone={goToThanks} />
       )}
 
       {stage === "lowRating" && (
-        <LowRatingStage rating={rating} onDone={finishToJobs} />
+        <LowRatingStage rating={rating} onDone={goToThanks} />
       )}
+
+      {stage === "thanks" && <ThanksStage onDone={finishToJobs} />}
     </div>
   );
 }
@@ -122,10 +136,12 @@ function RateStage({
   rating,
   onPick,
   submitting,
+  onSkip,
 }: {
   rating: number;
   onPick: (n: number) => void;
   submitting: boolean;
+  onSkip: () => void;
 }) {
   return (
     <>
@@ -170,7 +186,7 @@ function RateStage({
       <button
         type="button"
         className="w-full text-sm text-mse-muted underline-offset-4 hover:underline"
-        onClick={() => (window.location.href = "/jobs?submitted=1")}
+        onClick={onSkip}
       >
         Skip
       </button>
@@ -342,6 +358,45 @@ function LowRatingStage({
           >
             <span className="inline-flex items-center gap-2">
               All done <ArrowRight className="w-4 h-4" />
+            </span>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Stage: thanks / handoff ───────────────────────────────────────────
+
+function ThanksStage({ onDone }: { onDone: () => void }) {
+  return (
+    <>
+      <section className="rounded-2xl border-2 border-mse-gold/40 bg-gradient-to-b from-mse-gold/10 to-white p-8 text-center shadow-elevated">
+        <div className="w-16 h-16 mx-auto rounded-full bg-mse-navy flex items-center justify-center shadow-card">
+          <Handshake className="w-8 h-8 text-mse-gold" />
+        </div>
+        <div className="mt-5 text-2xl font-extrabold text-mse-navy leading-tight">
+          Thank you for your business.
+        </div>
+        <div className="mt-3 text-base text-mse-text leading-relaxed">
+          Please pass this device back to the technician.
+        </div>
+      </section>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
+        <div className="max-w-2xl mx-auto">
+          <button
+            type="button"
+            onClick={onDone}
+            className={cn(
+              "w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
+              "bg-mse-navy hover:bg-mse-navy-soft active:scale-[0.98] text-white shadow-card",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-navy focus-visible:ring-offset-2"
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              I&apos;m the technician — finish up{" "}
+              <ArrowRight className="w-4 h-4" />
             </span>
           </button>
         </div>

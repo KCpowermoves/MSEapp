@@ -31,10 +31,28 @@ export async function buildJobPdf(input: BuildPdfInput): Promise<Buffer> {
   type EmbedItem = { label: string; buffer: Buffer | null };
   const photoFetches: { label: string; url: string }[] = [];
   for (const u of units) {
-    const lbl = `Unit ${String(u.unitNumberOnJob).padStart(3, "0")} — ${u.unitType}`;
-    if (u.nameplateUrl) photoFetches.push({ label: `${lbl} · Nameplate`, url: u.nameplateUrl });
-    if (u.pre1Url) photoFetches.push({ label: `${lbl} · Before 1`, url: u.pre1Url });
-    if (u.post1Url) photoFetches.push({ label: `${lbl} · After 1`, url: u.post1Url });
+    const unitTag = `Unit ${String(u.unitNumberOnJob).padStart(3, "0")} — ${u.unitType}`;
+    // Walk every populated photo field on the unit. Different unit
+    // types repurpose the same columns (e.g. Simple types use pre2Url
+    // for the AFTER photo since they only have one before/after pair),
+    // so listing them all by raw column rather than by slot picks up
+    // every captured shot regardless of unitType.
+    const slots: Array<[string, string]> = [
+      [u.nameplateUrl, "Nameplate"],
+      [u.pre1Url, "Before 1"],
+      [u.pre2Url, "Before 2"],
+      [u.pre3Url, "Before 3"],
+      [u.post1Url, "After 1"],
+      [u.post2Url, "After 2"],
+      [u.post3Url, "After 3"],
+      [u.filterUrl, "Filter"],
+      [u.inPreUrl, "Air handler · before"],
+      [u.inPostUrl, "Air handler · after"],
+      [u.inNameplateUrl, "Air handler nameplate"],
+    ];
+    for (const [url, slotLabel] of slots) {
+      if (url) photoFetches.push({ label: `${unitTag} · ${slotLabel}`, url });
+    }
   }
   if (dispatch.signatureUrl) {
     photoFetches.push({
@@ -44,11 +62,19 @@ export async function buildJobPdf(input: BuildPdfInput): Promise<Buffer> {
       url: dispatch.signatureUrl,
     });
   }
+
+  console.log(
+    `[pdf] dispatch=${dispatch.dispatchId} fetching ${photoFetches.length} photo(s)`
+  );
   const embedded: EmbedItem[] = await Promise.all(
     photoFetches.map(async ({ label, url }) => ({
       label,
-      buffer: await fetchDriveImage(url),
+      buffer: await fetchDriveImage(url, label),
     }))
+  );
+  const fetchedCount = embedded.filter((e) => e.buffer).length;
+  console.log(
+    `[pdf] dispatch=${dispatch.dispatchId} fetched ${fetchedCount}/${photoFetches.length} photo bytes`
   );
 
   // ── 2. Build the document
@@ -201,9 +227,17 @@ export async function buildJobPdf(input: BuildPdfInput): Promise<Buffer> {
   });
 }
 
-async function fetchDriveImage(url: string): Promise<Buffer | null> {
-  const m = url.match(/\/d\/([A-Za-z0-9_-]+)/) ?? url.match(/[?&]id=([A-Za-z0-9_-]+)/);
-  if (!m) return null;
+async function fetchDriveImage(
+  url: string,
+  label?: string
+): Promise<Buffer | null> {
+  const m =
+    url.match(/\/d\/([A-Za-z0-9_-]+)/) ??
+    url.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  if (!m) {
+    console.warn(`[pdf] no fileId in url for ${label ?? "?"}: ${url}`);
+    return null;
+  }
   const fileId = m[1];
   try {
     const drive = getDriveClient();
@@ -211,8 +245,15 @@ async function fetchDriveImage(url: string): Promise<Buffer | null> {
       { fileId, alt: "media", supportsAllDrives: true },
       { responseType: "arraybuffer" }
     );
-    return Buffer.from(res.data as ArrayBuffer);
-  } catch {
+    const buf = Buffer.from(res.data as ArrayBuffer);
+    if (buf.length === 0) {
+      console.warn(`[pdf] empty buffer for ${label ?? fileId}`);
+      return null;
+    }
+    return buf;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[pdf] drive fetch failed for ${label ?? fileId}: ${msg}`);
     return null;
   }
 }
