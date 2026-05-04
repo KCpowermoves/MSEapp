@@ -545,12 +545,21 @@ async function main() {
     // Track dispatch IDs created in this run so pay math filters correctly
     const runDispatchIds = [];
 
+    // Tag every test customer with a timestamp so it's obvious in the
+    // sheet which run created which row — and so cleanup-test-jobs can
+    // close them without false-matching real customers.
+    const runStamp = new Date()
+      .toISOString()
+      .replace(/[^\dT]/g, "")
+      .slice(0, 13); // e.g. "20260502T2143"
+    const tag = (label) => `e2e ${label} ${runStamp}`;
+
     // ============================================================
     // SCENARIO 1 — Solo BGE job, single PTAC/Ductless unit
     // ============================================================
     console.log("\n\x1b[36m═══ Scenario 1: Solo BGE job, 1 PTAC/Ductless unit ═══\x1b[0m");
     const job1 = await createJob(page, {
-      customer: "BGE Solo Test",
+      customer: tag("BGE Solo"),
       address: "100 Main St, Baltimore MD 21201",
       territory: "BGE",
       selfSold: false,
@@ -568,7 +577,7 @@ async function main() {
     // ============================================================
     console.log("\n\x1b[36m═══ Scenario 2: Self-sold Delmarva, PTAC + RTU-S + thermostat ═══\x1b[0m");
     const job2 = await createJob(page, {
-      customer: "Delmarva Self-Sold",
+      customer: tag("Delmarva Self-Sold"),
       address: "200 Bay Ave, Salisbury MD 21801",
       territory: "Delmarva",
       selfSold: true,
