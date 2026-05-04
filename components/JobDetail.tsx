@@ -25,12 +25,14 @@ interface Props {
   todaysUnits: UnitWithStatus[];
   activeTechs: string[];
   currentUserName: string;
+  isAdmin: boolean;
 }
 
 export function JobDetail({
   job,
   todaysUnits,
   currentUserName,
+  isAdmin,
 }: Props) {
   useTodaysCrew(job.jobId, currentUserName);
   // Only count un-submitted units toward the Submit button — already-
@@ -70,7 +72,7 @@ export function JobDetail({
         >
           <Pencil className="w-4 h-4" />
         </a>
-        {job.driveFolderUrl && (
+        {isAdmin && job.driveFolderUrl && (
           <a
             href={job.driveFolderUrl}
             target="_blank"

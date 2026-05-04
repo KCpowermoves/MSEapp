@@ -64,6 +64,7 @@ export default async function JobDetailPage({
       todaysUnits={unitsWithStatus}
       activeTechs={activeTechs}
       currentUserName={session.name ?? ""}
+      isAdmin={isAdmin}
     />
   );
 }
