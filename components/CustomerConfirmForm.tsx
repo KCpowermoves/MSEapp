@@ -173,20 +173,6 @@ export function CustomerConfirmForm({
 
       <div>
         <label className="block text-sm font-semibold text-mse-navy mb-1.5">
-          Enter your name
-        </label>
-        <input
-          type="text"
-          value={signedByName}
-          onChange={(e) => setSignedByName(e.target.value)}
-          placeholder="First and last name"
-          autoCapitalize="words"
-          className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-mse-navy mb-1.5">
           Where should we email your report?
         </label>
         <input
@@ -203,6 +189,20 @@ export function CustomerConfirmForm({
           Photos, work summary, and a thank-you gift will land in your
           inbox shortly.
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-mse-navy mb-1.5">
+          Enter your name
+        </label>
+        <input
+          type="text"
+          value={signedByName}
+          onChange={(e) => setSignedByName(e.target.value)}
+          placeholder="First and last name"
+          autoCapitalize="words"
+          className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
+        />
       </div>
 
       <div>
@@ -277,7 +277,9 @@ export function CustomerConfirmForm({
           </button>
           {/* Marketing-consent fine print — sits under the save
               button, intentionally low-key (no border, no icon, small
-              muted text). Pre-checked; opt out by tapping. */}
+              muted text). Pre-checked; opt out by tapping. Wording
+              emphasizes anonymization and the customer-success-story
+              framing so saying yes feels easy. */}
           <label
             htmlFor="marketing-consent"
             className="flex items-start gap-2 text-[11px] text-mse-muted leading-relaxed cursor-pointer px-1"
@@ -290,9 +292,11 @@ export function CustomerConfirmForm({
               className="mt-0.5 w-3.5 h-3.5 accent-mse-navy shrink-0"
             />
             <span>
-              I&apos;m OK with Maryland Smart Energy sharing my review
-              and the before/after photos from today&apos;s visit. No
-              name or address is ever shared.
+              Yes — Maryland Smart Energy can write today&apos;s visit
+              up as a customer success story and share the before /
+              after photos. We&apos;ll anonymize everything: no name,
+              no address, no identifying details. Helps a small
+              Maryland team get the word out.
             </span>
           </label>
         </div>
@@ -327,7 +331,9 @@ function ReportSummary({
       </div>
       <dl className="divide-y divide-mse-light text-sm">
         <Row label="Date" value={preview.dispatchDate} />
-        <Row label="Site" value={job.siteAddress || "—"} />
+        {job.siteAddress?.trim() && (
+          <Row label="Site" value={job.siteAddress} />
+        )}
         <Row label="Technician" value={techList} />
         <Row
           label="Units serviced"
