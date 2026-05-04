@@ -292,11 +292,11 @@ export function CustomerConfirmForm({
               className="mt-0.5 w-3.5 h-3.5 accent-mse-navy shrink-0"
             />
             <span>
-              Yes — Maryland Smart Energy can write today&apos;s visit
-              up as a customer success story and share the before /
-              after photos. We&apos;ll anonymize everything: no name,
-              no address, no identifying details. Helps a small
-              Maryland team get the word out.
+              Yes — Maryland Smart Energy can write a public success
+              story about today&apos;s visit (mentioning our business
+              by name) and use the before / after photos separately
+              as anonymized examples (no name or address). Helps a
+              small Maryland team get the word out.
             </span>
           </label>
         </div>
