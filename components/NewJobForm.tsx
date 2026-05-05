@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -8,17 +8,10 @@ import { CrewPicker } from "@/components/CrewPicker";
 import { enqueueDraftJob } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { captureLocationEvent } from "@/lib/location";
-import { crewSize } from "@/lib/pay-rates";
 import { cn } from "@/lib/utils";
 import type { CrewSplit, UtilityTerritory } from "@/lib/types";
 
 const TERRITORIES: UtilityTerritory[] = ["BGE", "PEPCO", "Delmarva", "SMECO"];
-
-const SPLITS: { id: CrewSplit; label: string; sub: string }[] = [
-  { id: "Solo", label: "Solo", sub: "1 tech" },
-  { id: "50-50", label: "50 / 50", sub: "2 techs" },
-  { id: "33-33-33", label: "Three-way", sub: "3 techs" },
-];
 
 export function NewJobForm({
   activeTechs,
@@ -39,20 +32,19 @@ export function NewJobForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-suggest split based on crew size — tech can override.
+  // Auto-derive split from crew size. The pay-split picker is hidden
+  // from the UI for now (Kevin's call 2026-05-05) so this also serves
+  // as the only way the split gets set on the dispatch row.
   useEffect(() => {
     if (crew.length === 1) setCrewSplit("Solo");
     else if (crew.length === 2) setCrewSplit("50-50");
     else if (crew.length >= 3) setCrewSplit("33-33-33");
   }, [crew.length]);
 
-  const cSize = useMemo(() => crewSize(crewSplit), [crewSplit]);
-  const crewSizeMatches = crew.length === cSize;
   const canSubmit =
     customerName.trim().length > 0 &&
     territory !== null &&
     crew.length > 0 &&
-    crewSizeMatches &&
     !submitting;
 
   const submit = async () => {
@@ -205,43 +197,11 @@ export function NewJobForm({
           )}
         </Field>
 
-        <Field label="Pay split">
-          <div className="grid grid-cols-3 gap-2">
-            {SPLITS.map((s) => {
-              const active = crewSplit === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setCrewSplit(s.id)}
-                  className={cn(
-                    "rounded-2xl p-3 transition-[background-color,border-color,transform]",
-                    "active:scale-95",
-                    active
-                      ? "border-2 border-mse-navy bg-mse-navy text-white"
-                      : "border-2 border-mse-light bg-white text-mse-navy"
-                  )}
-                >
-                  <div className="font-bold text-sm">{s.label}</div>
-                  <div
-                    className={cn(
-                      "text-xs mt-0.5",
-                      active ? "text-white/70" : "text-mse-muted"
-                    )}
-                  >
-                    {s.sub}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {!crewSizeMatches && crew.length > 0 && (
-            <div className="text-xs text-mse-red mt-2">
-              {cSize} tech{cSize === 1 ? "" : "s"} expected for this split,
-              but the crew has {crew.length}.
-            </div>
-          )}
-        </Field>
+        {/* Pay split picker hidden 2026-05-05 per Kevin — split is
+            now auto-derived from crew size for the dispatch row but
+            not surfaced to the tech. The auto-select effect above
+            keeps the value sane. Keep the logic in place so we can
+            unhide later if pay UI comes back. */}
 
         {error && (
           <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">

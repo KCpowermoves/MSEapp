@@ -16,12 +16,6 @@ import type {
   UnitServiced,
 } from "@/lib/types";
 
-const SPLITS: { id: CrewSplit; label: string; sub: string }[] = [
-  { id: "Solo", label: "Solo", sub: "1 tech" },
-  { id: "50-50", label: "50 / 50", sub: "2 techs" },
-  { id: "33-33-33", label: "Three-way", sub: "3 techs" },
-];
-
 interface Props {
   job: Job;
   dispatchId: string;
@@ -71,7 +65,9 @@ export function SubmitDispatchForm({
     else if (crew.length >= 3) setCrewSplit("33-33-33");
   }, [crew.length, editingCrew]);
 
-  const cSize = crewSize(crewSplit);
+  // Pay preview hidden 2026-05-05 per Kevin — totals stay computed
+  // so we can re-enable the panel without rebuilding the math.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const totals = useMemo(
     () => computePayPreview({ job, units, services, crewSplit, crew }),
     [job, units, services, crewSplit, crew]
@@ -95,8 +91,10 @@ export function SubmitDispatchForm({
     );
   });
 
-  const crewSizeMatches = crew.length === cSize;
-  const canSubmit = crew.length > 0 && crewSizeMatches && !submitting;
+  // Split is auto-derived from crew size now (the picker is hidden)
+  // so crew length always matches the split — no need to gate
+  // submission on it.
+  const canSubmit = crew.length > 0 && !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -173,9 +171,12 @@ export function SubmitDispatchForm({
         )}
       </section>
 
-      {/* Crew + split — set at job creation. Show as read-only text
-          with an inline Edit affordance unless we're already editing
-          (e.g. older job that didn't capture crew at creation). */}
+      {/* Crew — set at job creation. Show as read-only text with an
+          inline Edit affordance unless we're already editing (e.g.
+          older job that didn't capture crew at creation). Pay-split
+          picker hidden 2026-05-05 per Kevin; split is auto-derived
+          from crew size in the underlying state and the pay-preview
+          card is hidden too. */}
       {!editingCrew ? (
         <section className="rounded-2xl border border-mse-light bg-white p-4 shadow-card">
           <div className="flex items-start justify-between gap-3">
@@ -185,9 +186,6 @@ export function SubmitDispatchForm({
               </div>
               <div className="font-semibold text-mse-navy mt-0.5">
                 {crew.length === 0 ? "—" : crew.join(", ")}
-              </div>
-              <div className="text-xs text-mse-muted mt-1">
-                Pay split: <span className="font-semibold text-mse-navy">{splitLabel(crewSplit)}</span>
               </div>
             </div>
             <button
@@ -199,12 +197,6 @@ export function SubmitDispatchForm({
               Edit
             </button>
           </div>
-          {!crewSizeMatches && crew.length > 0 && (
-            <div className="text-xs text-mse-red mt-2">
-              {cSize} tech{cSize === 1 ? "" : "s"} expected for this split, but
-              crew has {crew.length}. Tap Edit to fix.
-            </div>
-          )}
         </section>
       ) : (
         <>
@@ -228,43 +220,6 @@ export function SubmitDispatchForm({
             )}
           </Field>
 
-          <Field label="Pay split" required>
-            <div className="grid grid-cols-3 gap-2">
-              {SPLITS.map((s) => {
-                const active = crewSplit === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setCrewSplit(s.id)}
-                    className={cn(
-                      "rounded-2xl p-3 transition-[background-color,border-color,transform]",
-                      "active:scale-95",
-                      active
-                        ? "border-2 border-mse-navy bg-mse-navy text-white"
-                        : "border-2 border-mse-light bg-white text-mse-navy"
-                    )}
-                  >
-                    <div className="font-bold text-sm">{s.label}</div>
-                    <div
-                      className={cn(
-                        "text-xs mt-0.5",
-                        active ? "text-white/70" : "text-mse-muted"
-                      )}
-                    >
-                      {s.sub}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {!crewSizeMatches && crew.length > 0 && (
-              <div className="text-xs text-mse-red mt-2">
-                {cSize} tech{cSize === 1 ? "" : "s"} expected for this split,
-                but crew has {crew.length}.
-              </div>
-            )}
-          </Field>
           {initialCrew.length > 0 && (
             <button
               type="button"
@@ -277,6 +232,10 @@ export function SubmitDispatchForm({
         </>
       )}
 
+      {/* Pay preview hidden 2026-05-05 per Kevin. Logic preserved
+          (totals, computePayPreview) so the panel can come back
+          without rebuilding. */}
+      {false && (
       <section className="bg-white rounded-2xl border border-mse-light p-4 space-y-3 shadow-card">
         <div className="font-bold text-mse-navy">Pay preview</div>
         <ul className="space-y-2 text-sm">
@@ -311,6 +270,7 @@ export function SubmitDispatchForm({
           </div>
         )}
       </section>
+      )}
 
       {error && (
         <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">
@@ -374,12 +334,6 @@ interface PayLine {
 interface PayTotal {
   tech: string;
   total: number;
-}
-
-function splitLabel(s: CrewSplit): string {
-  if (s === "Solo") return "Solo (1 tech)";
-  if (s === "50-50") return "50 / 50 (2 techs)";
-  return "Three-way (3 techs)";
 }
 
 function computePayPreview(opts: {

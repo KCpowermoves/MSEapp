@@ -86,7 +86,11 @@ export default async function JobsHomePage({
         </Link>
       </div>
 
-      {todaysPay.total > 0 && (
+      {/* Today's earnings card hidden 2026-05-05 per Kevin — pay UI
+          surfaces are paused for now. Logic above (todaysPay,
+          installRowCount, distinctDispatchIds) preserved so the card
+          can come back without a refetch rewrite. */}
+      {false && todaysPay.total > 0 && (
         <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
           <div className="flex items-center justify-between gap-3">
             <div>
