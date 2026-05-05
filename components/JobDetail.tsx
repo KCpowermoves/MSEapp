@@ -57,11 +57,6 @@ export function JobDetail({
           <div className="text-sm text-mse-muted truncate">{job.siteAddress}</div>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <TerritoryPill territory={job.utilityTerritory} />
-            {job.selfSold && job.soldBy && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-mse-gold/15 text-mse-navy">
-                Self-sold · {job.soldBy}
-              </span>
-            )}
             <span className="text-xs text-mse-muted font-mono">{job.jobId}</span>
           </div>
         </div>

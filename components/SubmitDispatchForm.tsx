@@ -3,16 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { captureLocationEvent } from "@/lib/location";
-import {
-  INSTALL_PAY,
-  SALES_BONUS,
-  SERVICE_PAY,
-  crewSize,
-} from "@/lib/pay-rates";
+import { INSTALL_PAY, SERVICE_PAY, crewSize } from "@/lib/pay-rates";
 import { cn, formatCurrency } from "@/lib/utils";
 import type {
   AdditionalService,
@@ -30,6 +25,10 @@ const SPLITS: { id: CrewSplit; label: string; sub: string }[] = [
 interface Props {
   job: Job;
   dispatchId: string;
+  /** Crew already chosen at job creation (or via earlier "edit crew"
+   *  on this page). Pre-fills the form so the tech doesn't re-pick. */
+  initialCrew: string[];
+  initialSplit: CrewSplit;
   units: UnitServiced[];
   services: AdditionalService[];
   activeTechs: string[];
@@ -39,27 +38,38 @@ interface Props {
 export function SubmitDispatchForm({
   job,
   dispatchId,
+  initialCrew,
+  initialSplit,
   units,
   services,
   activeTechs,
   currentUserName,
 }: Props) {
   const router = useRouter();
-  const { crew, setCrew, hydrated } = useTodaysCrew(
+  // Today's crew is now seeded at job creation; useTodaysCrew is the
+  // localStorage cache that keeps it warm across reloads. If the
+  // tech updates the crew here, we sync both the local cache and the
+  // server-side dispatch row.
+  const { crew, setCrew } = useTodaysCrew(
     job.jobId,
-    currentUserName
+    currentUserName,
+    initialCrew
   );
-  const [crewSplit, setCrewSplit] = useState<CrewSplit>("Solo");
+  const [crewSplit, setCrewSplit] = useState<CrewSplit>(initialSplit);
+  // Crew was already chosen at job creation — show as read-only text
+  // unless the tech taps Edit. Auto-expands to picker mode when the
+  // initial crew is empty (e.g. older jobs created before this change).
+  const [editingCrew, setEditingCrew] = useState(initialCrew.length === 0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-select split based on crew size
+  // Auto-select split based on crew size when editing
   useEffect(() => {
-    if (!hydrated) return;
+    if (!editingCrew) return;
     if (crew.length === 1) setCrewSplit("Solo");
     else if (crew.length === 2) setCrewSplit("50-50");
     else if (crew.length >= 3) setCrewSplit("33-33-33");
-  }, [crew.length, hydrated]);
+  }, [crew.length, editingCrew]);
 
   const cSize = crewSize(crewSplit);
   const totals = useMemo(
@@ -153,7 +163,6 @@ export function SubmitDispatchForm({
           {units.length} unit{units.length === 1 ? "" : "s"} ·{" "}
           {services.length} service{services.length === 1 ? "" : "s"} ·{" "}
           {job.utilityTerritory}
-          {job.selfSold && job.soldBy ? ` · self-sold by ${job.soldBy}` : ""}
         </div>
         {!allPhotosUploaded && units.length > 0 && (
           <div className="mt-3 text-xs text-mse-navy bg-mse-gold/15 border border-mse-gold/30 rounded-lg px-3 py-2">
@@ -164,63 +173,109 @@ export function SubmitDispatchForm({
         )}
       </section>
 
-      <Field label="Crew on site" required>
-        {activeTechs.length === 0 ? (
-          <div className="text-sm text-mse-muted">
-            No active techs in the system. Add some via the Sheet.
-          </div>
-        ) : (
-          <>
-            <div className="text-xs text-mse-muted mb-2">
-              Pick everyone who was on site today.
+      {/* Crew + split — set at job creation. Show as read-only text
+          with an inline Edit affordance unless we're already editing
+          (e.g. older job that didn't capture crew at creation). */}
+      {!editingCrew ? (
+        <section className="rounded-2xl border border-mse-light bg-white p-4 shadow-card">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-mse-muted uppercase tracking-wide font-semibold">
+                Crew on site
+              </div>
+              <div className="font-semibold text-mse-navy mt-0.5">
+                {crew.length === 0 ? "—" : crew.join(", ")}
+              </div>
+              <div className="text-xs text-mse-muted mt-1">
+                Pay split: <span className="font-semibold text-mse-navy">{splitLabel(crewSplit)}</span>
+              </div>
             </div>
-            <CrewPicker
-              multi
-              options={activeTechs}
-              value={crew}
-              onChange={setCrew}
-            />
-          </>
-        )}
-      </Field>
-
-      <Field label="Pay split" required>
-        <div className="grid grid-cols-3 gap-2">
-          {SPLITS.map((s) => {
-            const active = crewSplit === s.id;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setCrewSplit(s.id)}
-                className={cn(
-                  "rounded-2xl p-3 transition-[background-color,border-color,transform]",
-                  "active:scale-95",
-                  active
-                    ? "border-2 border-mse-navy bg-mse-navy text-white"
-                    : "border-2 border-mse-light bg-white text-mse-navy"
-                )}
-              >
-                <div className="font-bold text-sm">{s.label}</div>
-                <div
-                  className={cn(
-                    "text-xs mt-0.5",
-                    active ? "text-white/70" : "text-mse-muted"
-                  )}
-                >
-                  {s.sub}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        {!crewSizeMatches && crew.length > 0 && (
-          <div className="text-xs text-mse-red mt-2">
-            {cSize} tech{cSize === 1 ? "" : "s"} expected for this split, but
-            crew has {crew.length}.
+            <button
+              type="button"
+              onClick={() => setEditingCrew(true)}
+              className="text-xs font-semibold text-mse-navy hover:underline inline-flex items-center gap-1"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
+            </button>
           </div>
-        )}
-      </Field>
+          {!crewSizeMatches && crew.length > 0 && (
+            <div className="text-xs text-mse-red mt-2">
+              {cSize} tech{cSize === 1 ? "" : "s"} expected for this split, but
+              crew has {crew.length}. Tap Edit to fix.
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
+          <Field label="Crew on site" required>
+            {activeTechs.length === 0 ? (
+              <div className="text-sm text-mse-muted">
+                No active techs in the system. Add some via the Sheet.
+              </div>
+            ) : (
+              <>
+                <div className="text-xs text-mse-muted mb-2">
+                  Pick everyone who was on site today.
+                </div>
+                <CrewPicker
+                  multi
+                  options={activeTechs}
+                  value={crew}
+                  onChange={setCrew}
+                />
+              </>
+            )}
+          </Field>
+
+          <Field label="Pay split" required>
+            <div className="grid grid-cols-3 gap-2">
+              {SPLITS.map((s) => {
+                const active = crewSplit === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setCrewSplit(s.id)}
+                    className={cn(
+                      "rounded-2xl p-3 transition-[background-color,border-color,transform]",
+                      "active:scale-95",
+                      active
+                        ? "border-2 border-mse-navy bg-mse-navy text-white"
+                        : "border-2 border-mse-light bg-white text-mse-navy"
+                    )}
+                  >
+                    <div className="font-bold text-sm">{s.label}</div>
+                    <div
+                      className={cn(
+                        "text-xs mt-0.5",
+                        active ? "text-white/70" : "text-mse-muted"
+                      )}
+                    >
+                      {s.sub}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {!crewSizeMatches && crew.length > 0 && (
+              <div className="text-xs text-mse-red mt-2">
+                {cSize} tech{cSize === 1 ? "" : "s"} expected for this split,
+                but crew has {crew.length}.
+              </div>
+            )}
+          </Field>
+          {initialCrew.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setEditingCrew(false)}
+              className="text-xs text-mse-muted hover:text-mse-navy underline-offset-2 hover:underline"
+            >
+              Done editing
+            </button>
+          )}
+        </>
+      )}
 
       <section className="bg-white rounded-2xl border border-mse-light p-4 space-y-3 shadow-card">
         <div className="font-bold text-mse-navy">Pay preview</div>
@@ -321,6 +376,12 @@ interface PayTotal {
   total: number;
 }
 
+function splitLabel(s: CrewSplit): string {
+  if (s === "Solo") return "Solo (1 tech)";
+  if (s === "50-50") return "50 / 50 (2 techs)";
+  return "Three-way (3 techs)";
+}
+
 function computePayPreview(opts: {
   job: Job;
   units: UnitServiced[];
@@ -328,7 +389,7 @@ function computePayPreview(opts: {
   crewSplit: CrewSplit;
   crew: string[];
 }): { lines: PayLine[]; byTech: PayTotal[] } {
-  const { job, units, services, crewSplit, crew } = opts;
+  const { units, services, crewSplit, crew } = opts;
   const lines: PayLine[] = [];
   if (crew.length === 0) return { lines, byTech: [] };
   const cSize = crewSize(crewSplit);
@@ -343,19 +404,8 @@ function computePayPreview(opts: {
         amount: perTech,
       });
     }
-    if (job.selfSold && job.soldBy) {
-      const fullBonus = SALES_BONUS[u.unitType];
-      lines.push({
-        tech: job.soldBy,
-        label: `Sales bonus (paid) · ${u.unitType}`,
-        amount: fullBonus * 0.5,
-      });
-      lines.push({
-        tech: job.soldBy,
-        label: `Sales bonus (pending) · ${u.unitType}`,
-        amount: fullBonus * 0.5,
-      });
-    }
+    // Self-sold sales bonus removed from pay preview 2026-05-05 —
+    // self-sold concept retired in the new-job flow.
   }
 
   for (const s of services) {

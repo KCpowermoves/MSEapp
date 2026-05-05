@@ -413,13 +413,6 @@ export function AddUnitForm({
         </div>
       )}
 
-      {job.selfSold && job.soldBy && (
-        <div className="rounded-xl bg-mse-gold/15 border border-mse-gold/30 px-4 py-3 text-sm text-mse-navy">
-          Self-sold by <span className="font-bold">{job.soldBy}</span> — every
-          unit on this job credits their sales bonus.
-        </div>
-      )}
-
       <Field label="Unit type" required>
         <UnitTypePicker
           value={unitType}

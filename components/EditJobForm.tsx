@@ -3,26 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { CrewPicker } from "@/components/CrewPicker";
 import { cn } from "@/lib/utils";
 import type { Job, UtilityTerritory } from "@/lib/types";
 
 const TERRITORIES: UtilityTerritory[] = ["BGE", "PEPCO", "Delmarva", "SMECO"];
 
-export function EditJobForm({
-  job,
-  activeTechs,
-}: {
-  job: Job;
-  activeTechs: string[];
-}) {
+export function EditJobForm({ job }: { job: Job }) {
   const router = useRouter();
   const [customerName, setCustomerName] = useState(job.customerName);
   const [siteAddress, setSiteAddress] = useState(job.siteAddress);
   const [territory, setTerritory] = useState<UtilityTerritory>(job.utilityTerritory);
   const [status, setStatus] = useState<"Active" | "Closed">(job.status);
-  const [selfSold, setSelfSold] = useState(job.selfSold);
-  const [soldBy, setSoldBy] = useState(job.soldBy ?? "");
   const [notes, setNotes] = useState(job.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,8 +34,6 @@ export function EditJobForm({
           siteAddress: siteAddress.trim(),
           utilityTerritory: territory,
           status,
-          selfSold,
-          soldBy: selfSold ? soldBy : "",
           notes,
         }),
       });
@@ -145,44 +134,6 @@ export function EditJobForm({
           })}
         </div>
       </Field>
-
-      <Field label="Self-sold">
-        <div className="grid grid-cols-2 gap-2">
-          {[true, false].map((v) => {
-            const active = selfSold === v;
-            return (
-              <button
-                key={String(v)}
-                type="button"
-                onClick={() => setSelfSold(v)}
-                className={cn(
-                  "rounded-2xl p-3 transition-[background-color,border-color,transform]",
-                  "active:scale-[0.97]",
-                  active
-                    ? "border-2 border-mse-navy bg-mse-navy text-white"
-                    : "border-2 border-mse-light bg-white text-mse-navy hover:border-mse-navy/40"
-                )}
-              >
-                <div className="font-bold text-sm">{v ? "Yes" : "No"}</div>
-              </button>
-            );
-          })}
-        </div>
-      </Field>
-
-      {selfSold && (
-        <Field label="Sold by" required>
-          {activeTechs.length === 0 ? (
-            <div className="text-sm text-mse-muted">No active techs in the system.</div>
-          ) : (
-            <CrewPicker
-              options={activeTechs}
-              value={soldBy || null}
-              onChange={(v) => setSoldBy(v ?? "")}
-            />
-          )}
-        </Field>
-      )}
 
       <Field label="Notes">
         <textarea

@@ -42,8 +42,7 @@ export function JobsList({ jobs, statsByJob }: Props) {
       if (!q) return true;
       return (
         j.customerName.toLowerCase().includes(q) ||
-        (j.siteAddress ?? "").toLowerCase().includes(q) ||
-        (j.soldBy ?? "").toLowerCase().includes(q)
+        (j.siteAddress ?? "").toLowerCase().includes(q)
       );
     });
   }, [jobs, query, territoryFilter]);
@@ -135,7 +134,7 @@ export function JobsList({ jobs, statsByJob }: Props) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search business, address, or seller…"
+            placeholder="Search business or address…"
             className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
           />
           {query && (

@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getJob, techCanAccessJob } from "@/lib/data/jobs";
-import { listActiveTechNames } from "@/lib/data/techs";
 import { EditJobForm } from "@/components/EditJobForm";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +12,7 @@ export default async function EditJobPage({
 }) {
   const jobId = decodeURIComponent(params.jobId);
   const session = await getSession();
-  const [job, activeTechs] = await Promise.all([
-    getJob(jobId),
-    listActiveTechNames(),
-  ]);
+  const job = await getJob(jobId);
   if (!job) notFound();
 
   const canAccess = await techCanAccessJob({
@@ -26,5 +22,5 @@ export default async function EditJobPage({
   });
   if (!canAccess) notFound();
 
-  return <EditJobForm job={job} activeTechs={activeTechs} />;
+  return <EditJobForm job={job} />;
 }

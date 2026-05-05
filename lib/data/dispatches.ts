@@ -247,6 +247,25 @@ export async function setDispatchSignature(
   await Promise.all(writes);
 }
 
+/** Save the crew + split on a draft dispatch BEFORE final submission.
+ *  Called from /api/jobs when the tech picks crew at job creation,
+ *  and from any future "edit crew" affordance on the submit page.
+ *  Doesn't touch submittedAt — the dispatch stays a draft until the
+ *  full submitDispatch flow runs. */
+export async function setDispatchCrew(
+  dispatchId: string,
+  techsOnSite: string[],
+  crewSplit: CrewSplit
+): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
+  if (!rowIndex) throw new Error("Dispatch row missing");
+  const techsCsv = techsOnSite.join(", ");
+  await Promise.all([
+    updateCell(`${TABS.dispatches}!D${rowIndex}`, techsCsv, "RAW"),
+    updateCell(`${TABS.dispatches}!E${rowIndex}`, crewSplit, "RAW"),
+  ]);
+}
+
 /** Stamp the timestamp when the auto-email actually went out. Used as
  *  a guard so concurrent send paths (PDF render auto-send + feedback
  *  step send) don't double-email the customer. */

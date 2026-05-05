@@ -38,6 +38,8 @@ export default async function SubmitDispatchPage({
     <SubmitDispatchForm
       job={job}
       dispatchId={draft.dispatchId}
+      initialCrew={draft.techsOnSite}
+      initialSplit={draft.crewSplit}
       units={units}
       services={services}
       activeTechs={activeTechs}
