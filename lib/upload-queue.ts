@@ -15,6 +15,10 @@ export interface QueuedPhoto {
   unitId: string | null;
   serviceId: string | null;
   photoSlot: PhotoSlot | "service";
+  /** The photo data. Always set when returned by listAllPhotos / listPending.
+   *  Internally the blob is serialized to ArrayBuffer + mimeType before
+   *  hitting IndexedDB (iOS Safari refuses to structured-clone Blobs into
+   *  object stores) and reconstructed on read. */
   blob: Blob;
   filename: string;
   capturedAt: number;
@@ -72,6 +76,38 @@ export interface DraftJob {
   syncStartedAt?: number;
 }
 
+// === Blob-in-IndexedDB workaround =========================================
+// iOS Safari (and some older WebViews) raise "Error preparing Blob/File data
+// to be stored in object store" when you try to db.put() a record containing
+// a Blob. Workaround: split the Blob into an ArrayBuffer + its mimeType
+// before writing, and reconstruct on read. ArrayBuffer is universally
+// structured-cloneable.
+interface StoredPhotoShape extends Omit<QueuedPhoto, "blob"> {
+  blob?: Blob;          // legacy records may still have this
+  blobBuffer?: ArrayBuffer;
+  blobType?: string;
+}
+
+async function serializeForStorage(
+  payload: QueuedPhoto
+): Promise<StoredPhotoShape> {
+  const buffer = await payload.blob.arrayBuffer();
+  const { blob: _omit, ...rest } = payload;
+  void _omit;
+  return { ...rest, blobBuffer: buffer, blobType: payload.blob.type };
+}
+
+function rehydrate(stored: StoredPhotoShape): QueuedPhoto {
+  // Already in old shape (a real Blob on the record) — return as-is.
+  if (stored.blob && !stored.blobBuffer) {
+    return stored as unknown as QueuedPhoto;
+  }
+  const blob = new Blob([stored.blobBuffer ?? new ArrayBuffer(0)], {
+    type: stored.blobType || "image/jpeg",
+  });
+  return { ...stored, blob } as QueuedPhoto;
+}
+
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function getDb() {
@@ -106,13 +142,20 @@ export async function enqueuePhoto(
   payload: Omit<QueuedPhoto, "attempts" | "status">
 ): Promise<void> {
   const db = await getDb();
-  await db.put(STORE_PHOTOS, { ...payload, attempts: 0, status: "pending" });
+  const full: QueuedPhoto = {
+    ...payload,
+    attempts: 0,
+    status: "pending",
+  };
+  const stored = await serializeForStorage(full);
+  await db.put(STORE_PHOTOS, stored);
 }
 
 /** Every photo in the local store, regardless of status. */
 export async function listAllPhotos(): Promise<QueuedPhoto[]> {
   const db = await getDb();
-  return db.getAll(STORE_PHOTOS);
+  const all = (await db.getAll(STORE_PHOTOS)) as StoredPhotoShape[];
+  return all.map(rehydrate);
 }
 
 /** Photos in pending/uploading/failed states (i.e. anything not yet on Drive). */
