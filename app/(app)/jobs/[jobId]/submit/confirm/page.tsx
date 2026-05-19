@@ -8,12 +8,21 @@ import { CustomerConfirmForm } from "@/components/CustomerConfirmForm";
 
 export const dynamic = "force-dynamic";
 
+// Customer signature step hidden for v1 (Kevin's call 2026-05-05).
+// The form + this page are kept intact and isolated — delete this
+// constant (or set to false) and restore the SubmitDispatchForm
+// redirect to /submit/confirm to bring it back.
+const CUSTOMER_SIGNATURE_HIDDEN = true;
+
 export default async function CustomerConfirmPage({
   params,
 }: {
   params: { jobId: string };
 }) {
   const jobId = decodeURIComponent(params.jobId);
+  if (CUSTOMER_SIGNATURE_HIDDEN) {
+    redirect(`/jobs/${encodeURIComponent(jobId)}`);
+  }
   const session = await getSession();
   const job = await getJob(jobId);
   if (!job) notFound();

@@ -2,7 +2,6 @@
 
 import {
   ArrowLeft,
-  ArrowRight,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -127,31 +126,11 @@ export function JobDetail({
             Submitted today
           </div>
           <p className="text-sm text-mse-text leading-relaxed">
-            This job was already submitted today
-            {submittedToday.hasSignature
-              ? " and the customer signed off."
-              : ". The customer hasn't signed off yet."}{" "}
+            This job was already submitted today.{" "}
             {submittedToday.reportPdfUrl
               ? "The service report is ready."
-              : "The service report will email out once all photos finish uploading."}
+              : "The service report generates once all photos finish uploading."}
           </p>
-          {!submittedToday.hasSignature && (
-            <a
-              href={`/jobs/${encodeURIComponent(
-                job.jobId
-              )}/submit/confirm`}
-              className={cn(
-                "block w-full font-bold rounded-2xl py-3.5 text-center",
-                "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card",
-                "transition-[background-color,transform] focus-visible:outline-none",
-                "focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2"
-              )}
-            >
-              <span className="inline-flex items-center gap-2">
-                Finish customer sign-off <ArrowRight className="w-4 h-4" />
-              </span>
-            </a>
-          )}
           {submittedToday.reportPdfUrl && (
             <a
               href={submittedToday.reportPdfUrl}

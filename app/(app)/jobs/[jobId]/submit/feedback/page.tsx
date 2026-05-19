@@ -7,12 +7,21 @@ import { CustomerFeedbackForm } from "@/components/CustomerFeedbackForm";
 
 export const dynamic = "force-dynamic";
 
+// Customer review/feedback step hidden for v1 (Kevin's call
+// 2026-05-05). Form + page kept intact and isolated — flip this to
+// false and restore the CustomerConfirmForm -> /submit/feedback
+// navigation to bring it back.
+const CUSTOMER_FEEDBACK_HIDDEN = true;
+
 export default async function CustomerFeedbackPage({
   params,
 }: {
   params: { jobId: string };
 }) {
   const jobId = decodeURIComponent(params.jobId);
+  if (CUSTOMER_FEEDBACK_HIDDEN) {
+    redirect(`/jobs/${encodeURIComponent(jobId)}`);
+  }
   const session = await getSession();
   const job = await getJob(jobId);
   if (!job) notFound();

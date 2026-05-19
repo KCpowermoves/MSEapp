@@ -117,21 +117,18 @@ export function SubmitDispatchForm({
       }
 
       // Dispatch is finalized server-side here (submittedAt + pay
-      // attributions). The customer signature, email, and rating are
-      // captured on the next two screens. PDF render is fired from the
-      // server but stays idempotent — final upload may happen during
-      // the customer steps. No matter who wins the race, the PDF only
-      // generates once.
+      // attributions). PDF render is fired server-side and emails out
+      // when all photos land. The customer signature + review steps
+      // are hidden for v1 (Kevin's call 2026-05-05) — we go straight
+      // back to the jobs list. The /submit/confirm + /submit/feedback
+      // routes still exist, just isolated and unreachable from the UI.
 
       captureLocationEvent(
         "dispatch-submit",
         { jobId: job.jobId },
         { force: true }
       ).catch(() => {});
-      // Hand off to the customer confirmation step (signature + email).
-      router.replace(
-        `/jobs/${encodeURIComponent(job.jobId)}/submit/confirm`
-      );
+      router.replace("/jobs?submitted=1");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not submit");
       setSubmitting(false);
@@ -148,14 +145,11 @@ export function SubmitDispatchForm({
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-2xl font-bold text-mse-navy">Submit</h1>
+        <h1 className="text-2xl font-bold text-mse-navy">Submit job</h1>
       </div>
 
       <section className="bg-mse-light/60 rounded-2xl p-4">
-        <div className="text-xs text-mse-muted uppercase tracking-wide font-semibold">
-          Step 1 of 3
-        </div>
-        <div className="font-bold text-mse-navy mt-0.5">{job.customerName}</div>
+        <div className="font-bold text-mse-navy">{job.customerName}</div>
         <div className="text-sm text-mse-muted">{job.siteAddress}</div>
         <div className="text-xs text-mse-muted mt-2">
           {units.length} unit{units.length === 1 ? "" : "s"} ·{" "}
@@ -297,7 +291,7 @@ export function SubmitDispatchForm({
                 Submitting...
               </span>
             ) : (
-              "Submit and hand to customer"
+              "Submit job"
             )}
           </button>
         </div>
