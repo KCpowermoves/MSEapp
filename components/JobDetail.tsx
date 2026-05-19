@@ -2,7 +2,9 @@
 
 import {
   ArrowLeft,
+  ArrowRight,
   ExternalLink,
+  FileText,
   FolderOpen,
   Pencil,
   Wrench,
@@ -19,10 +21,17 @@ import type {
 
 type UnitWithStatus = UnitServiced & { submitted: boolean };
 
+interface SubmittedToday {
+  dispatchId: string;
+  hasSignature: boolean;
+  reportPdfUrl: string;
+}
+
 interface Props {
   job: Job;
   todaysDispatchId: string | null;
   todaysUnits: UnitWithStatus[];
+  submittedToday: SubmittedToday | null;
   activeTechs: string[];
   currentUserName: string;
   isAdmin: boolean;
@@ -31,6 +40,7 @@ interface Props {
 export function JobDetail({
   job,
   todaysUnits,
+  submittedToday,
   currentUserName,
   isAdmin,
 }: Props) {
@@ -38,6 +48,7 @@ export function JobDetail({
   // Only count un-submitted units toward the Submit button — already-
   // submitted units shouldn't re-enable the submit dispatch flow.
   const pendingUnits = todaysUnits.filter((u) => !u.submitted);
+  const hasUnits = todaysUnits.length > 0;
   const canSubmit = pendingUnits.length > 0;
 
   return (
@@ -98,22 +109,74 @@ export function JobDetail({
         ))}
       </UnitsSection>
 
-      <a
-        href={`/jobs/${encodeURIComponent(job.jobId)}/submit`}
-        aria-disabled={!canSubmit}
-        onClick={(e) => {
-          if (!canSubmit) e.preventDefault();
-        }}
-        className={cn(
-          "block w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
-          canSubmit
-            ? "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card"
-            : "bg-mse-light text-mse-muted cursor-not-allowed"
-        )}
-      >
-        Submit job
-      </a>
+      {canSubmit ? (
+        <a
+          href={`/jobs/${encodeURIComponent(job.jobId)}/submit`}
+          className={cn(
+            "block w-full font-bold rounded-2xl py-4 text-center transition-[background-color,transform]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
+            "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card"
+          )}
+        >
+          Submit job
+        </a>
+      ) : submittedToday ? (
+        <section className="rounded-2xl border-2 border-mse-gold/40 bg-mse-gold/5 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-mse-navy font-bold">
+            <CheckCircle2 className="w-5 h-5 text-mse-gold shrink-0" />
+            Submitted today
+          </div>
+          <p className="text-sm text-mse-text leading-relaxed">
+            This job was already submitted today
+            {submittedToday.hasSignature
+              ? " and the customer signed off."
+              : ". The customer hasn't signed off yet."}{" "}
+            {submittedToday.reportPdfUrl
+              ? "The service report is ready."
+              : "The service report will email out once all photos finish uploading."}
+          </p>
+          {!submittedToday.hasSignature && (
+            <a
+              href={`/jobs/${encodeURIComponent(
+                job.jobId
+              )}/submit/confirm`}
+              className={cn(
+                "block w-full font-bold rounded-2xl py-3.5 text-center",
+                "bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] text-white shadow-card",
+                "transition-[background-color,transform] focus-visible:outline-none",
+                "focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2"
+              )}
+            >
+              <span className="inline-flex items-center gap-2">
+                Finish customer sign-off <ArrowRight className="w-4 h-4" />
+              </span>
+            </a>
+          )}
+          {submittedToday.reportPdfUrl && (
+            <a
+              href={submittedToday.reportPdfUrl}
+              target="_blank"
+              rel="noopener"
+              className="flex items-center justify-center gap-1.5 text-sm font-semibold text-mse-navy hover:underline"
+            >
+              <FileText className="w-4 h-4" />
+              View service report
+            </a>
+          )}
+          <p className="text-xs text-mse-muted">
+            Did more work? Tap <span className="font-semibold">Add unit</span>{" "}
+            above — it starts a fresh submission for the extra units.
+          </p>
+        </section>
+      ) : (
+        <section className="rounded-2xl border-2 border-dashed border-mse-light p-5 text-center">
+          <p className="text-sm text-mse-muted">
+            {hasUnits
+              ? "Nothing left to submit on this job right now."
+              : "Add at least one unit, then you can submit the job."}
+          </p>
+        </section>
+      )}
     </div>
   );
 }

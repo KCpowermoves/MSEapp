@@ -57,11 +57,30 @@ export default async function JobDetailPage({
       return b.unitNumberOnJob - a.unitNumberOnJob;
     });
 
+  // The dispatch that was submitted TODAY (if any) — used to drive a
+  // clear post-submit state on the job detail screen instead of a dead
+  // greyed-out button. Lets the tech see "already submitted" and finish
+  // the customer sign-off if they bailed out mid-flow.
+  const today = todayIsoDate();
+  const submittedTodayRow =
+    dispatches
+      .filter((d) => d.jobId === jobId && d.dispatchDate === today && d.submittedAt)
+      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""))[0] ??
+    null;
+  const submittedToday = submittedTodayRow
+    ? {
+        dispatchId: submittedTodayRow.dispatchId,
+        hasSignature: Boolean(submittedTodayRow.signatureUrl),
+        reportPdfUrl: submittedTodayRow.reportPdfUrl,
+      }
+    : null;
+
   return (
     <JobDetail
       job={job}
       todaysDispatchId={draft?.dispatchId ?? null}
       todaysUnits={unitsWithStatus}
+      submittedToday={submittedToday}
       activeTechs={activeTechs}
       currentUserName={session.name ?? ""}
       isAdmin={isAdmin}
