@@ -144,9 +144,9 @@ async function capture() {
     kind: "shot",
     title: "1. Sign in",
     body: [
-      "Open the app and tap your 4-digit PIN. The pad submits automatically once you enter the fourth digit — no Enter button.",
-      "Sessions last 30 days. You can sign out anytime via the icon in the top-right of every screen.",
-      "If you get the wrong PIN, the dots shake. Hit the backspace icon to clear and try again.",
+      "Open the app and tap your 4-digit PIN. The pad submits automatically once you enter the fourth digit. There is no Enter button to press.",
+      "Sessions last 30 days. You can sign out anytime by tapping the exit icon in the top-right corner of any screen.",
+      "If you tap the wrong PIN, the dots shake. Hit the backspace icon to clear and try again.",
     ],
     file: await shot(page, 1, "login"),
   });
@@ -169,9 +169,9 @@ async function capture() {
     kind: "shot",
     title: "2. Jobs home",
     body: [
-      "Your daily home screen. Every job you're on from the last 7 days appears here.",
-      "Tap a job tile to open it, the red New job button to start a new one, or pull down to refresh.",
-      "Admins also see a dashboard icon (the 4-square grid) in the top-right.",
+      "Your daily home screen. Every job you have worked on in the last 7 days appears here.",
+      "Tap a job tile to open it, or tap the red New job button to start a new one.",
+      "If a job you expected is not showing up yet, pull down on the list to refresh.",
     ],
     file: await shot(page, 2, "jobs-home"),
   });
@@ -183,11 +183,11 @@ async function capture() {
   await sleep(400);
   sections.push({
     kind: "shot",
-    title: "3. New job — blank form",
+    title: "3. New job, blank form",
     body: [
       "Three things to fill in: business name, utility territory, and crew on site.",
-      "Business name is the property or company (e.g. \"Towson Office Plaza\") — not the contact person you're talking to.",
-      "Crew defaults to just you, the logged-in tech. Tap additional teammates if anyone else is on site.",
+      "Business name is the property or company (for example, \"Towson Office Plaza\"), not the contact person you are talking to.",
+      "Crew on site defaults to just you, the logged-in tech. Tap additional teammates if anyone else is on site with you today.",
     ],
     file: await shot(page, 3, "new-job-blank"),
   });
@@ -199,10 +199,10 @@ async function capture() {
   await sleep(300);
   sections.push({
     kind: "shot",
-    title: "4. New job — filled in",
+    title: "4. New job, filled in",
     body: [
-      "What it looks like once everything's picked. Selected utility lights up navy; selected crew names get a checkmark.",
-      "Tap Create job at the bottom — the app drops you into the new job's detail screen ready for the first unit.",
+      "Here is what the form looks like once everything is picked. The selected utility lights up navy. Selected crew names show a checkmark next to them.",
+      "Tap Create job at the bottom. The app drops you into the new job's detail screen, ready for the first unit.",
     ],
     file: await shot(page, 4, "new-job-filled"),
   });
@@ -218,9 +218,9 @@ async function capture() {
     kind: "shot",
     title: "5. Job detail",
     body: [
-      "Inside a job. Tap Add unit for each HVAC unit you serviced — units stack up below as you add them.",
-      "The Submit job button stays disabled until at least one unit is logged. Once you've added units, it lights up red.",
-      "Use the back arrow (top-left) to return to the jobs list. The pencil icon edits the job's name or territory.",
+      "Inside a job. Tap Add unit for each HVAC unit you serviced. Units stack up below as you add them.",
+      "The Submit job button stays disabled until at least one unit is logged. Once you have added units, it lights up red.",
+      "Use the back arrow in the top-left to return to the jobs list. The pencil icon edits the job's name or territory.",
     ],
     file: await shot(page, 5, "job-detail-empty"),
   });
@@ -230,11 +230,11 @@ async function capture() {
   await sleep(600);
   sections.push({
     kind: "shot",
-    title: "6. Add unit — pick a type",
+    title: "6. Add unit, pick a type",
     body: [
-      "First choose what kind of unit you're servicing. Each type has its own photo checklist:",
-      "PTAC / Ductless — 3 photos (pre, post, nameplate). Split System — 11 photos (outdoor 3 sides + air handler).",
-      "RTU-Small / Medium / Large — 7 photos each (coil 1 + 2 before/after, filter before/after, nameplate).",
+      "First choose what kind of unit you are servicing. Each type has its own photo checklist:",
+      "PTAC / Ductless takes 3 photos (pre, post, nameplate). Split System takes 11 photos (outdoor unit from 3 sides plus the air handler).",
+      "RTU Small, Medium, and Large each take 7 photos (coil 1 and coil 2 before and after, filter before and after, plus the nameplate).",
     ],
     file: await shot(page, 6, "add-unit-type-picker"),
   });
@@ -249,25 +249,26 @@ async function capture() {
   await sleep(800);
   sections.push({
     kind: "shot",
-    title: "7. Add unit — PTAC checklist",
+    title: "7. Add unit, PTAC checklist",
     body: [
-      "Snap the nameplate FIRST. The AI auto-fills make / model / serial from the photo within a few seconds (more on the next page).",
+      "Snap the nameplate FIRST. The AI fills in make, model, and serial from the photo within a few seconds (more on the next page).",
       "Then capture pre-service, post-service, and (optional) filter shots. Each red asterisk is a required photo before you can save.",
-      "Add a few extra photos for things worth flagging — gauges, problem areas, parts you swapped. Save unit when the checklist's full.",
+      "Add a few extra photos for anything worth flagging like gauges, problem areas, or parts you swapped. Tap Save unit when the checklist is full.",
     ],
     file: await shot(page, 7, "add-unit-ptac"),
   });
 
-  // 8. AI nameplate callout (text-only)
+  // 8. AI nameplate callout (text + visual mini-banners drawn in PDF)
   sections.push({
-    kind: "callout",
+    kind: "ocr-callout",
     title: "8. AI nameplate reading",
-    body: [
-      "When you snap a nameplate photo, the app sends it to Claude AI to read the text. Within 3–5 seconds, make / model / serial appear in the fields below — no typing needed.",
-      "A small banner above the fields tells you what happened: a gold sparkle means high confidence (the AI is sure); a red flag means medium confidence (glance over it and fix anything wrong); a muted note means the photo was too blurry — retake or type manually.",
-      "If you retake the nameplate later, it re-reads automatically. The AI only overwrites fields you haven't already edited by hand — anything you typed yourself stays safe.",
-      "Cost-wise this runs about half a cent per nameplate, paid through MSE's Anthropic account. No tech action needed.",
-      "It also works fully offline — the photo queues up like any other and the OCR fires once you're back online.",
+    intro: [
+      "Snap a photo of the nameplate and Claude AI reads the make, model, and serial straight off the label. Within about 5 seconds, the fields below the photo fill in by themselves. No typing needed.",
+      "A small banner above the fields tells you how the read went. You will see one of these three:",
+    ],
+    outro: [
+      "If you retake the nameplate later, the AI reads it again. Anything you have already corrected by hand stays as you typed it. The AI never overwrites your edits.",
+      "This works offline too. The photo waits in the queue and the AI fills in the fields as soon as you are back on a signal.",
     ],
   });
 
@@ -296,10 +297,10 @@ async function capture() {
     kind: "shot",
     title: "9. Submitting a job",
     body: [
-      "When you're done capturing units, tap Submit job on the job detail screen — it brings you here.",
+      "When you are done capturing units, tap Submit job on the job detail screen. It brings you here.",
       "Crew on site is pre-filled from what you picked at job creation. Tap Edit if anyone left mid-day or extra hands joined.",
-      "Tap the red Submit job button at the bottom. The app finalizes the job server-side and drops you back at the jobs list with a green \"submitted\" confirmation.",
-      "Photos that haven't finished uploading yet keep uploading in the background — submission isn't blocked on a perfect upload queue.",
+      "Tap the red Submit job button at the bottom. The app finalizes the job and drops you back at the jobs list with a confirmation message.",
+      "Photos that have not finished uploading yet keep uploading in the background. Submission is not blocked on a perfect upload queue.",
     ],
     file: await shot(page, 9, "submit-page"),
   });
@@ -311,9 +312,9 @@ async function capture() {
     kind: "shot",
     title: "10. Job submitted",
     body: [
-      "What you see right after you submit. The green banner across the top confirms the dispatch was logged.",
-      "The toast fades after a few seconds. The job itself drops off the active list once everything's wrapped — usually the same day.",
-      "An automated PDF service report is built in the background and saved to the customer's Drive folder once all photos finish uploading. Admins can resend that report from the dashboard.",
+      "What you see right after you submit. The gold banner at the top confirms the dispatch was logged.",
+      "The banner fades after a few seconds. The job itself drops off the active list once everything is wrapped, usually the same day.",
+      "An automated service report is built in the background and saved to the customer's Drive folder once all photos finish uploading.",
     ],
     file: await shot(page, 10, "submitted-toast"),
   });
@@ -321,28 +322,14 @@ async function capture() {
   // 11. Pending uploads callout
   sections.push({
     kind: "callout",
-    title: "11. Photos uploading & retries",
+    title: "11. Photos uploading and stuck retries",
     body: [
-      "Right after you capture a photo it goes into a local queue that uploads in the background. You'll see a small \"X pending\" pill next to your name in the header — that's the upload counter.",
-      "Tap the pill to open the queue inspector. It shows every photo that's still in flight, plus any draft jobs / units waiting to sync because the tech was offline when they were created.",
-      "If a photo's been stuck more than a minute, the worker auto-retries it. After 12 failed tries it surfaces a red error chip; tap the circular arrow next to it to force another attempt, or tap \"Retry everything\" at the top of the inspector to reset every stuck item at once.",
-      "Photos stay safe on the phone even after they upload — they're kept locally as a 14-day backup. Tap the floppy-disk icon to pin a specific photo for indefinite local retention.",
-      "Going offline mid-job is fine. The app keeps capturing into the queue and will drain it the next time you're back on cell or WiFi. Job submission also works offline — the dispatch will sync when connectivity returns.",
+      "Right after you capture a photo, it goes into a local queue that uploads in the background. You will see a small \"X pending\" pill next to your name in the header. That is the upload counter.",
+      "Tap the pill to open the queue inspector. It shows every photo that is still in flight, plus any draft jobs or units waiting to sync because you were offline when you created them.",
+      "If a photo has been stuck for more than a minute, the app auto-retries it. After 12 failed tries it shows a red error. Tap the circular arrow next to that photo to force another attempt, or tap \"Retry everything\" at the top of the inspector to reset every stuck item at once.",
+      "Photos stay safe on the phone even after they upload. They are kept locally as a 14-day backup. Tap the floppy-disk icon to pin a specific photo so it never auto-deletes.",
+      "Going offline mid-job is fine. The app keeps capturing into the queue and drains it the next time you are back on cell or WiFi. Job submission also works offline. The dispatch will sync once you are connected again.",
     ],
-  });
-
-  // 12. Admin dashboard
-  await page.goto(`${BASE}/admin`, { waitUntil: "networkidle2" });
-  await sleep(800);
-  sections.push({
-    kind: "shot",
-    title: "12. Admin dashboard",
-    body: [
-      "Admins only. Per-tech rollup of the last 7 days at the top — pay, units, last seen location.",
-      "Photo audit lists any unit whose photos are still missing — tap Edit to fix it before the customer report goes out.",
-      "Recent submissions shows the last 10 dispatches with their PDF status. Re-render builds a fresh PDF (use this if you fixed photos after the fact). Send report emails the PDF to a customer — bring up the email field and tap Send.",
-    ],
-    file: await shot(page, 12, "admin-dashboard"),
   });
 
   await browser.close();
@@ -369,45 +356,50 @@ async function buildPdf(sections) {
   // ── Cover page ──
   const logoPath = path.join(projectRoot, "public", "logo.png");
   if (fs.existsSync(logoPath)) {
-    doc.image(fs.readFileSync(logoPath), PAGE_W / 2 - 48, 140, {
-      width: 96,
-      height: 96,
+    doc.image(fs.readFileSync(logoPath), PAGE_W / 2 - 56, 120, {
+      width: 112,
+      height: 112,
     });
   }
   doc
     .fillColor(NAVY)
     .font("Helvetica-Bold")
-    .fontSize(34)
-    .text("MSE Field", 0, 270, { align: "center" });
+    .fontSize(30)
+    .text("Maryland Smart Energy", 0, 270, { align: "center" });
   doc
-    .fillColor(MUTED)
-    .font("Helvetica")
-    .fontSize(16)
-    .text("Technician walkthrough", 0, 315, { align: "center" });
+    .fillColor(NAVY)
+    .font("Helvetica-Bold")
+    .fontSize(30)
+    .text("field app", 0, 306, { align: "center" });
   doc
-    .moveTo(PAGE_W / 2 - 60, 355)
-    .lineTo(PAGE_W / 2 + 60, 355)
+    .moveTo(PAGE_W / 2 - 60, 358)
+    .lineTo(PAGE_W / 2 + 60, 358)
     .strokeColor(GOLD)
     .lineWidth(2)
     .stroke();
   doc
+    .fillColor(NAVY)
+    .font("Helvetica")
+    .fontSize(18)
+    .text("Training Manual", 0, 372, { align: "center" });
+  doc
     .fillColor(MUTED)
     .fontSize(12)
     .text(
-      "Every screen in the field app, in order. How to sign in, " +
-        "log a unit, submit a job, handle stuck uploads, and what " +
-        "admins see. A few text-only callouts cover things that only " +
-        "make sense in motion (the AI nameplate reader, the upload " +
-        "queue).",
-      90,
-      385,
-      { width: PAGE_W - 180, align: "center", lineGap: 3 }
+      "This manual walks you through the field app screen by screen. " +
+        "Read it before your first job, and keep it handy whenever you " +
+        "are not sure what a button does. Each section shows a real " +
+        "screen from the app and explains what to tap, where things go, " +
+        "and what to do when something does not work the way you expect.",
+      80,
+      420,
+      { width: PAGE_W - 160, align: "center", lineGap: 4 }
     );
   doc
     .fillColor(MUTED)
     .fontSize(10)
     .text(
-      `Generated ${new Date().toLocaleDateString("en-US", {
+      `Last updated ${new Date().toLocaleDateString("en-US", {
         dateStyle: "long",
       })}`,
       0,
@@ -417,7 +409,7 @@ async function buildPdf(sections) {
   doc
     .fillColor(MUTED)
     .fontSize(9)
-    .text("Maryland Smart Energy — internal use", 0, PAGE_H - 72, {
+    .text("Maryland Smart Energy internal use", 0, PAGE_H - 72, {
       align: "center",
     });
 
@@ -425,6 +417,7 @@ async function buildPdf(sections) {
   for (const s of sections) {
     doc.addPage();
     if (s.kind === "shot") renderShotPage(doc, s);
+    else if (s.kind === "ocr-callout") renderOcrCalloutPage(doc, s);
     else renderCalloutPage(doc, s);
   }
 
@@ -478,7 +471,7 @@ function renderFooter(doc) {
     .fillColor(MUTED)
     .font("Helvetica")
     .fontSize(9)
-    .text("MSE Field walkthrough", MARGIN, PAGE_H - 36, {
+    .text("Field app training manual", MARGIN, PAGE_H - 36, {
       width: CONTENT_W,
       align: "center",
       lineBreak: false,
@@ -522,20 +515,153 @@ function renderShotPage(doc, section) {
   renderFooter(doc);
 }
 
+// ── Mini-banner reproductions for the OCR callout ───────────────────
+
+// Sparkle icon: 4-pointed star drawn with two thin diamonds.
+function drawSparkleIcon(doc, cx, cy, size, color) {
+  doc.save();
+  doc.fillColor(color);
+  const h = size / 2;
+  // Vertical diamond
+  doc
+    .moveTo(cx, cy - h)
+    .lineTo(cx + h * 0.32, cy)
+    .lineTo(cx, cy + h)
+    .lineTo(cx - h * 0.32, cy)
+    .closePath()
+    .fill();
+  // Horizontal diamond (slightly narrower)
+  doc
+    .moveTo(cx - h, cy)
+    .lineTo(cx, cy + h * 0.28)
+    .lineTo(cx + h, cy)
+    .lineTo(cx, cy - h * 0.28)
+    .closePath()
+    .fill();
+  doc.restore();
+}
+
+// Alert triangle icon with a tiny bang inside.
+function drawTriangleIcon(doc, cx, cy, size, color) {
+  doc.save();
+  doc.fillColor(color);
+  const h = size / 2;
+  doc
+    .moveTo(cx, cy - h)
+    .lineTo(cx + h * 0.95, cy + h * 0.72)
+    .lineTo(cx - h * 0.95, cy + h * 0.72)
+    .closePath()
+    .fill();
+  // Bang stroke + dot in white
+  doc.fillColor("#FFFFFF");
+  doc.rect(cx - 0.6, cy - h * 0.18, 1.2, h * 0.55).fill();
+  doc.circle(cx, cy + h * 0.5, 0.9).fill();
+  doc.restore();
+}
+
+function drawMiniBanner(doc, x, y, width, opts) {
+  const { bg, border, iconColor, iconType, headline, body, textColor } = opts;
+  const padX = 14;
+  const padY = 12;
+  const iconBox = 16;
+  const gap = 10;
+  const textX = x + padX + iconBox + gap;
+  const textW = width - padX - iconBox - gap - padX;
+
+  // Measure body so the banner sizes itself nicely.
+  doc.font("Helvetica").fontSize(10);
+  const headlineW = doc.widthOfString(headline + " ");
+  const bodyHeight = doc.heightOfString(headline + " " + body, {
+    width: textW,
+    lineGap: 2,
+  });
+  const h = Math.max(40, bodyHeight + padY * 2);
+
+  // Background + border
+  doc.save();
+  doc.roundedRect(x, y, width, h, 8).fillColor(bg).fill();
+  doc.roundedRect(x, y, width, h, 8).strokeColor(border).lineWidth(1).stroke();
+  doc.restore();
+
+  // Icon
+  const iconCx = x + padX + iconBox / 2;
+  const iconCy = y + padY + iconBox / 2;
+  if (iconType === "sparkle") {
+    drawSparkleIcon(doc, iconCx, iconCy, iconBox, iconColor);
+  } else {
+    drawTriangleIcon(doc, iconCx, iconCy, iconBox, iconColor);
+  }
+
+  // Text: bold headline + normal body, on one wrapped block
+  doc.fillColor(textColor).font("Helvetica-Bold").fontSize(10);
+  doc.text(headline, textX, y + padY, {
+    width: textW,
+    lineGap: 2,
+    continued: true,
+  });
+  doc.font("Helvetica").text(" " + body, { width: textW, lineGap: 2 });
+
+  return h;
+}
+
+function renderOcrCalloutPage(doc, section) {
+  const afterTitle = renderTitle(doc, section.title);
+  const afterIntro = renderBody(doc, section.intro, afterTitle);
+
+  // Three mini-banner reproductions, stacked.
+  let y = afterIntro + 8;
+  const w = CONTENT_W;
+  y += drawMiniBanner(doc, MARGIN, y, w, {
+    bg: "#FFF8E5",
+    border: "#F0D27B",
+    iconColor: GOLD,
+    iconType: "sparkle",
+    textColor: NAVY,
+    headline: "Auto-filled from photo.",
+    body: "Edit anything below if it is off. (High confidence read.)",
+  }) + 10;
+  y += drawMiniBanner(doc, MARGIN, y, w, {
+    bg: "#FEF2F2",
+    border: "#FECACA",
+    iconColor: "#B91C1C",
+    iconType: "triangle",
+    textColor: "#B91C1C",
+    headline: "Auto-filled, please review for accuracy.",
+    body: "Some characters may be hard to read in the photo. (Medium confidence read.)",
+  }) + 10;
+  y += drawMiniBanner(doc, MARGIN, y, w, {
+    bg: "#F3F4F6",
+    border: LIGHT,
+    iconColor: MUTED,
+    iconType: "triangle",
+    textColor: MUTED,
+    headline: "Could not read the nameplate clearly.",
+    body: "Please type the info below. (Photo was blurry or angled.)",
+  }) + 16;
+
+  // Closing text after the banners.
+  renderBody(doc, section.outro, y);
+  renderFooter(doc);
+}
+
 function renderCalloutPage(doc, section) {
   const afterTitle = renderTitle(doc, section.title);
   const afterBody = renderBody(doc, section.body, afterTitle + 4);
 
-  // Decorative gold box at the bottom emphasizing "no screenshot,
-  // happens live" — fills the visual gap a screenshot would.
+  // Closing tip box for callouts that benefit from one.
+  const tip = tipForSection(section.title);
+  if (!tip) {
+    renderFooter(doc);
+    return;
+  }
   const boxTop = Math.min(afterBody + 16, PAGE_H - 200);
-  const boxH = Math.min(180, PAGE_H - 60 - boxTop);
+  const boxH = Math.min(160, PAGE_H - 60 - boxTop);
   doc
-    .rect(MARGIN, boxTop, CONTENT_W, boxH)
+    .roundedRect(MARGIN, boxTop, CONTENT_W, boxH, 10)
     .fillColor("#FFF8E5")
     .fill();
   doc
-    .rect(MARGIN, boxTop, CONTENT_W, boxH)
+    .roundedRect(MARGIN, boxTop, CONTENT_W, boxH, 10)
     .strokeColor(GOLD)
     .lineWidth(1)
     .stroke();
@@ -548,7 +674,7 @@ function renderCalloutPage(doc, section) {
     .fillColor(NAVY)
     .font("Helvetica")
     .fontSize(11)
-    .text(tipForSection(section.title), MARGIN + 18, boxTop + 42, {
+    .text(tip, MARGIN + 18, boxTop + 42, {
       width: CONTENT_W - 36,
       lineGap: 3,
     });
@@ -557,19 +683,11 @@ function renderCalloutPage(doc, section) {
 }
 
 function tipForSection(title) {
-  if (title.includes("AI nameplate")) {
-    return (
-      "Get the nameplate centered, well-lit, and in focus. The AI " +
-      "handles glare and angled shots well but still works best on a " +
-      "head-on shot with the full label in frame. If the photo's " +
-      "blurry, retake — the OCR will re-fire automatically."
-    );
-  }
   if (title.includes("uploading")) {
     return (
-      "Don't sweat the upload counter. Photos are safe on the phone " +
-      "even before they reach the cloud — losing service won't lose " +
-      "your work. Just keep capturing; the queue drains itself."
+      "Do not stress about the upload counter. Photos are safe on the " +
+      "phone even before they reach the cloud. Losing service does not " +
+      "lose your work. Just keep capturing. The queue drains itself."
     );
   }
   return "";
