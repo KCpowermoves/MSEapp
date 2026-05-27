@@ -80,12 +80,12 @@ export function UnitTypePicker({
 }) {
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
+      {/* PTAC takes the whole row so the picker reads top-down as a
+          tidy stack: 1 / 2 / 3 tiles per row. */}
+      <div className="grid grid-cols-1">
         {SIMPLE.map((t) => (
           <TypeBtn key={t.id} t={t} active={value === t.id} onChange={onChange} />
         ))}
-        {/* Pad the simple row so a single tile doesn't stretch full width */}
-        {SIMPLE.length === 1 && <div />}
       </div>
       <div className="grid grid-cols-2 gap-2">
         {SPLIT.map((t) => (
