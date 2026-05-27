@@ -655,6 +655,19 @@ const COMPRESSION_OPTS = {
   fileType: "image/jpeg" as const,
 };
 
+// Read a blob into a base64 data URL. Used for the thumbnail src
+// instead of URL.createObjectURL because some iOS Safari builds revoke
+// blob URLs early enough that <img> never paints, leaving the tech
+// staring at an empty grey square. Data URLs always render.
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function AdditionalPhotosPicker({
   photos,
   onAdd,
@@ -670,35 +683,55 @@ function AdditionalPhotosPicker({
 
   const handleFiles = async (files: FileList) => {
     if (!files.length) return;
+    console.log(`[additional] handleFiles got ${files.length} file(s)`);
     setBusy(true);
     setError(null);
     const results: CapturedPhoto[] = [];
     for (const file of Array.from(files)) {
-      // Defensive: HEIC (newer iPhones) or unusual codecs occasionally
-      // make browser-image-compression throw or return an unviewable
-      // blob. Fall back to the original file so the tech still sees a
-      // preview and the photo still uploads.
-      let blob: Blob = file;
       try {
-        const compressed = await imageCompression(file, COMPRESSION_OPTS);
-        if (compressed && compressed.size > 0) {
-          blob = compressed;
-        } else {
-          console.warn("[additional] compression returned empty blob, using original");
+        // Defensive compression. HEIC (newer iPhones) or unusual
+        // codecs occasionally make browser-image-compression throw
+        // or return an unviewable blob. Fall back to the original
+        // file so the upload still happens.
+        let blob: Blob = file;
+        try {
+          const compressed = await imageCompression(file, COMPRESSION_OPTS);
+          if (compressed && compressed.size > 0) {
+            blob = compressed;
+          } else {
+            console.warn("[additional] compression returned empty blob, using original");
+          }
+        } catch (e) {
+          console.warn("[additional] compression failed, using original:", e);
         }
+        // Generate the thumbnail src via FileReader instead of
+        // createObjectURL — data URLs are bulletproof in <img>.
+        const thumbnailUrl = await blobToDataUrl(blob);
+        results.push({
+          blob,
+          thumbnailUrl,
+          capturedAt: Date.now(),
+          filename: `photo_${Date.now()}_${Math.random()
+            .toString(36)
+            .slice(2)}.jpg`,
+        });
+        console.log(
+          `[additional] processed ${file.name}: thumb len=${thumbnailUrl.length}, blob size=${blob.size}`
+        );
       } catch (e) {
-        console.warn("[additional] compression failed, using original:", e);
+        // One bad file shouldn't take down the whole batch.
+        console.error(
+          `[additional] failed to process ${file?.name ?? "<unknown>"}:`,
+          e
+        );
       }
-      results.push({
-        blob,
-        thumbnailUrl: URL.createObjectURL(blob),
-        capturedAt: Date.now(),
-        filename: `photo_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,
-      });
     }
     if (results.length === 0) {
-      setError("Could not load any photos. Try again or pick from your library.");
+      setError(
+        "Couldn't load those photos. Try again, pick smaller files, or use the camera one at a time."
+      );
     } else {
+      console.log(`[additional] onAdd ${results.length} photo(s)`);
       onAdd(results);
     }
     setBusy(false);
@@ -732,32 +765,30 @@ function AdditionalPhotosPicker({
           {photos.map((p) => (
             <div
               key={`${p.capturedAt}-${p.filename}`}
-              className="relative rounded-xl overflow-hidden aspect-square bg-mse-light"
+              className="relative rounded-xl overflow-hidden aspect-square border-2 border-mse-gold bg-mse-light"
             >
+              {/* Default state: a "Captured" pill behind the image so
+                  if the <img> never paints (rare on iOS) the tech still
+                  sees that the photo was captured. The image, when it
+                  loads, sits on top and covers this. */}
+              <div className="absolute inset-0 flex items-center justify-center text-mse-navy text-[11px] font-bold uppercase tracking-wide">
+                Captured
+              </div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.thumbnailUrl}
                 alt=""
-                className="w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-cover"
                 onError={(e) => {
-                  // If the blob URL goes bad on iOS (rare), show a
-                  // visible placeholder rather than a broken image.
-                  const img = e.currentTarget as HTMLImageElement;
-                  img.style.display = "none";
-                  const parent = img.parentElement;
-                  if (parent && !parent.querySelector(".thumb-fallback")) {
-                    const div = document.createElement("div");
-                    div.className =
-                      "thumb-fallback absolute inset-0 flex items-center justify-center text-mse-muted text-[10px] font-semibold";
-                    div.textContent = "Photo saved";
-                    parent.appendChild(div);
-                  }
+                  // Hide the broken-image icon; the "Captured" pill
+                  // underneath stays visible.
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}
               />
               <button
                 type="button"
                 onClick={() => onRemove(photos.indexOf(p))}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center z-10"
                 aria-label="Remove photo"
               >
                 <X className="w-3 h-3 text-white" />
