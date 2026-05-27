@@ -48,6 +48,12 @@ export interface Tech {
   /** Whether this tech can access the /admin dashboard. Set in column F
    *  of the Techs tab — TRUE/false. Defaults to false. */
   isAdmin: boolean;
+  /** Whether this tech appears in the crew picker on new-job / submit.
+   *  Set in column G of the Techs tab. Defaults to TRUE when the cell
+   *  is empty so existing techs keep showing up. Office admins who
+   *  don't go on jobs get FALSE so they stay able to log in but drop
+   *  out of the on-site crew list. */
+  crewEligible: boolean;
 }
 
 export interface Job {

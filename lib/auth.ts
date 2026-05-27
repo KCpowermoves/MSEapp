@@ -47,6 +47,9 @@ export async function loadActiveTechs(): Promise<Tech[]> {
       active: String(r[3] ?? "").toUpperCase() === "TRUE",
       phone: String(r[4] ?? ""),
       isAdmin: String(r[5] ?? "").toUpperCase() === "TRUE",
+      // Empty cell defaults to TRUE — only an explicit "FALSE" hides
+      // the tech from the crew picker. Keeps existing rows working.
+      crewEligible: String(r[6] ?? "").toUpperCase() !== "FALSE",
     }))
     .filter((t) => t.active);
 }
@@ -62,6 +65,9 @@ export async function loadAllTechs(): Promise<Tech[]> {
       active: String(r[3] ?? "").toUpperCase() === "TRUE",
       phone: String(r[4] ?? ""),
       isAdmin: String(r[5] ?? "").toUpperCase() === "TRUE",
+      // Empty cell defaults to TRUE — only an explicit "FALSE" hides
+      // the tech from the crew picker. Keeps existing rows working.
+      crewEligible: String(r[6] ?? "").toUpperCase() !== "FALSE",
     }));
 }
 
