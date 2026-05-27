@@ -86,11 +86,11 @@ export default async function JobsHomePage({
         </Link>
       </div>
 
-      {/* Today's earnings card hidden 2026-05-05 per Kevin — pay UI
-          surfaces are paused for now. Logic above (todaysPay,
-          installRowCount, distinctDispatchIds) preserved so the card
-          can come back without a refetch rewrite. */}
-      {false && todaysPay.total > 0 && (
+      {/* Today's earnings card. Hidden 2026-05-05 and re-enabled
+          2026-05-27 per Kevin. Shows accumulated install + service
+          pay for the logged-in tech for today, across however many
+          dispatches they've contributed to. */}
+      {todaysPay.total > 0 && (
         <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
           <div className="flex items-center justify-between gap-3">
             <div>
