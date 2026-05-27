@@ -231,7 +231,19 @@ export function requiredPhotoSlots(unitType: UnitType): PhotoSlot[] {
   if (SIMPLE_TYPES.includes(unitType)) return ["pre", "post", "nameplate"];
   if (RTU_TYPES.includes(unitType))
     return ["coil1_pre", "coil1_post", "coil2_pre", "coil2_post", "nameplate", "filter_pre", "filter_post"];
-  // Split System — 11 required
+  if (unitType === "Outdoor Split System") {
+    // 3 sides before + 3 sides after + outdoor nameplate + filter
+    return [
+      "out_pre_1", "out_pre_2", "out_pre_3",
+      "out_post_1", "out_post_2", "out_post_3",
+      "out_nameplate", "filter",
+    ];
+  }
+  if (unitType === "Indoor Split System") {
+    // Air handler before/after + nameplate + filter
+    return ["in_pre", "in_post", "in_nameplate", "filter"];
+  }
+  // Legacy combined Split System — 11 required
   return [
     "out_pre_1", "out_pre_2", "out_pre_3",
     "out_post_1", "out_post_2", "out_post_3",

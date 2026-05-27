@@ -21,6 +21,8 @@ import type { Job, PhotoSlot, UnitType } from "@/lib/types";
 const TYPE_SHORT: Record<UnitType, string> = {
   "PTAC / Ductless": "PTAC",
   "Split System": "Split",
+  "Outdoor Split System": "Outdoor",
+  "Indoor Split System": "Indoor",
   "RTU-S": "RTU-S",
   "RTU-M": "RTU-M",
   "RTU-L": "RTU-L",
@@ -83,16 +85,51 @@ function slotsForType(unitType: UnitType | null): SlotGroups {
     };
   }
 
-  // Split System — 11 required photos. Order:
-  //   nameplates (outdoor + air handler, captured first)
-  //   then make/model/serial fields (between the slot groups)
-  //   outdoor before x3
-  //   outdoor after x3
-  //   air handler before + after (kept paired since the tech moves indoors once)
-  //   filter
+  if (unitType === "Outdoor Split System") {
+    return {
+      nameplate: [
+        {
+          slot: "out_nameplate",
+          label: "Outdoor nameplate",
+          hint: "Make / model / serial label on the outdoor unit — capture this first",
+          required: true,
+        },
+      ],
+      body: [
+        { slot: "out_pre_1", label: "Side 1 · before", hint: "Outdoor unit, first angle", required: true },
+        { slot: "out_pre_2", label: "Side 2 · before", hint: "Different angle", required: true },
+        { slot: "out_pre_3", label: "Side 3 · before", hint: "Third angle", required: true },
+        { slot: "out_post_1", label: "Side 1 · after", hint: "After tune-up", required: true },
+        { slot: "out_post_2", label: "Side 2 · after", hint: "After tune-up", required: true },
+        { slot: "out_post_3", label: "Side 3 · after", hint: "After tune-up", required: true },
+        { slot: "filter", label: "Filter", hint: "Filter condition or replacement", required: true },
+      ],
+    };
+  }
+
+  if (unitType === "Indoor Split System") {
+    return {
+      nameplate: [
+        {
+          slot: "in_nameplate",
+          label: "Air handler nameplate",
+          hint: "Make / model / serial label on the air handler",
+          required: true,
+        },
+      ],
+      body: [
+        { slot: "in_pre", label: "Air handler · before", hint: "Indoor unit before service", required: true },
+        { slot: "in_post", label: "Air handler · after", hint: "Indoor unit after service", required: true },
+        { slot: "filter", label: "Filter", hint: "Filter condition or replacement", required: true },
+      ],
+    };
+  }
+
+  // Legacy combined "Split System" — kept so historical rows still
+  // render in EditUnitForm. Not offered in the new-job picker.
   return {
     nameplate: [
-      { slot: "out_nameplate", label: "Outdoor nameplate", hint: "Outdoor unit make / model / serial — capture this first", required: true },
+      { slot: "out_nameplate", label: "Outdoor nameplate", hint: "Outdoor unit make / model / serial", required: true },
       { slot: "in_nameplate", label: "Air handler nameplate", hint: "Indoor unit make / model / serial", required: true },
     ],
     body: [
@@ -629,36 +666,55 @@ function AdditionalPhotosPicker({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFiles = async (files: FileList) => {
     if (!files.length) return;
     setBusy(true);
-    try {
-      const results = await Promise.all(
-        Array.from(files).map(async (file) => {
-          const compressed = await imageCompression(file, COMPRESSION_OPTS);
-          return {
-            blob: compressed,
-            // Full compressed image for preview — sharp on phone screens.
-            thumbnailUrl: URL.createObjectURL(compressed),
-            capturedAt: Date.now(),
-            filename: `photo_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,
-          } satisfies CapturedPhoto;
-        })
-      );
-      onAdd(results);
-    } finally {
-      setBusy(false);
+    setError(null);
+    const results: CapturedPhoto[] = [];
+    for (const file of Array.from(files)) {
+      // Defensive: HEIC (newer iPhones) or unusual codecs occasionally
+      // make browser-image-compression throw or return an unviewable
+      // blob. Fall back to the original file so the tech still sees a
+      // preview and the photo still uploads.
+      let blob: Blob = file;
+      try {
+        const compressed = await imageCompression(file, COMPRESSION_OPTS);
+        if (compressed && compressed.size > 0) {
+          blob = compressed;
+        } else {
+          console.warn("[additional] compression returned empty blob, using original");
+        }
+      } catch (e) {
+        console.warn("[additional] compression failed, using original:", e);
+      }
+      results.push({
+        blob,
+        thumbnailUrl: URL.createObjectURL(blob),
+        capturedAt: Date.now(),
+        filename: `photo_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,
+      });
     }
+    if (results.length === 0) {
+      setError("Could not load any photos. Try again or pick from your library.");
+    } else {
+      onAdd(results);
+    }
+    setBusy(false);
   };
 
   return (
     <div className="space-y-2">
+      {/* No `capture` attribute — that locks iOS to camera-only and
+          disables library selection. Without it, the OS shows a
+          chooser: Take Photo / Photo Library / Choose File. `multiple`
+          lets the tech pick a whole batch at once from the library. */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
+        multiple
         className="hidden"
         onChange={(e) => {
           const files = e.target.files;
@@ -666,15 +722,41 @@ function AdditionalPhotosPicker({
           if (files) handleFiles(files);
         }}
       />
+      {error && (
+        <div className="text-xs text-mse-red bg-mse-red/5 border border-mse-red/20 rounded-lg px-3 py-2">
+          {error}
+        </div>
+      )}
       {photos.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {photos.map((p, i) => (
-            <div key={i} className="relative rounded-xl overflow-hidden aspect-square bg-mse-light">
+          {photos.map((p) => (
+            <div
+              key={`${p.capturedAt}-${p.filename}`}
+              className="relative rounded-xl overflow-hidden aspect-square bg-mse-light"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+              <img
+                src={p.thumbnailUrl}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // If the blob URL goes bad on iOS (rare), show a
+                  // visible placeholder rather than a broken image.
+                  const img = e.currentTarget as HTMLImageElement;
+                  img.style.display = "none";
+                  const parent = img.parentElement;
+                  if (parent && !parent.querySelector(".thumb-fallback")) {
+                    const div = document.createElement("div");
+                    div.className =
+                      "thumb-fallback absolute inset-0 flex items-center justify-center text-mse-muted text-[10px] font-semibold";
+                    div.textContent = "Photo saved";
+                    parent.appendChild(div);
+                  }
+                }}
+              />
               <button
                 type="button"
-                onClick={() => onRemove(i)}
+                onClick={() => onRemove(photos.indexOf(p))}
                 className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
                 aria-label="Remove photo"
               >

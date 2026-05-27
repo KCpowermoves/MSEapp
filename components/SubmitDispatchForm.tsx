@@ -73,10 +73,19 @@ export function SubmitDispatchForm({
     [job, units, services, crewSplit, crew]
   );
 
-  const SIMPLE_TYPES = ["PTAC / Ductless"];
   const allPhotosUploaded = units.every((u) => {
-    if (SIMPLE_TYPES.includes(u.unitType))
+    if (u.unitType === "PTAC / Ductless")
       return Boolean(u.pre1Url && u.pre2Url && u.nameplateUrl);
+    if (u.unitType === "Outdoor Split System")
+      return Boolean(
+        u.pre1Url && u.pre2Url && u.pre3Url &&
+        u.post1Url && u.post2Url && u.post3Url &&
+        u.nameplateUrl && u.filterUrl
+      );
+    if (u.unitType === "Indoor Split System")
+      return Boolean(
+        u.inPreUrl && u.inPostUrl && u.inNameplateUrl && u.filterUrl
+      );
     if (u.unitType === "Split System")
       return Boolean(
         u.pre1Url && u.pre2Url && u.pre3Url &&
@@ -84,7 +93,7 @@ export function SubmitDispatchForm({
         u.nameplateUrl && u.filterUrl &&
         u.inPreUrl && u.inPostUrl && u.inNameplateUrl
       );
-    // RTU types
+    // RTU-S/M/L
     return Boolean(
       u.pre1Url && u.pre2Url && u.post1Url && u.post2Url &&
       u.nameplateUrl && u.filterUrl && u.pre3Url

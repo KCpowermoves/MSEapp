@@ -5,23 +5,33 @@ import type { UnitType } from "@/lib/types";
 
 type TypeDef = { id: UnitType; label: string; sub: string };
 
-// Top row: the two single-unit shapes side by side
-const TOP: TypeDef[] = [
+// Single-unit shapes
+const SIMPLE: TypeDef[] = [
   {
     id: "PTAC / Ductless",
     label: "PTAC / Ductless",
     sub: "incl. water-source HP, VRV/VRF · 3 photos",
   },
+];
+
+// Split systems — outdoor and indoor are logged as separate units now.
+// "Split System" (legacy combined type) is intentionally NOT listed.
+const SPLIT: TypeDef[] = [
   {
-    id: "Split System",
-    label: "Split System",
-    sub: "3 outdoor sides + air handler · 11 photos",
+    id: "Outdoor Split System",
+    label: "Outdoor Split",
+    sub: "3 sides + nameplate + filter · 8 photos",
+  },
+  {
+    id: "Indoor Split System",
+    label: "Indoor Split",
+    sub: "air handler before/after + nameplate + filter · 4 photos",
   },
 ];
 
-// Bottom row: the three RTU sizes
+// RTU sizes
 const RTU: TypeDef[] = [
-  { id: "RTU-S", label: "RTU · Small", sub: "2 coils · 7 photos" },
+  { id: "RTU-S", label: "RTU · Standard", sub: "2 coils · 7 photos" },
   { id: "RTU-M", label: "RTU · Medium", sub: "2 coils · 7 photos" },
   { id: "RTU-L", label: "RTU · Large", sub: "2 coils · 7 photos" },
 ];
@@ -71,7 +81,14 @@ export function UnitTypePicker({
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
-        {TOP.map((t) => (
+        {SIMPLE.map((t) => (
+          <TypeBtn key={t.id} t={t} active={value === t.id} onChange={onChange} />
+        ))}
+        {/* Pad the simple row so a single tile doesn't stretch full width */}
+        {SIMPLE.length === 1 && <div />}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {SPLIT.map((t) => (
           <TypeBtn key={t.id} t={t} active={value === t.id} onChange={onChange} />
         ))}
       </div>

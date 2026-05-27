@@ -6,10 +6,20 @@ export type CrewSplit = "Solo" | "50-50" | "33-33-33";
 
 // Simple (1-side) types share the same 3-photo template.
 // RTU types share the 7-photo coil template.
-// Split System has 11 required photos (outdoor 3-side + indoor AH).
+//
+// Split units split 2026-05-27 into separate Outdoor and Indoor types
+// so techs log them as two units when servicing both sides.
+//   - "Outdoor Split System" uses the original 3-side outdoor + filter
+//     pattern (8 photos).
+//   - "Indoor Split System" uses the air-handler-only pattern with
+//     its own filter (4 photos).
+//   - "Split System" stays in the union for historical rows that still
+//     reference it. New jobs don't see it in the picker.
 export type UnitType =
   | "PTAC / Ductless"
   | "Split System"
+  | "Outdoor Split System"
+  | "Indoor Split System"
   | "RTU-S"
   | "RTU-M"
   | "RTU-L";

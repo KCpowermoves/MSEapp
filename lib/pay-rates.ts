@@ -5,9 +5,15 @@ import type {
   UtilityTerritory,
 } from "@/lib/types";
 
+// Outdoor + Indoor split each pay roughly half of the legacy combined
+// Split System rate — a tech logging both units gets the same total
+// as before, but each unit also stands on its own when only one side
+// is serviced.
 export const INSTALL_PAY: Record<UnitType, number> = {
   "PTAC / Ductless": 10,
   "Split System": 50,
+  "Outdoor Split System": 30,
+  "Indoor Split System": 20,
   "RTU-S": 50,
   "RTU-M": 75,
   "RTU-L": 100,
@@ -16,6 +22,8 @@ export const INSTALL_PAY: Record<UnitType, number> = {
 export const SALES_BONUS: Record<UnitType, number> = {
   "PTAC / Ductless": 5,
   "Split System": 30,
+  "Outdoor Split System": 20,
+  "Indoor Split System": 10,
   "RTU-S": 30,
   "RTU-M": 50,
   "RTU-L": 75,

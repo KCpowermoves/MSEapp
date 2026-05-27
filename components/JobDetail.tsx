@@ -160,7 +160,36 @@ export function JobDetail({
   );
 }
 
-const SIMPLE_TYPES = ["PTAC / Ductless"];
+// Photo-checklist sources per unit type. Drives the "X/Y photos" chip
+// on each unit row. Mirrors requiredPhotoSlots in lib/data/units.ts.
+function requiredUrlsForType(u: UnitServiced): string[] {
+  if (u.unitType === "PTAC / Ductless") {
+    return [u.pre1Url, u.pre2Url, u.nameplateUrl];
+  }
+  if (u.unitType === "Outdoor Split System") {
+    return [
+      u.pre1Url, u.pre2Url, u.pre3Url,
+      u.post1Url, u.post2Url, u.post3Url,
+      u.nameplateUrl, u.filterUrl,
+    ];
+  }
+  if (u.unitType === "Indoor Split System") {
+    return [u.inPreUrl, u.inPostUrl, u.inNameplateUrl, u.filterUrl];
+  }
+  if (u.unitType === "Split System") {
+    return [
+      u.pre1Url, u.pre2Url, u.pre3Url,
+      u.post1Url, u.post2Url, u.post3Url,
+      u.nameplateUrl, u.filterUrl,
+      u.inPreUrl, u.inPostUrl, u.inNameplateUrl,
+    ];
+  }
+  // RTU-S/M/L
+  return [
+    u.pre1Url, u.pre2Url, u.post1Url, u.post2Url,
+    u.nameplateUrl, u.filterUrl, u.pre3Url,
+  ];
+}
 
 function UnitRow({
   unit,
@@ -169,18 +198,7 @@ function UnitRow({
   unit: UnitServiced & { submitted: boolean };
   jobId: string;
 }) {
-  const required: string[] = SIMPLE_TYPES.includes(unit.unitType)
-    ? [unit.pre1Url, unit.pre2Url, unit.nameplateUrl]
-    : unit.unitType === "Split System"
-    ? [
-        unit.pre1Url, unit.pre2Url, unit.pre3Url,
-        unit.post1Url, unit.post2Url, unit.post3Url,
-        unit.nameplateUrl, unit.filterUrl,
-        unit.inPreUrl, unit.inPostUrl, unit.inNameplateUrl,
-      ]
-    : // RTU types
-      [unit.pre1Url, unit.pre2Url, unit.post1Url, unit.post2Url,
-       unit.nameplateUrl, unit.filterUrl, unit.pre3Url];
+  const required: string[] = requiredUrlsForType(unit);
   const requiredFilled = required.filter(Boolean).length;
   const requiredCount = required.length;
   const allUploaded = requiredFilled === requiredCount;

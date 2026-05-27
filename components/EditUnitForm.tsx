@@ -40,8 +40,22 @@ function photosForUnit(unit: UnitServiced): SlotInfo[] {
     add("coil2_post", "Coil 2 · after", unit.post2Url);
     add("nameplate", "Nameplate", unit.nameplateUrl);
     add("filter_pre", "Filter · after", unit.filterUrl);
+  } else if (unit.unitType === "Outdoor Split System") {
+    add("out_pre_1", "Side 1 · before", unit.pre1Url);
+    add("out_pre_2", "Side 2 · before", unit.pre2Url);
+    add("out_pre_3", "Side 3 · before", unit.pre3Url);
+    add("out_post_1", "Side 1 · after", unit.post1Url);
+    add("out_post_2", "Side 2 · after", unit.post2Url);
+    add("out_post_3", "Side 3 · after", unit.post3Url);
+    add("out_nameplate", "Outdoor nameplate", unit.nameplateUrl);
+    add("filter", "Filter", unit.filterUrl);
+  } else if (unit.unitType === "Indoor Split System") {
+    add("in_pre", "Air handler · before", unit.inPreUrl);
+    add("in_post", "Air handler · after", unit.inPostUrl);
+    add("in_nameplate", "Air handler nameplate", unit.inNameplateUrl);
+    add("filter", "Filter", unit.filterUrl);
   } else {
-    // Split System
+    // Legacy combined Split System — kept so old units still edit.
     add("out_pre_1", "Outdoor · side 1 · before", unit.pre1Url);
     add("out_pre_2", "Outdoor · side 2 · before", unit.pre2Url);
     add("out_pre_3", "Outdoor · side 3 · before", unit.pre3Url);

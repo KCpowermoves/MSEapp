@@ -46,9 +46,11 @@ interface UnitNameplates {
  * the actual column-storage convention from urlForSlot in lib/data/
  * units.ts) plus any standalone-photo URLs not in a pair.
  *
- *   PTAC / Ductless: 1 pair (pre1=before, pre2=after) + filter standalone
- *   RTU-S/M/L:       3 pairs (coil1, coil2, filter)
- *   Split System:    4 pairs (outdoor 1/2/3 + air handler) + filter standalone
+ *   PTAC / Ductless:        1 pair (pre1=before, pre2=after) + filter
+ *   RTU-S/M/L:              3 pairs (coil1, coil2, filter)
+ *   Outdoor Split System:   3 pairs (3 outdoor sides) + filter
+ *   Indoor Split System:    1 pair (air handler) + filter
+ *   Split System (legacy):  4 pairs (3 outdoor + air handler) + filter
  */
 function pairsForUnit(u: UnitServiced): {
   pairs: PhotoPair[];
@@ -68,6 +70,30 @@ function pairsForUnit(u: UnitServiced): {
         ? [{ label: "Filter", url: u.filterUrl }]
         : [],
       nameplates: { outdoor: u.nameplateUrl, indoor: "" },
+    };
+  }
+  if (u.unitType === "Outdoor Split System") {
+    return {
+      pairs: [
+        { label: "Side 1", beforeUrl: u.pre1Url, afterUrl: u.post1Url },
+        { label: "Side 2", beforeUrl: u.pre2Url, afterUrl: u.post2Url },
+        { label: "Side 3", beforeUrl: u.pre3Url, afterUrl: u.post3Url },
+      ],
+      standalones: u.filterUrl
+        ? [{ label: "Filter", url: u.filterUrl }]
+        : [],
+      nameplates: { outdoor: u.nameplateUrl, indoor: "" },
+    };
+  }
+  if (u.unitType === "Indoor Split System") {
+    return {
+      pairs: [
+        { label: "Air handler", beforeUrl: u.inPreUrl, afterUrl: u.inPostUrl },
+      ],
+      standalones: u.filterUrl
+        ? [{ label: "Filter", url: u.filterUrl }]
+        : [],
+      nameplates: { outdoor: "", indoor: u.inNameplateUrl },
     };
   }
   if (u.unitType === "Split System") {
