@@ -1,0 +1,501 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowRightLeft,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Minus,
+  Plus,
+  Sparkles,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { cn, formatCurrency } from "@/lib/utils";
+import type { PayrollStatus } from "@/lib/types";
+import type {
+  ReportLineItem,
+  TechRollup,
+} from "@/lib/payroll/compute";
+import { AddAdjustmentDialog } from "@/components/payroll/AddAdjustmentDialog";
+import { ReattributeDialog } from "@/components/payroll/ReattributeDialog";
+import { SplitChangeDialog } from "@/components/payroll/SplitChangeDialog";
+
+export interface PeriodDispatchLite {
+  dispatchId: string;
+  jobId: string;
+  dispatchDate: string;
+  techsOnSite: string[];
+  crewSplit: string;
+}
+
+interface Props {
+  periodId: string;
+  periodStatus: PayrollStatus;
+  techName: string;
+  tech: TechRollup;
+  activeTechs: string[];
+  periodDispatches: PeriodDispatchLite[];
+  dispatchUnits: Record<
+    string,
+    { unitId: string; unitNumberOnJob: number; unitType: string }[]
+  >;
+  /** When true (orphan section for the empty period case), render only
+   *  the standalone-line widget without a tech header. */
+  emptyMode?: boolean;
+}
+
+export function TechSection({
+  periodId,
+  periodStatus,
+  techName,
+  tech,
+  activeTechs,
+  periodDispatches,
+  dispatchUnits,
+  emptyMode,
+}: Props) {
+  const router = useRouter();
+  const isDraft = periodStatus === "Draft";
+
+  const [expanded, setExpanded] = useState(true);
+  const [showAddManual, setShowAddManual] = useState(false);
+  const [showAddStandalone, setShowAddStandalone] = useState(false);
+  const [reattribute, setReattribute] = useState<{
+    item: ReportLineItem;
+  } | null>(null);
+  const [splitChange, setSplitChange] = useState<string | null>(null);
+  const [voiding, setVoiding] = useState<string | null>(null);
+
+  // Distinct dispatches this tech worked on in the period — feeds the
+  // "Change crew split" picker when this tech is the section owner.
+  const techDispatches = useMemo(() => {
+    if (!techName) return [];
+    return periodDispatches.filter((d) =>
+      d.techsOnSite.includes(techName)
+    );
+  }, [periodDispatches, techName]);
+
+  const voidAdjustment = async (adjustmentId: string) => {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Void this adjustment? It stays in the sheet for audit but stops counting toward the total."
+      )
+    ) {
+      return;
+    }
+    setVoiding(adjustmentId);
+    try {
+      const res = await fetch("/api/admin/payroll/adjustments/void", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adjustmentId }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not void");
+    } finally {
+      setVoiding(null);
+    }
+  };
+
+  if (emptyMode) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setShowAddStandalone(true)}
+          disabled={!isDraft}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold",
+            isDraft
+              ? "bg-mse-navy hover:bg-mse-navy-soft text-white shadow-card"
+              : "bg-mse-light text-mse-muted cursor-not-allowed"
+          )}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Add standalone line
+        </button>
+        {showAddStandalone && (
+          <AddAdjustmentDialog
+            mode="standalone"
+            periodId={periodId}
+            activeTechs={activeTechs}
+            defaultTech=""
+            onClose={() => setShowAddStandalone(false)}
+            onSaved={() => {
+              setShowAddStandalone(false);
+              router.refresh();
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  const chips: Array<{ label: string; value: number }> = [
+    { label: "Install", value: tech.subtotals.install },
+    { label: "Sales (paid)", value: tech.subtotals.salesPaid },
+    { label: "Sales (pending)", value: tech.subtotals.salesPending },
+    { label: "Service", value: tech.subtotals.service },
+    { label: "Standalone", value: tech.subtotals.standalone },
+    { label: "Stipend", value: tech.subtotals.dailyStipend },
+    { label: "Travel", value: tech.subtotals.travelBonus },
+    { label: "Adjustments", value: tech.subtotals.adjustments },
+  ].filter((c) => c.value !== 0);
+
+  return (
+    <section className="rounded-2xl bg-white border border-mse-light shadow-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-mse-light/40 transition-colors text-left"
+      >
+        <div className="w-9 h-9 rounded-full bg-mse-navy/8 flex items-center justify-center text-mse-navy font-bold text-sm shrink-0">
+          {techName
+            .split(" ")
+            .map((p) => p[0])
+            .filter(Boolean)
+            .slice(0, 2)
+            .join("")
+            .toUpperCase() || "?"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-mse-navy truncate">{techName}</div>
+          <div className="text-[11px] text-mse-muted">
+            {tech.lineItems.length} line item
+            {tech.lineItems.length === 1 ? "" : "s"}
+            {tech.subtotals.adjustments !== 0 && (
+              <>
+                {" · "}
+                <span
+                  className={cn(
+                    "font-bold",
+                    tech.subtotals.adjustments < 0
+                      ? "text-mse-red"
+                      : "text-mse-gold"
+                  )}
+                >
+                  {formatCurrency(tech.subtotals.adjustments)} adj
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="text-2xl font-bold tabular-nums text-mse-navy">
+            {formatCurrency(tech.grandTotal)}
+          </div>
+        </div>
+        {expanded ? (
+          <ChevronUp className="w-4 h-4 text-mse-muted ml-1" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-mse-muted ml-1" />
+        )}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-mse-light/70">
+          {chips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3 mb-2">
+              {chips.map((c) => (
+                <span
+                  key={c.label}
+                  className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                    c.value < 0
+                      ? "bg-mse-red/8 text-mse-red"
+                      : c.label === "Adjustments"
+                      ? "bg-mse-gold/15 text-mse-navy"
+                      : "bg-mse-navy/5 text-mse-navy"
+                  )}
+                >
+                  {c.label} {formatCurrency(c.value)}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 -mx-2 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-mse-muted">
+                  <th className="text-left py-1 px-2 font-semibold">Date</th>
+                  <th className="text-left py-1 px-2 font-semibold">
+                    Customer / Job
+                  </th>
+                  <th className="text-left py-1 px-2 font-semibold">Type</th>
+                  <th className="text-left py-1 px-2 font-semibold">
+                    Description
+                  </th>
+                  <th className="text-right py-1 px-2 font-semibold">
+                    Amount
+                  </th>
+                  <th className="text-right py-1 px-2 font-semibold w-12">
+                    {isDraft && <span className="sr-only">Actions</span>}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {tech.lineItems.map((it) => (
+                  <LineItemRow
+                    key={`${it.source}-${it.id}`}
+                    item={it}
+                    isDraft={isDraft}
+                    onReattribute={() => setReattribute({ item: it })}
+                    onVoid={() => voidAdjustment(it.adjustmentId)}
+                    isVoiding={voiding === it.adjustmentId}
+                  />
+                ))}
+                {tech.lineItems.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-4 text-center text-xs text-mse-muted italic"
+                    >
+                      No line items.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-mse-light">
+                  <td colSpan={4} className="py-2 px-2 text-right text-xs font-bold text-mse-muted uppercase tracking-wider">
+                    Tech total
+                  </td>
+                  <td className="py-2 px-2 text-right text-lg font-bold text-mse-navy tabular-nums">
+                    {formatCurrency(tech.grandTotal)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2 pt-3 border-t border-mse-light/70">
+            <button
+              type="button"
+              onClick={() => setShowAddManual(true)}
+              disabled={!isDraft}
+              className={miniBtn(isDraft, "navy")}
+            >
+              <Plus className="w-3 h-3" />
+              Add adjustment
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddStandalone(true)}
+              disabled={!isDraft}
+              className={miniBtn(isDraft, "gold")}
+            >
+              <Sparkles className="w-3 h-3" />
+              Add standalone line
+            </button>
+            {techDispatches.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSplitChange(techDispatches[0].dispatchId)}
+                disabled={!isDraft}
+                className={miniBtn(isDraft, "outline")}
+              >
+                <Users className="w-3 h-3" />
+                Change crew split
+              </button>
+            )}
+            <a
+              href={`/api/admin/payroll/periods/${encodeURIComponent(
+                periodId
+              )}/export?format=pdf&tech=${encodeURIComponent(techName)}`}
+              className={miniBtn(true, "outline")}
+            >
+              Download PDF for {techName.split(" ")[0]}
+            </a>
+          </div>
+        </div>
+      )}
+
+      {showAddManual && (
+        <AddAdjustmentDialog
+          mode="manual"
+          periodId={periodId}
+          activeTechs={activeTechs}
+          defaultTech={techName}
+          onClose={() => setShowAddManual(false)}
+          onSaved={() => {
+            setShowAddManual(false);
+            router.refresh();
+          }}
+        />
+      )}
+      {showAddStandalone && (
+        <AddAdjustmentDialog
+          mode="standalone"
+          periodId={periodId}
+          activeTechs={activeTechs}
+          defaultTech={techName}
+          onClose={() => setShowAddStandalone(false)}
+          onSaved={() => {
+            setShowAddStandalone(false);
+            router.refresh();
+          }}
+        />
+      )}
+      {reattribute && (
+        <ReattributeDialog
+          periodId={periodId}
+          fromTech={techName}
+          activeTechs={activeTechs}
+          item={reattribute.item}
+          onClose={() => setReattribute(null)}
+          onSaved={() => {
+            setReattribute(null);
+            router.refresh();
+          }}
+        />
+      )}
+      {splitChange && (
+        <SplitChangeDialog
+          periodId={periodId}
+          dispatches={techDispatches}
+          activeTechs={activeTechs}
+          initialDispatchId={splitChange}
+          dispatchUnits={dispatchUnits}
+          onClose={() => setSplitChange(null)}
+          onSaved={() => {
+            setSplitChange(null);
+            router.refresh();
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function LineItemRow({
+  item,
+  isDraft,
+  onReattribute,
+  onVoid,
+  isVoiding,
+}: {
+  item: ReportLineItem;
+  isDraft: boolean;
+  onReattribute: () => void;
+  onVoid: () => void;
+  isVoiding: boolean;
+}) {
+  const isAdj = item.source === "adjustment";
+  const negative = item.amount < 0;
+  const voided = item.amount === 0 && item.note?.startsWith("VOIDED");
+
+  return (
+    <tr
+      className={cn(
+        "border-t border-mse-light/60 align-top",
+        isAdj && "bg-mse-gold/5",
+        voided && "opacity-50"
+      )}
+    >
+      <td className="py-2 px-2 text-xs text-mse-muted tabular-nums whitespace-nowrap">
+        {item.date || "—"}
+      </td>
+      <td className="py-2 px-2 max-w-[180px]">
+        <div className="text-mse-navy text-sm font-semibold truncate">
+          {item.customerName || (isAdj ? "—" : item.jobId || "—")}
+        </div>
+        {item.unitId && (
+          <div className="text-[10px] text-mse-muted font-mono">
+            {item.unitId}
+          </div>
+        )}
+      </td>
+      <td className="py-2 px-2 text-xs">
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded-md font-bold",
+            isAdj
+              ? "bg-mse-gold/20 text-mse-navy"
+              : "bg-mse-light text-mse-muted"
+          )}
+        >
+          {item.lineType}
+        </span>
+      </td>
+      <td className="py-2 px-2 text-xs text-mse-muted max-w-[280px]">
+        <div className={cn(voided && "line-through")}>
+          {item.description || "—"}
+        </div>
+        {item.relatedTech && (
+          <div className="text-[10px] text-mse-muted/80 mt-0.5">
+            ↔ {item.relatedTech}
+          </div>
+        )}
+      </td>
+      <td
+        className={cn(
+          "py-2 px-2 text-right font-bold tabular-nums whitespace-nowrap",
+          negative ? "text-mse-red" : "text-mse-navy",
+          voided && "line-through"
+        )}
+      >
+        {formatCurrency(item.amount)}
+      </td>
+      <td className="py-2 px-2 text-right">
+        {isDraft && !voided && (
+          <div className="inline-flex items-center gap-1">
+            {!isAdj && (
+              <button
+                type="button"
+                onClick={onReattribute}
+                className="p-1.5 rounded-md text-mse-muted hover:text-mse-navy hover:bg-mse-light"
+                aria-label="Reattribute this line to another tech"
+                title="Reattribute"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {isAdj && (
+              <button
+                type="button"
+                onClick={onVoid}
+                disabled={isVoiding}
+                className="p-1.5 rounded-md text-mse-muted hover:text-mse-red hover:bg-mse-red/10"
+                aria-label="Void this adjustment"
+                title="Void"
+              >
+                {isVoiding ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function miniBtn(
+  enabled: boolean,
+  variant: "navy" | "gold" | "outline"
+): string {
+  const base =
+    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-[background-color,transform] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-1";
+  if (!enabled)
+    return `${base} bg-mse-light text-mse-muted cursor-not-allowed`;
+  if (variant === "navy")
+    return `${base} bg-mse-navy hover:bg-mse-navy-soft text-white shadow-card`;
+  if (variant === "gold")
+    return `${base} bg-mse-gold/15 text-mse-navy border border-mse-gold/30 hover:bg-mse-gold/25`;
+  return `${base} bg-white border border-mse-light text-mse-navy hover:border-mse-navy/30`;
+}
+// Silence the unused-import warning — Minus stays for a future
+// "negative quick-add" hint in the empty state.
+void Minus;

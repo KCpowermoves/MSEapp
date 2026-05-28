@@ -184,6 +184,16 @@ function rowToAttrib(row: string[]): AttribReadRow {
   };
 }
 
+/** All attribution rows, normalized. Used by the payroll compute
+ *  engine to slice by date range across all techs in one pass. */
+export async function listAllAttributions(): Promise<AttribReadRow[]> {
+  const rows = await readTab(TABS.payAttribution);
+  return rows
+    .filter((r) => r[0])
+    .map(rowToAttrib)
+    .filter((r) => Number.isFinite(r.amount));
+}
+
 /**
  * Sum a tech's pay attributions for a single day. Returns the total $
  * across all line items for that tech on that date.

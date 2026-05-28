@@ -11,6 +11,11 @@ export const TABS = {
   payRates: "Pay Rates",
   payCalc: "Pay Calc",
   locationEvents: "Location Events",
+  // Payroll layer — periods are slices of time the admin runs a
+  // payroll across; adjustments are the audit-tracked corrections
+  // that ride alongside the Pay Attribution rows.
+  payrollPeriods: "Payroll Periods",
+  payrollAdjustments: "Payroll Adjustments",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across

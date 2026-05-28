@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { LayoutDashboard, LogOut } from "lucide-react";
+import { DollarSign, LayoutDashboard, LogOut } from "lucide-react";
 import { PendingBadge } from "@/components/PendingBadge";
 import { LocationConsent } from "@/components/LocationConsent";
 
@@ -61,6 +61,13 @@ export function AppShell({
           </Link>
           <div className="ml-auto flex items-center gap-2">
             <PendingBadge />
+            <Link
+              href="/payroll"
+              aria-label="My payroll"
+              className="p-2 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
+            >
+              <DollarSign className="w-5 h-5" />
+            </Link>
             {isAdmin && (
               <Link
                 href="/admin"

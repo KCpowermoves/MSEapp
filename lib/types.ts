@@ -171,3 +171,64 @@ export interface SessionData {
   loggedInAt: number;
   isAdmin?: boolean;
 }
+
+// ─── Payroll ──────────────────────────────────────────────────────────
+
+export type PayrollStatus = "Draft" | "Approved" | "Paid";
+
+/**
+ * A payroll period is a slice of time over which we compute each tech's
+ * earned pay. Custom date ranges so the admin can run weekly, biweekly,
+ * "this Tuesday only," whatever they need. Status moves Draft → Approved
+ * → Paid; "Approved" freezes the adjustment buttons until the admin
+ * clicks "Unlock to edit" (which reverts to Draft and clears Approval).
+ */
+export interface PayrollPeriod {
+  periodId: string;
+  startDate: string; // YYYY-MM-DD inclusive
+  endDate: string;   // YYYY-MM-DD inclusive
+  status: PayrollStatus;
+  label: string;     // optional human-friendly label like "May 1–14, 2026"
+  createdBy: string;
+  createdAt: string; // ISO
+  approvedBy: string;
+  approvedAt: string;
+  paidBy: string;
+  paidAt: string;
+  note: string;
+}
+
+/**
+ * Adjustments layer on top of the Pay Attribution rows — they never
+ * overwrite the originals. Final paycheck = sum of attribution within
+ * the period + sum of adjustments tagged to that period.
+ *
+ *  - "manual"            : free-form +/- with note (most common)
+ *  - "reattribute_from"  : -$X removed from a tech (paired with _to row)
+ *  - "reattribute_to"    : +$X added to another tech (paired with _from)
+ *  - "split_change"      : delta from retroactively re-splitting a dispatch
+ *  - "standalone"        : free-form line for work done outside the app
+ */
+export type PayrollAdjustmentType =
+  | "manual"
+  | "reattribute_from"
+  | "reattribute_to"
+  | "split_change"
+  | "standalone";
+
+export interface PayrollAdjustment {
+  adjustmentId: string;
+  periodId: string;
+  techName: string;
+  type: PayrollAdjustmentType;
+  amount: number; // signed: positive = pay, negative = clawback
+  description: string;
+  relatedDispatchId: string;
+  relatedUnitId: string;
+  /** When pairing two rows (re-attribution, split change), this names
+   *  the counterparty so the UI can show "moved from Alice" etc. */
+  relatedTech: string;
+  createdBy: string;
+  createdAt: string;
+  note: string;
+}
