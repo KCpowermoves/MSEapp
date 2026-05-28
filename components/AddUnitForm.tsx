@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, CheckCircle2, Loader2, X } from "lucide-react";
-import imageCompression from "browser-image-compression";
+import { ArrowLeft, CheckCircle2, Loader2, X } from "lucide-react";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
 import {
@@ -244,6 +243,10 @@ export function AddUnitForm({
 
   const addExtrasToAdditional = (extras: CapturedPhoto[]) => {
     setAdditionalPhotos((prev) => [...prev, ...extras]);
+  };
+
+  const replaceAdditionalAt = (i: number, photo: CapturedPhoto) => {
+    setAdditionalPhotos((prev) => prev.map((p, idx) => (idx === i ? photo : p)));
   };
 
   const removeAdditional = (i: number) => {
@@ -570,6 +573,7 @@ export function AddUnitForm({
           <AdditionalPhotosPicker
             photos={additionalPhotos}
             onAdd={addExtrasToAdditional}
+            onReplaceAt={replaceAdditionalAt}
             onRemove={removeAdditional}
           />
         </Field>
@@ -646,187 +650,84 @@ function Field({
   );
 }
 
-const COMPRESSION_OPTS = {
-  maxSizeMB: 1.5,
-  maxWidthOrHeight: 1600,
-  initialQuality: 0.78,
-  useWebWorker: false,
-  preserveExif: false,
-  fileType: "image/jpeg" as const,
-};
+// Cap how many additional photos a single unit can carry. Hard upper
+// bound — past ~20 it's no longer "additional context," it's a
+// separate unit or a notes problem.
+const ADDITIONAL_PHOTOS_MAX = 20;
 
-// Read a blob into a base64 data URL. Used for the thumbnail src
-// instead of URL.createObjectURL because some iOS Safari builds revoke
-// blob URLs early enough that <img> never paints, leaving the tech
-// staring at an empty grey square. Data URLs always render.
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"));
-    reader.readAsDataURL(blob);
-  });
-}
-
+// Additional photos reuse the same PhotoCapture component as the
+// required slots (nameplate / before / after). Each filled photo is
+// its own slot with a retake tap + an X overlay to remove it; one
+// empty slot sits at the bottom until it's filled, then a new empty
+// slot appears below it. Same capture="environment" input that
+// already works on the iOS PWA for the required photos — no
+// multi-select, no custom file picker.
 function AdditionalPhotosPicker({
   photos,
   onAdd,
+  onReplaceAt,
   onRemove,
 }: {
   photos: CapturedPhoto[];
   onAdd: (photos: CapturedPhoto[]) => void;
+  onReplaceAt: (i: number, photo: CapturedPhoto) => void;
   onRemove: (i: number) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const atMax = photos.length >= ADDITIONAL_PHOTOS_MAX;
 
-  const handleFiles = async (files: FileList) => {
-    if (!files.length) return;
-    console.log(`[additional] handleFiles got ${files.length} file(s)`);
-    setBusy(true);
-    setError(null);
-    const results: CapturedPhoto[] = [];
-    for (const file of Array.from(files)) {
-      try {
-        // Defensive compression. HEIC (newer iPhones) or unusual
-        // codecs occasionally make browser-image-compression throw
-        // or return an unviewable blob. Fall back to the original
-        // file so the upload still happens.
-        let blob: Blob = file;
-        try {
-          const compressed = await imageCompression(file, COMPRESSION_OPTS);
-          if (compressed && compressed.size > 0) {
-            blob = compressed;
-          } else {
-            console.warn("[additional] compression returned empty blob, using original");
-          }
-        } catch (e) {
-          console.warn("[additional] compression failed, using original:", e);
-        }
-        // Generate the thumbnail src via FileReader instead of
-        // createObjectURL — data URLs are bulletproof in <img>.
-        const thumbnailUrl = await blobToDataUrl(blob);
-        results.push({
-          blob,
-          thumbnailUrl,
-          capturedAt: Date.now(),
-          filename: `photo_${Date.now()}_${Math.random()
-            .toString(36)
-            .slice(2)}.jpg`,
-        });
-        console.log(
-          `[additional] processed ${file.name}: thumb len=${thumbnailUrl.length}, blob size=${blob.size}`
-        );
-      } catch (e) {
-        // One bad file shouldn't take down the whole batch.
-        console.error(
-          `[additional] failed to process ${file?.name ?? "<unknown>"}:`,
-          e
-        );
-      }
-    }
-    if (results.length === 0) {
-      setError(
-        "Couldn't load those photos. Try again, pick smaller files, or use the camera one at a time."
-      );
-    } else {
-      console.log(`[additional] onAdd ${results.length} photo(s)`);
-      onAdd(results);
-    }
-    setBusy(false);
+  const handleNew = (next: CapturedPhoto | null) => {
+    if (next) onAdd([next]);
   };
 
-  // The slot-photo input pattern (capture="environment", no multiple)
-  // is the one iOS Safari PWAs actually honor reliably. Multi-select
-  // from library was unreliable for Kevin, so additional photos are
-  // captured one at a time — same workflow as the nameplate / before /
-  // after slots that already work for him. Tech can tap Add another
-  // as many times as they need.
+  const handleReplace = (i: number) => (next: CapturedPhoto | null) => {
+    // PhotoCapture only emits non-null on retake; we still null-check
+    // so a future revision that surfaces clear-photo can be wired up
+    // without surprise.
+    if (next) onReplaceAt(i, next);
+  };
+
   return (
     <div className="space-y-2">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          const files = e.target.files;
-          e.target.value = "";
-          if (files) handleFiles(files);
-        }}
-      />
-      {error && (
-        <div className="text-xs text-mse-red bg-mse-red/5 border border-mse-red/20 rounded-lg px-3 py-2">
-          {error}
+      {photos.map((p, i) => (
+        <div key={`${p.capturedAt}-${i}`} className="relative">
+          <PhotoCapture
+            label={`Additional photo ${i + 1}`}
+            value={p}
+            onChange={handleReplace(i)}
+          />
+          {/* Remove overlay sits above the gradient label band so it's
+              always reachable; PhotoCapture's own tap target underneath
+              handles retake. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(i);
+            }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/75 flex items-center justify-center z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red"
+            aria-label={`Remove additional photo ${i + 1}`}
+          >
+            <X className="w-4 h-4 text-white" />
+          </button>
+        </div>
+      ))}
+      {!atMax && (
+        <PhotoCapture
+          label={`Additional photo ${photos.length + 1}`}
+          hint={
+            photos.length === 0
+              ? "Tap to capture — refrigerant gauges, problem areas, anything else."
+              : "Tap to capture another."
+          }
+          value={null}
+          onChange={handleNew}
+        />
+      )}
+      {atMax && (
+        <div className="text-xs text-mse-muted px-1">
+          Max {ADDITIONAL_PHOTOS_MAX} additional photos reached.
         </div>
       )}
-      {photos.length > 0 && (
-        <div className="text-xs font-semibold text-mse-navy">
-          {photos.length} photo{photos.length === 1 ? "" : "s"} captured
-        </div>
-      )}
-      {photos.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
-          {photos.map((p) => (
-            <div
-              key={`${p.capturedAt}-${p.filename}`}
-              className="relative rounded-xl overflow-hidden aspect-square border-2 border-mse-gold bg-mse-light"
-            >
-              {/* Default state: a "Captured" pill behind the image so
-                  if the <img> never paints (rare on iOS) the tech still
-                  sees that the photo was captured. The image, when it
-                  loads, sits on top and covers this. */}
-              <div className="absolute inset-0 flex items-center justify-center text-mse-navy text-[11px] font-bold uppercase tracking-wide">
-                Captured
-              </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={p.thumbnailUrl}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover"
-                onError={(e) => {
-                  // Hide the broken-image icon; the "Captured" pill
-                  // underneath stays visible.
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => onRemove(photos.indexOf(p))}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center z-10"
-                aria-label="Remove photo"
-              >
-                <X className="w-3 h-3 text-white" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={busy}
-        className={cn(
-          "w-full rounded-2xl border-2 border-dashed border-mse-light bg-white p-4",
-          "flex items-center justify-center gap-2 text-sm font-semibold text-mse-muted",
-          "hover:border-mse-navy/30 hover:text-mse-navy transition-[border-color,color]",
-          "active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red"
-        )}
-      >
-        {busy ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Camera className="w-4 h-4" />
-        )}
-        {busy ? "Processing..." : photos.length === 0 ? "Add photos" : "Add more"}
-        {!busy && photos.length > 0 && (
-          <span className="ml-1 text-xs text-mse-muted font-normal">
-            ({photos.length} added)
-          </span>
-        )}
-      </button>
     </div>
   );
 }
