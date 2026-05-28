@@ -656,12 +656,13 @@ function Field({
 const ADDITIONAL_PHOTOS_MAX = 20;
 
 // Additional photos reuse the same PhotoCapture component as the
-// required slots (nameplate / before / after). Each filled photo is
-// its own slot with a retake tap + an X overlay to remove it; one
-// empty slot sits at the bottom until it's filled, then a new empty
-// slot appears below it. Same capture="environment" input that
-// already works on the iOS PWA for the required photos — no
-// multi-select, no custom file picker.
+// required slots, in a structurally identical layout: a single stable
+// map producing `photos.length + 1` slots. When a slot captures a
+// photo, the SAME PhotoCapture instance at that index just transitions
+// its `value` prop from null to the photo (exactly like the required
+// slots do). A fresh empty slot mounts beneath it. This avoids the
+// iOS Safari race where unmounting a PhotoCapture mid-capture caused
+// its blob URL to never paint.
 function AdditionalPhotosPicker({
   photos,
   onAdd,
@@ -674,57 +675,75 @@ function AdditionalPhotosPicker({
   onRemove: (i: number) => void;
 }) {
   const atMax = photos.length >= ADDITIONAL_PHOTOS_MAX;
-
-  const handleNew = (next: CapturedPhoto | null) => {
-    if (next) onAdd([next]);
-  };
-
-  const handleReplace = (i: number) => (next: CapturedPhoto | null) => {
-    // PhotoCapture only emits non-null on retake; we still null-check
-    // so a future revision that surfaces clear-photo can be wired up
-    // without surprise.
-    if (next) onReplaceAt(i, next);
-  };
+  // Render exactly photos.length + 1 slot positions (capped at MAX).
+  // The trailing position is the "next empty" slot.
+  const slotCount = Math.min(photos.length + 1, ADDITIONAL_PHOTOS_MAX);
 
   return (
     <div className="space-y-2">
-      {photos.map((p, i) => (
-        <div key={`${p.capturedAt}-${i}`} className="relative">
-          <PhotoCapture
-            label={`Additional photo ${i + 1}`}
-            value={p}
-            onChange={handleReplace(i)}
-          />
-          {/* Remove overlay sits above the gradient label band so it's
-              always reachable; PhotoCapture's own tap target underneath
-              handles retake. */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(i);
-            }}
-            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/75 flex items-center justify-center z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red"
-            aria-label={`Remove additional photo ${i + 1}`}
-          >
-            <X className="w-4 h-4 text-white" />
-          </button>
+      {photos.length > 0 && (
+        <div className="flex items-center gap-2 px-1">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-mse-gold/15 text-mse-navy text-[11px] font-bold uppercase tracking-wide">
+            {photos.length} of {ADDITIONAL_PHOTOS_MAX}
+          </span>
+          <span className="text-[11px] text-mse-muted">
+            Tap any photo to retake · tap × to remove
+          </span>
         </div>
-      ))}
-      {!atMax && (
-        <PhotoCapture
-          label={`Additional photo ${photos.length + 1}`}
-          hint={
-            photos.length === 0
-              ? "Tap to capture — refrigerant gauges, problem areas, anything else."
-              : "Tap to capture another."
-          }
-          value={null}
-          onChange={handleNew}
-        />
       )}
+      {Array.from({ length: slotCount }).map((_, i) => {
+        const photo = photos[i] ?? null;
+        const isTrailingEmpty = i === photos.length;
+        return (
+          <div
+            key={`additional-${i}`}
+            className={cn(
+              "relative",
+              // Animate only the freshly-appended empty slot — never
+              // animate filled slots (they were just captured in place).
+              isTrailingEmpty && i > 0 && "animate-slot-reveal"
+            )}
+          >
+            <PhotoCapture
+              label={`Additional photo ${i + 1}`}
+              hint={
+                photo
+                  ? undefined
+                  : i === 0
+                  ? "Tap to capture — refrigerant gauges, problem areas, anything else worth documenting."
+                  : "Tap to capture another."
+              }
+              value={photo}
+              onChange={(next) => {
+                if (!next) return;
+                if (photo) onReplaceAt(i, next);
+                else onAdd([next]);
+              }}
+            />
+            {photo && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(i);
+                }}
+                className={cn(
+                  "absolute top-2 right-2 w-9 h-9 rounded-full",
+                  "bg-black/55 hover:bg-black/75 active:scale-95",
+                  "flex items-center justify-center z-10 shadow-elevated",
+                  "transition-[background-color,transform]",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2"
+                )}
+                aria-label={`Remove additional photo ${i + 1}`}
+              >
+                <X className="w-4 h-4 text-white" strokeWidth={2.5} />
+              </button>
+            )}
+          </div>
+        );
+      })}
       {atMax && (
-        <div className="text-xs text-mse-muted px-1">
+        <div className="text-xs text-mse-muted px-1 pt-1">
           Max {ADDITIONAL_PHOTOS_MAX} additional photos reached.
         </div>
       )}
