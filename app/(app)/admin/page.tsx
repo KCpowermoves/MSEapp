@@ -18,6 +18,7 @@ import { TABS, readTab } from "@/lib/google/sheets";
 import { ageInDays, formatCurrency, todayIsoDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AdminSendReportButton } from "@/components/AdminSendReportButton";
+import { AdminFinalizeButton } from "@/components/AdminFinalizeButton";
 
 export const dynamic = "force-dynamic";
 
@@ -153,6 +154,61 @@ export default async function AdminDashboard() {
     .filter((d) => d.submittedAt && last7Days.includes(d.dispatchDate))
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
     .slice(0, 10);
+
+  // ── In-progress: draft dispatches with at least one unit logged.
+  //    These auto-close when the tech moves to a different job, or by
+  //    01:00 UTC (≈ 8pm ET) via cron. Admins can also force-close from
+  //    here via the "Finalize now" button.
+  interface DraftRow {
+    dispatchId: string;
+    jobId: string;
+    customerName: string;
+    techsOnSite: string[];
+    unitCount: number;
+    photosUploaded: number;
+    photosRequired: number;
+    startedAt: string;
+    dispatchDate: string;
+  }
+  const unitsByDispatch = new Map<string, typeof units>();
+  for (const u of units) {
+    if (!unitsByDispatch.has(u.dispatchId)) {
+      unitsByDispatch.set(u.dispatchId, []);
+    }
+    unitsByDispatch.get(u.dispatchId)!.push(u);
+  }
+  const draftDispatchRows: DraftRow[] = [];
+  for (const d of dispatches) {
+    if (d.submittedAt) continue;
+    const dispatchUnits = unitsByDispatch.get(d.dispatchId) ?? [];
+    if (dispatchUnits.length === 0) continue; // skip empty containers
+    const job = jobsById.get(d.jobId);
+    if (!job) continue;
+    let photosUploaded = 0;
+    let photosRequired = 0;
+    let startedAt = "";
+    for (const u of dispatchUnits) {
+      const { uploaded, required } = unitPhotoCounts(u);
+      photosUploaded += uploaded;
+      photosRequired += required;
+      if (u.loggedAt && (!startedAt || u.loggedAt < startedAt)) {
+        startedAt = u.loggedAt;
+      }
+    }
+    draftDispatchRows.push({
+      dispatchId: d.dispatchId,
+      jobId: d.jobId,
+      customerName: job.customerName,
+      techsOnSite: d.techsOnSite,
+      unitCount: dispatchUnits.length,
+      photosUploaded,
+      photosRequired,
+      startedAt,
+      dispatchDate: d.dispatchDate,
+    });
+  }
+  // Most recently started first.
+  draftDispatchRows.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
   return (
     <div className="space-y-6">
@@ -318,6 +374,92 @@ export default async function AdminDashboard() {
         )}
       </section>
 
+      {/* In-progress dispatches — drafts with units that haven't
+          closed out yet. Auto-finalize when the tech moves on or via
+          8pm cron; admins can force-close here. */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-mse-muted uppercase tracking-wide">
+            In progress
+          </h2>
+          <span className="text-xs text-mse-muted">
+            {draftDispatchRows.length} open
+          </span>
+        </div>
+        {draftDispatchRows.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-mse-light p-5 text-center text-sm text-mse-muted">
+            No open dispatches. Everything is closed out.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {draftDispatchRows.map((d) => {
+              const job = jobsById.get(d.jobId);
+              const allPhotosIn =
+                d.photosRequired > 0 &&
+                d.photosUploaded === d.photosRequired;
+              return (
+                <li
+                  key={d.dispatchId}
+                  className="bg-white rounded-2xl border-2 border-mse-navy/10 p-3 shadow-card"
+                >
+                  <div className="flex items-start gap-2">
+                    <span
+                      className="mt-1 w-2 h-2 rounded-full bg-mse-gold shrink-0 animate-pulse"
+                      aria-hidden
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-mse-navy truncate">
+                          {d.customerName}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded-full bg-mse-navy/8 text-mse-navy text-[10px] font-bold uppercase tracking-wide">
+                          In progress
+                        </span>
+                      </div>
+                      <div className="text-xs text-mse-muted mt-0.5">
+                        {d.techsOnSite.join(", ") || "no crew on record"} ·{" "}
+                        {d.unitCount} unit{d.unitCount === 1 ? "" : "s"} ·{" "}
+                        <span
+                          className={cn(
+                            "font-semibold",
+                            allPhotosIn ? "text-mse-navy" : "text-mse-muted"
+                          )}
+                        >
+                          {d.photosUploaded}/{d.photosRequired} photos
+                        </span>
+                        {d.startedAt && (
+                          <> · started {formatStarted(d.startedAt)}</>
+                        )}
+                      </div>
+                    </div>
+                    {job?.driveFolderUrl && (
+                      <a
+                        href={job.driveFolderUrl}
+                        target="_blank"
+                        rel="noopener"
+                        className="text-mse-muted hover:text-mse-navy"
+                        aria-label="Open Drive folder"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-mse-light flex items-center gap-2 flex-wrap">
+                    <AdminFinalizeButton
+                      dispatchId={d.dispatchId}
+                      customerName={d.customerName}
+                    />
+                    <span className="text-[11px] text-mse-muted">
+                      Or wait — auto-closes by 8 PM ET.
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {/* Recent submissions */}
       <section>
         <h2 className="text-sm font-semibold text-mse-muted uppercase tracking-wide mb-3">
@@ -408,6 +550,21 @@ export default async function AdminDashboard() {
       </div>
     </div>
   );
+}
+
+// Compact relative-time formatter for the In-progress card's
+// "started X ago" hint. ISO timestamp → "5m ago", "2h ago", "yesterday".
+function formatStarted(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso.slice(11, 16);
+  const minutes = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "yesterday";
+  return `${days}d ago`;
 }
 
 function StatCard({

@@ -320,3 +320,110 @@ export async function setDispatchReportPdf(
     "RAW"
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Auto-finalize helpers
+//
+// In v2 the tech doesn't tap "Submit job" anymore. The dispatch closes
+// itself via two paths that converge on the same submitDispatch call:
+//
+//   1. When the tech moves on (loads /jobs or a different job's page),
+//      any of their other open drafts from today auto-close. Fire-and-
+//      forget so it never blocks navigation.
+//
+//   2. Vercel cron at 01:00 UTC (≈ 8–9pm ET) sweeps every remaining
+//      draft and finalizes it regardless of photo state. Catches
+//      anything the navigation trigger missed (tech closed the app,
+//      lost signal, etc.).
+//
+// Both paths are idempotent — submittedAt empty is the only "needs
+// finalizing" signal, and submitDispatch stamps it atomically. A draft
+// that races between paths just gets one winner; the second pass sees
+// submittedAt populated and skips.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Finalize this tech's open drafts from today on jobs OTHER than the
+ * one they're currently on. Triggered fire-and-forget from server
+ * components on page load — `exceptJobId` is the job they just landed
+ * on (or null when they're at /jobs).
+ *
+ * Filters by tech presence in techsOnSite so multi-crew dispatches
+ * only finalize when ANY listed tech moves on — simple rule that
+ * works for the solo-tech 99% case. Multi-tech jobs lean on the cron.
+ */
+export async function autoFinalizeOpenDraftsForTech(
+  techName: string,
+  options?: { exceptJobId?: string | null }
+): Promise<{ finalized: string[]; errors: string[] }> {
+  const today = todayIsoDate();
+  const all = await listAllDispatches();
+  const candidates = all.filter(
+    (d) =>
+      !d.submittedAt &&
+      d.dispatchDate === today &&
+      d.techsOnSite.includes(techName) &&
+      d.jobId !== options?.exceptJobId
+  );
+
+  const finalized: string[] = [];
+  const errors: string[] = [];
+  for (const draft of candidates) {
+    try {
+      await submitDispatch({
+        dispatchId: draft.dispatchId,
+        techsOnSite: draft.techsOnSite,
+        crewSplit: draft.crewSplit,
+        driver: draft.driver,
+      });
+      finalized.push(draft.dispatchId);
+    } catch (e) {
+      console.warn(
+        `[auto-finalize] failed for ${draft.dispatchId}:`,
+        e instanceof Error ? e.message : e
+      );
+      errors.push(draft.dispatchId);
+    }
+  }
+  return { finalized, errors };
+}
+
+/**
+ * Finalize every open draft from today and prior days. Called by the
+ * nightly cron. Per Kevin's spec: drafts with zero photos are
+ * finalized anyway — photos still in the IndexedDB upload queue on
+ * the tech's device will land in Drive whenever the device next
+ * syncs, the dispatch row just needs to be officially closed so pay
+ * attribution runs.
+ */
+export async function autoFinalizeAllStaleDrafts(): Promise<{
+  finalized: string[];
+  errors: string[];
+}> {
+  const today = todayIsoDate();
+  const all = await listAllDispatches();
+  const candidates = all.filter(
+    (d) => !d.submittedAt && d.dispatchDate && d.dispatchDate <= today
+  );
+
+  const finalized: string[] = [];
+  const errors: string[] = [];
+  for (const draft of candidates) {
+    try {
+      await submitDispatch({
+        dispatchId: draft.dispatchId,
+        techsOnSite: draft.techsOnSite,
+        crewSplit: draft.crewSplit,
+        driver: draft.driver,
+      });
+      finalized.push(draft.dispatchId);
+    } catch (e) {
+      console.warn(
+        `[cron-finalize] failed for ${draft.dispatchId}:`,
+        e instanceof Error ? e.message : e
+      );
+      errors.push(draft.dispatchId);
+    }
+  }
+  return { finalized, errors };
+}

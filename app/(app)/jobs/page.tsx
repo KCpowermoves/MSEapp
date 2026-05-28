@@ -2,7 +2,10 @@ import Link from "next/link";
 import { Plus, DollarSign } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listJobsForTech } from "@/lib/data/jobs";
-import { listAllDispatches } from "@/lib/data/dispatches";
+import {
+  autoFinalizeOpenDraftsForTech,
+  listAllDispatches,
+} from "@/lib/data/dispatches";
 import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
 import { payForTechOnDate } from "@/lib/data/pay-attribution";
 import { formatCurrency, todayIsoDate } from "@/lib/utils";
@@ -27,6 +30,17 @@ export default async function JobsHomePage({
   const techName = session.name ?? "";
   const isAdmin = session.isAdmin === true;
   const today = todayIsoDate();
+
+  // Tech landed on the jobs index — they're no longer working on any
+  // specific job, so any of their open drafts from today should
+  // auto-finalize. Fire-and-forget; don't block the page render. The
+  // 8pm cron sweep is the safety net for anything this misses.
+  if (techName) {
+    autoFinalizeOpenDraftsForTech(techName, { exceptJobId: null }).catch(
+      (e) => console.warn("[jobs] auto-finalize on index failed:", e)
+    );
+  }
+
   const [jobs, dispatches, units, todaysPay] = await Promise.all([
     listJobsForTech({ techName, isAdmin }),
     listAllDispatches(),
