@@ -2,6 +2,7 @@ import "server-only";
 import {
   TABS,
   appendRow,
+  ensureTabExists,
   findRowIndex,
   readTab,
   updateCell,
@@ -12,6 +13,27 @@ import type {
   PayrollAdjustment,
   PayrollAdjustmentType,
 } from "@/lib/types";
+
+// Mirrors scripts/init-payroll-tabs.mjs — used by ensureTabExists()
+// so the tab self-provisions if a deploy ran before the init script.
+const ADJUSTMENTS_HEADERS = [
+  "AdjustmentId",
+  "PeriodId",
+  "TechName",
+  "Type",
+  "Amount",
+  "Description",
+  "RelatedDispatchId",
+  "RelatedUnitId",
+  "RelatedTech",
+  "CreatedBy",
+  "CreatedAt",
+  "Note",
+];
+
+async function ensureAdjustmentsTab(): Promise<void> {
+  await ensureTabExists(TABS.payrollAdjustments, ADJUSTMENTS_HEADERS);
+}
 
 // Sheet column layout for "Payroll Adjustments":
 // A: AdjustmentId | B: PeriodId | C: TechName | D: Type | E: Amount
@@ -42,10 +64,21 @@ export async function listAllPayrollAdjustments(): Promise<
     const rows = await readTab(TABS.payrollAdjustments);
     return rows.filter((r) => r[0]).map(rowToAdjustment);
   } catch (e) {
-    console.warn(
-      "[payroll-adjustments] read failed — is the tab created? Run scripts/init-payroll-tabs.mjs:",
-      e instanceof Error ? e.message : e
-    );
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Unable to parse range")) {
+      try {
+        await ensureAdjustmentsTab();
+        const rows = await readTab(TABS.payrollAdjustments, { fresh: true });
+        return rows.filter((r) => r[0]).map(rowToAdjustment);
+      } catch (retryErr) {
+        console.warn(
+          "[payroll-adjustments] auto-provision retry failed:",
+          retryErr instanceof Error ? retryErr.message : retryErr
+        );
+        return [];
+      }
+    }
+    console.warn("[payroll-adjustments] read failed:", msg);
     return [];
   }
 }
@@ -74,6 +107,9 @@ interface CreateAdjustmentInput {
 export async function createAdjustment(
   input: CreateAdjustmentInput
 ): Promise<PayrollAdjustment> {
+  // Self-heal: provision the tab on first write so a fresh deploy
+  // never breaks the adjustment / reattribute / split-change actions.
+  await ensureAdjustmentsTab();
   const adjustmentId = await nextPayrollAdjustmentId();
   const createdAt = nowIso();
   await appendRow(

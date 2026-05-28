@@ -2,6 +2,7 @@ import "server-only";
 import {
   TABS,
   appendRow,
+  ensureTabExists,
   findRowIndex,
   readTab,
   updateCell,
@@ -9,6 +10,28 @@ import {
 import { nextPayrollPeriodId } from "@/lib/id-generators";
 import { nowIso } from "@/lib/utils";
 import type { PayrollPeriod, PayrollStatus } from "@/lib/types";
+
+// Header row used by ensureTabExists() to auto-provision the tab on
+// first write — mirrors scripts/init-payroll-tabs.mjs so a manual
+// init isn't strictly required.
+const PERIODS_HEADERS = [
+  "PeriodId",
+  "StartDate",
+  "EndDate",
+  "Status",
+  "Label",
+  "CreatedBy",
+  "CreatedAt",
+  "ApprovedBy",
+  "ApprovedAt",
+  "PaidBy",
+  "PaidAt",
+  "Note",
+];
+
+async function ensurePeriodsTab(): Promise<void> {
+  await ensureTabExists(TABS.payrollPeriods, PERIODS_HEADERS);
+}
 
 // Sheet column layout for "Payroll Periods":
 // A: PeriodId | B: StartDate | C: EndDate | D: Status | E: Label
@@ -66,10 +89,23 @@ export async function listAllPayrollPeriods(): Promise<PayrollPeriod[]> {
     const rows = await readTab(TABS.payrollPeriods);
     return rows.filter((r) => r[0]).map(rowToPeriod);
   } catch (e) {
-    console.warn(
-      "[payroll-periods] read failed — is the tab created? Run scripts/init-payroll-tabs.mjs:",
-      e instanceof Error ? e.message : e
-    );
+    const msg = e instanceof Error ? e.message : String(e);
+    // Missing-tab failures look like "Unable to parse range:". Auto-
+    // provision and retry once so the next request gets clean data.
+    if (msg.includes("Unable to parse range")) {
+      try {
+        await ensurePeriodsTab();
+        const rows = await readTab(TABS.payrollPeriods, { fresh: true });
+        return rows.filter((r) => r[0]).map(rowToPeriod);
+      } catch (retryErr) {
+        console.warn(
+          "[payroll-periods] auto-provision retry failed:",
+          retryErr instanceof Error ? retryErr.message : retryErr
+        );
+        return [];
+      }
+    }
+    console.warn("[payroll-periods] read failed:", msg);
     return [];
   }
 }
@@ -93,6 +129,9 @@ interface CreatePeriodInput {
 export async function createPayrollPeriod(
   input: CreatePeriodInput
 ): Promise<PayrollPeriod> {
+  // Self-heal: provision the tab on first write so a fresh deploy
+  // never bricks the "Create Draft period" button.
+  await ensurePeriodsTab();
   const periodId = await nextPayrollPeriodId();
   const createdAt = nowIso();
   await appendRow(

@@ -88,6 +88,46 @@ export async function readTab(
 
 type InputOption = "USER_ENTERED" | "RAW";
 
+// Tabs we've already verified exist this process — skips the
+// spreadsheets.get round-trip on every write after the first.
+const knownTabs = new Set<string>();
+
+/**
+ * Idempotently make sure a tab exists with the given headers. First
+ * call per process does a spreadsheets.get to check; subsequent calls
+ * short-circuit via the in-memory cache. Used by the payroll layer so
+ * a fresh deployment doesn't fail at first write with "Unable to
+ * parse range" — instead we provision the tab on demand.
+ */
+export async function ensureTabExists(
+  tabName: string,
+  headerRow: string[]
+): Promise<void> {
+  if (knownTabs.has(tabName)) return;
+  const sheets = getSheetsClient();
+  const spreadsheetId = env.googleSheetId();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const exists = (meta.data.sheets ?? []).some(
+    (s) => s.properties?.title === tabName
+  );
+  if (!exists) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [{ addSheet: { properties: { title: tabName } } }],
+      },
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${tabName}!A1`,
+      valueInputOption: "RAW",
+      requestBody: { values: [headerRow] },
+    });
+    console.log(`[sheets] auto-provisioned tab "${tabName}"`);
+  }
+  knownTabs.add(tabName);
+}
+
 export async function appendRow(
   tabName: string,
   row: (string | number | boolean)[],
