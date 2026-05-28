@@ -52,3 +52,32 @@ export function crewSize(split: CrewSplit): number {
 export function isTravelTerritory(territory: UtilityTerritory): boolean {
   return TRAVEL_TERRITORIES.includes(territory);
 }
+
+/**
+ * Per-tech estimate of install pay across a list of pending units,
+ * accounting for crew-split divisor (Solo = full, 50-50 = half,
+ * 33-33-33 = third). Used on the "Uploading as you work" card so
+ * techs see a running dollar figure before the dispatch is
+ * finalized. Returns 0 if the tech isn't on the crew.
+ *
+ * Approximation only — doesn't include sales bonus, daily stipend,
+ * travel bonus, or service-row pay. The exact figure lands on
+ * Pay Attribution at finalize.
+ */
+export function estimatedInstallPayForTech(opts: {
+  units: { unitType: UnitType }[];
+  crewSplit: CrewSplit;
+  techsOnSite: string[];
+  techName: string;
+}): number {
+  if (!opts.techsOnSite.includes(opts.techName)) return 0;
+  const divisor = crewSize(opts.crewSplit);
+  if (divisor <= 0) return 0;
+  let total = 0;
+  for (const u of opts.units) {
+    const base = INSTALL_PAY[u.unitType] ?? 0;
+    total += base / divisor;
+  }
+  // Round to whole dollars — friendlier than $43.33 on a 33-33-33 split.
+  return Math.round(total);
+}

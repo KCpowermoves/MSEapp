@@ -8,6 +8,7 @@ import {
 } from "@/lib/data/dispatches";
 import { listUnitsForJob } from "@/lib/data/units";
 import { listActiveTechNames } from "@/lib/data/techs";
+import { estimatedInstallPayForTech } from "@/lib/pay-rates";
 import { todayIsoDate } from "@/lib/utils";
 import { JobDetail } from "@/components/JobDetail";
 import { OfflineJobDetail } from "@/components/OfflineJobDetail";
@@ -89,6 +90,23 @@ export default async function JobDetailPage({
       }
     : null;
 
+  // Running pay estimate for the in-progress (unsubmitted) units on
+  // this job, scoped to the current tech and divided by their crew
+  // share. Shown on the "Uploading as you work" card so techs can
+  // see their earnings climbing in real time. The official figure
+  // still rolls up at finalize.
+  const pendingUnitTypes = unitsWithStatus
+    .filter((u) => !u.submitted)
+    .map((u) => ({ unitType: u.unitType }));
+  const pendingPayEstimate = draft
+    ? estimatedInstallPayForTech({
+        units: pendingUnitTypes,
+        crewSplit: draft.crewSplit,
+        techsOnSite: draft.techsOnSite,
+        techName,
+      })
+    : 0;
+
   return (
     <JobDetail
       job={job}
@@ -98,6 +116,7 @@ export default async function JobDetailPage({
       activeTechs={activeTechs}
       currentUserName={session.name ?? ""}
       isAdmin={isAdmin}
+      pendingPayEstimate={pendingPayEstimate}
     />
   );
 }

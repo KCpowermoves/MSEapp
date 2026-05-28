@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { UnitsSection } from "@/components/LocalDraftRows";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import type {
   Job,
   UnitServiced,
@@ -34,6 +34,9 @@ interface Props {
   activeTechs: string[];
   currentUserName: string;
   isAdmin: boolean;
+  /** Running estimate of this tech's install pay across the pending
+   *  (un-finalized) units on this job. Server-computed in the page. */
+  pendingPayEstimate: number;
 }
 
 export function JobDetail({
@@ -42,6 +45,7 @@ export function JobDetail({
   submittedToday,
   currentUserName,
   isAdmin,
+  pendingPayEstimate,
 }: Props) {
   useTodaysCrew(job.jobId, currentUserName);
   // Pending units = today's draft units. Their photo counts feed the
@@ -127,6 +131,7 @@ export function JobDetail({
           unitCount={pendingUnits.length}
           photosUploaded={pendingPhotosUploaded}
           photosRequired={pendingPhotosRequired}
+          payEstimate={pendingPayEstimate}
           alsoFinalizedToday={wasSubmittedToday}
         />
       ) : wasSubmittedToday ? (
@@ -156,11 +161,13 @@ function AutoUploadCard({
   unitCount,
   photosUploaded,
   photosRequired,
+  payEstimate,
   alsoFinalizedToday,
 }: {
   unitCount: number;
   photosUploaded: number;
   photosRequired: number;
+  payEstimate: number;
   alsoFinalizedToday: boolean;
 }) {
   const allPhotosIn =
@@ -168,36 +175,45 @@ function AutoUploadCard({
   return (
     <section
       className={cn(
-        "rounded-2xl p-4 shadow-card",
+        "rounded-2xl p-5 shadow-elevated relative overflow-hidden",
         "border-2 border-mse-navy/15 bg-gradient-to-br from-mse-navy to-mse-navy-soft text-white"
       )}
     >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "w-10 h-10 rounded-xl shrink-0 flex items-center justify-center",
-            "bg-white/10"
-          )}
-        >
-          <CloudUpload className="w-5 h-5 text-mse-gold" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-bold text-base leading-tight">
-            Uploading as you work
-          </div>
-          <p className="text-[13px] text-white/75 leading-snug mt-1">
-            No submit button — your work closes out when you head to your next
-            job, or by 8&nbsp;PM ET at the latest.
-          </p>
+      {/* Soft gold radial behind the dollar amount — gives the
+          earnings figure a subtle spotlight without being loud. */}
+      <div
+        className="pointer-events-none absolute -top-12 -right-12 w-48 h-48 rounded-full bg-mse-gold/15 blur-3xl"
+        aria-hidden
+      />
+
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 text-white/75">
+          <CloudUpload className="w-4 h-4 text-mse-gold shrink-0" />
+          <span className="text-[11px] font-bold uppercase tracking-wider">
+            Earning so far on this job
+          </span>
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+
+      {/* Hero pay figure — friendly to look at, tight tracking. */}
+      <div className="relative mt-2 flex items-baseline gap-2">
+        <span className="text-4xl font-bold tracking-tight tabular-nums">
+          {formatCurrency(payEstimate)}
+        </span>
+        <span className="text-[11px] text-white/55 leading-tight">
+          estimated
+          <br />
+          locks in at finalize
+        </span>
+      </div>
+
+      <div className="relative mt-4 grid grid-cols-2 gap-2 text-sm">
         <Stat
-          label={`Unit${unitCount === 1 ? "" : "s"}`}
+          label={`Unit${unitCount === 1 ? "" : "s"} logged`}
           value={String(unitCount)}
         />
         <Stat
-          label="Photos"
+          label="Photos uploaded"
           value={
             photosRequired === 0
               ? "—"
@@ -206,9 +222,15 @@ function AutoUploadCard({
           accent={allPhotosIn}
         />
       </div>
+
+      <p className="relative text-[12px] text-white/65 leading-snug mt-4">
+        Auto-closes when you head to your next job, or by 8&nbsp;PM ET at the
+        latest. No submit needed.
+      </p>
+
       {alsoFinalizedToday && (
-        <p className="text-[11px] text-white/55 mt-3 leading-snug">
-          An earlier batch on this job was already finalized today. This card
+        <p className="relative text-[11px] text-white/45 mt-2 leading-snug">
+          An earlier batch on this job was already finalized today — this card
           covers the new units only.
         </p>
       )}
@@ -240,7 +262,9 @@ function Stat({
       >
         {label}
       </div>
-      <div className="text-lg font-bold leading-tight mt-0.5">{value}</div>
+      <div className="text-lg font-bold leading-tight mt-0.5 tabular-nums">
+        {value}
+      </div>
     </div>
   );
 }
