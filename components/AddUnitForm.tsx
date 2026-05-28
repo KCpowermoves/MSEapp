@@ -737,17 +737,19 @@ function AdditionalPhotosPicker({
     setBusy(false);
   };
 
+  // The slot-photo input pattern (capture="environment", no multiple)
+  // is the one iOS Safari PWAs actually honor reliably. Multi-select
+  // from library was unreliable for Kevin, so additional photos are
+  // captured one at a time — same workflow as the nameplate / before /
+  // after slots that already work for him. Tech can tap Add another
+  // as many times as they need.
   return (
     <div className="space-y-2">
-      {/* No `capture` attribute — that locks iOS to camera-only and
-          disables library selection. Without it, the OS shows a
-          chooser: Take Photo / Photo Library / Choose File. `multiple`
-          lets the tech pick a whole batch at once from the library. */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
-        multiple
+        capture="environment"
         className="hidden"
         onChange={(e) => {
           const files = e.target.files;
@@ -758,6 +760,11 @@ function AdditionalPhotosPicker({
       {error && (
         <div className="text-xs text-mse-red bg-mse-red/5 border border-mse-red/20 rounded-lg px-3 py-2">
           {error}
+        </div>
+      )}
+      {photos.length > 0 && (
+        <div className="text-xs font-semibold text-mse-navy">
+          {photos.length} photo{photos.length === 1 ? "" : "s"} captured
         </div>
       )}
       {photos.length > 0 && (
