@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { UnitsSection } from "@/components/LocalDraftRows";
+import { JobDriveFiles } from "@/components/admin/JobDriveFiles";
 import { cn, formatCurrency } from "@/lib/utils";
 import type {
   Job,
@@ -152,6 +153,15 @@ export function JobDetail({
             no submit needed.
           </p>
         </section>
+      )}
+
+      {/* Admin-only Drive folder browser. Lazy-loaded — non-admins
+          never see the request go out. */}
+      {isAdmin && job.driveFolderId && (
+        <JobDriveFiles
+          folderId={job.driveFolderId}
+          folderUrl={job.driveFolderUrl}
+        />
       )}
     </div>
   );

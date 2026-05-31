@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, DollarSign } from "lucide-react";
+import {
+  Building2,
+  DollarSign,
+  Image as ImageIcon,
+  LayoutDashboard,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Tab strip across the top of every admin page. Pure presentation —
@@ -24,6 +29,18 @@ const TABS: Tab[] = [
     label: "Dashboard",
     icon: <LayoutDashboard className="w-3.5 h-3.5" />,
     match: (p) => p === "/admin",
+  },
+  {
+    href: "/admin/customers",
+    label: "Customers",
+    icon: <Building2 className="w-3.5 h-3.5" />,
+    match: (p) => p.startsWith("/admin/customers"),
+  },
+  {
+    href: "/admin/library",
+    label: "Library",
+    icon: <ImageIcon className="w-3.5 h-3.5" />,
+    match: (p) => p.startsWith("/admin/library"),
   },
   {
     href: "/admin/payroll",

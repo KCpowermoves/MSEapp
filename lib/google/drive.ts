@@ -111,6 +111,63 @@ export function fileUrl(id: string): string {
   return `https://drive.google.com/file/d/${id}/view`;
 }
 
+export interface DriveFileSummary {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  modifiedTime: string;
+  webViewLink: string;
+  // Drive returns short-lived signed thumbnail URLs that work without
+  // auth for world-readable files. Stable enough for a few hours of
+  // client-side caching.
+  thumbnailLink: string;
+  isFolder: boolean;
+  isImage: boolean;
+  isPdf: boolean;
+}
+
+/**
+ * List the immediate children of a Drive folder, sorted newest first.
+ * Returns at most `pageSize` files (default 200). Filters out trashed
+ * items. Safe for shared-drive folders.
+ */
+export async function listFolderFiles(
+  folderId: string,
+  opts: { pageSize?: number } = {}
+): Promise<DriveFileSummary[]> {
+  if (!folderId) return [];
+  const drive = getDriveClient();
+  const q = `'${folderId}' in parents and trashed = false`;
+  const res = await drive.files.list({
+    q,
+    fields:
+      "files(id, name, mimeType, size, modifiedTime, webViewLink, thumbnailLink)",
+    orderBy: "modifiedTime desc",
+    pageSize: Math.min(opts.pageSize ?? 200, 1000),
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  const files = res.data.files ?? [];
+  return files
+    .filter((f) => Boolean(f.id))
+    .map((f) => {
+      const mt = f.mimeType ?? "";
+      return {
+        id: f.id!,
+        name: f.name ?? "(untitled)",
+        mimeType: mt,
+        size: Number(f.size ?? 0) || 0,
+        modifiedTime: f.modifiedTime ?? "",
+        webViewLink: f.webViewLink ?? fileUrl(f.id!),
+        thumbnailLink: f.thumbnailLink ?? "",
+        isFolder: mt === "application/vnd.google-apps.folder",
+        isImage: mt.startsWith("image/"),
+        isPdf: mt === "application/pdf",
+      };
+    });
+}
+
 export function getRootFolderId(): string {
   return env.googleDriveRootFolderId();
 }
