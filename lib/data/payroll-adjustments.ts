@@ -222,6 +222,59 @@ export async function createSplitChange(opts: {
   return out;
 }
 
+/**
+ * Patch an existing adjustment row's site/job linkage. Used by the
+ * commission report's "set site for this adjustment" dialog so admins
+ * can attach a previously-standalone manual adjustment to the right
+ * dispatch (which carries the customer/job context downstream).
+ *
+ * Only the related-{dispatch,unit,tech} columns can be edited via
+ * this path; amount + description + audit columns stay frozen. The
+ * underlying period must still be Draft — gated by the API route.
+ */
+export async function updateAdjustmentLinkage(opts: {
+  adjustmentId: string;
+  relatedDispatchId?: string;
+  relatedUnitId?: string;
+  relatedTech?: string;
+}): Promise<void> {
+  const rowIndex = await findRowIndex(
+    TABS.payrollAdjustments,
+    "A",
+    opts.adjustmentId
+  );
+  if (!rowIndex) throw new Error("Adjustment not found");
+  const writes: Promise<void>[] = [];
+  if (opts.relatedDispatchId !== undefined) {
+    writes.push(
+      updateCell(
+        `${TABS.payrollAdjustments}!G${rowIndex}`,
+        opts.relatedDispatchId,
+        "RAW"
+      )
+    );
+  }
+  if (opts.relatedUnitId !== undefined) {
+    writes.push(
+      updateCell(
+        `${TABS.payrollAdjustments}!H${rowIndex}`,
+        opts.relatedUnitId,
+        "RAW"
+      )
+    );
+  }
+  if (opts.relatedTech !== undefined) {
+    writes.push(
+      updateCell(
+        `${TABS.payrollAdjustments}!I${rowIndex}`,
+        opts.relatedTech,
+        "RAW"
+      )
+    );
+  }
+  if (writes.length > 0) await Promise.all(writes);
+}
+
 /** Reversing an adjustment is the audit-correct way to "delete" one.
  *  We never actually clear sheet rows — instead we append a paired
  *  reversal with the equal-and-opposite amount, linked via note. */

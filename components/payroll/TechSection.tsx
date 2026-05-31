@@ -24,6 +24,7 @@ import { AddAdjustmentDialog } from "@/components/payroll/AddAdjustmentDialog";
 import { EditJobDialog } from "@/components/payroll/EditJobDialog";
 import { OverrideDialog } from "@/components/payroll/OverrideDialog";
 import { ReattributeDialog } from "@/components/payroll/ReattributeDialog";
+import { SetSiteDialog } from "@/components/payroll/SetSiteDialog";
 import { SplitChangeDialog } from "@/components/payroll/SplitChangeDialog";
 import { useUndoStack } from "@/components/payroll/UndoContext";
 
@@ -86,6 +87,9 @@ export function TechSection({
     null
   );
   const [editJobId, setEditJobId] = useState<string | null>(null);
+  const [setSiteFor, setSetSiteFor] = useState<{
+    item: ReportLineItem;
+  } | null>(null);
   const [splitChange, setSplitChange] = useState<string | null>(null);
   const [voiding, setVoiding] = useState<string | null>(null);
 
@@ -157,6 +161,8 @@ export function TechSection({
             periodId={periodId}
             activeTechs={activeTechs}
             defaultTech=""
+            periodDispatches={periodDispatches}
+            jobsById={jobsById}
             onClose={() => setShowAddStandalone(false)}
             onSaved={() => {
               setShowAddStandalone(false);
@@ -276,8 +282,12 @@ export function TechSection({
                     key={`${it.source}-${it.id}`}
                     item={it}
                     isDraft={isDraft}
-                    canEditJob={Boolean(it.jobId && jobsById[it.jobId])}
+                    canEditJob={
+                      it.source === "attribution" &&
+                      Boolean(it.jobId && jobsById[it.jobId])
+                    }
                     onEditJob={() => it.jobId && setEditJobId(it.jobId)}
+                    onSetSite={() => setSetSiteFor({ item: it })}
                     onReattribute={() => setReattribute({ item: it })}
                     onOverride={() => setOverride({ item: it })}
                     onVoid={() => voidAdjustment(it.adjustmentId)}
@@ -357,6 +367,8 @@ export function TechSection({
           periodId={periodId}
           activeTechs={activeTechs}
           defaultTech={techName}
+          periodDispatches={periodDispatches}
+          jobsById={jobsById}
           onClose={() => setShowAddManual(false)}
           onSaved={() => {
             setShowAddManual(false);
@@ -370,6 +382,8 @@ export function TechSection({
           periodId={periodId}
           activeTechs={activeTechs}
           defaultTech={techName}
+          periodDispatches={periodDispatches}
+          jobsById={jobsById}
           onClose={() => setShowAddStandalone(false)}
           onSaved={() => {
             setShowAddStandalone(false);
@@ -436,6 +450,21 @@ export function TechSection({
           }}
         />
       )}
+      {setSiteFor && (
+        <SetSiteDialog
+          mode="link"
+          adjustmentId={setSiteFor.item.adjustmentId}
+          item={setSiteFor.item}
+          periodDispatches={periodDispatches}
+          jobsById={jobsById}
+          initialDispatchId={setSiteFor.item.dispatchId}
+          onClose={() => setSetSiteFor(null)}
+          onSaved={() => {
+            setSetSiteFor(null);
+            router.refresh();
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -445,6 +474,7 @@ function LineItemRow({
   isDraft,
   canEditJob,
   onEditJob,
+  onSetSite,
   onReattribute,
   onOverride,
   onVoid,
@@ -454,6 +484,7 @@ function LineItemRow({
   isDraft: boolean;
   canEditJob: boolean;
   onEditJob: () => void;
+  onSetSite: () => void;
   onReattribute: () => void;
   onOverride: () => void;
   onVoid: () => void;
@@ -475,7 +506,29 @@ function LineItemRow({
         {item.date || "—"}
       </td>
       <td className="py-2 px-2 max-w-[180px]">
-        {canEditJob ? (
+        {isAdj && isDraft && !voided ? (
+          // ADJUSTMENT row: click to set or change the linked site.
+          // Always rebinds to a dispatch — different intent from an
+          // auto-attribution row, which edits the underlying job.
+          <button
+            type="button"
+            onClick={onSetSite}
+            className={cn(
+              "text-sm truncate text-left",
+              item.customerName
+                ? "text-mse-navy font-semibold hover:underline decoration-mse-gold underline-offset-2"
+                : "text-mse-muted italic underline decoration-dotted underline-offset-2 hover:text-mse-navy hover:decoration-mse-gold",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-1 rounded-sm"
+            )}
+            title={
+              item.customerName
+                ? "Change which site this adjustment is linked to"
+                : "Set the site / job for this adjustment"
+            }
+          >
+            {item.customerName || "Set site…"}
+          </button>
+        ) : canEditJob ? (
           <button
             type="button"
             onClick={onEditJob}

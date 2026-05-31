@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Building2, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/payroll/Dialog";
 import { useUndoStack } from "@/components/payroll/UndoContext";
+import { SetSiteDialog } from "@/components/payroll/SetSiteDialog";
+import type {
+  JobLite,
+  PeriodDispatchLite,
+} from "@/components/payroll/TechSection";
 
 // Single dialog for both:
 //   - mode="manual"     → +/- adjustment with note
@@ -15,6 +20,10 @@ interface Props {
   periodId: string;
   activeTechs: string[];
   defaultTech: string;
+  /** Optional site picker — when provided, admin can attach this
+   *  adjustment to a specific dispatch right at creation time. */
+  periodDispatches?: PeriodDispatchLite[];
+  jobsById?: Record<string, JobLite>;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -24,6 +33,8 @@ export function AddAdjustmentDialog({
   periodId,
   activeTechs,
   defaultTech,
+  periodDispatches,
+  jobsById,
   onClose,
   onSaved,
 }: Props) {
@@ -32,9 +43,15 @@ export function AddAdjustmentDialog({
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [note, setNote] = useState("");
+  const [siteDispatchId, setSiteDispatchId] = useState<string>("");
+  const [siteJob, setSiteJob] = useState<JobLite | null>(null);
+  const [showSitePicker, setShowSitePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const undo = useUndoStack();
+
+  const canPickSite =
+    Boolean(periodDispatches && jobsById && periodDispatches.length > 0);
 
   const amountNum = Number(amount);
   const canSubmit =
@@ -60,6 +77,7 @@ export function AddAdjustmentDialog({
           amount: signed,
           description,
           note,
+          relatedDispatchId: siteDispatchId,
         }),
       });
       const body = (await res.json().catch(() => ({}))) as {
@@ -174,6 +192,62 @@ export function AddAdjustmentDialog({
           />
         </label>
 
+        {canPickSite && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
+              Site (optional)
+            </div>
+            {siteJob ? (
+              <div className="flex items-center gap-2 rounded-lg border border-mse-light bg-mse-light/30 px-3 py-2">
+                <Building2 className="w-4 h-4 text-mse-gold shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-mse-navy truncate">
+                    {siteJob.customerName}
+                  </div>
+                  {siteJob.siteAddress && (
+                    <div className="text-[11px] text-mse-muted truncate">
+                      {siteJob.siteAddress}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSitePicker(true)}
+                  className="text-[11px] font-bold text-mse-navy hover:underline"
+                >
+                  Change
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSiteDispatchId("");
+                    setSiteJob(null);
+                  }}
+                  className="p-1 rounded-md text-mse-muted hover:text-mse-red"
+                  aria-label="Clear site"
+                  title="Clear site"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowSitePicker(true)}
+                className={cn(
+                  "w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold",
+                  "bg-white border-2 border-dashed border-mse-light text-mse-muted",
+                  "hover:border-mse-navy/30 hover:text-mse-navy active:scale-[0.99]",
+                  "transition-[border-color,color,transform]"
+                )}
+              >
+                <Building2 className="w-4 h-4" />
+                Attach to a site
+              </button>
+            )}
+          </div>
+        )}
+
         <label className="block">
           <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
             Note (optional)
@@ -217,6 +291,21 @@ export function AddAdjustmentDialog({
           </button>
         </div>
       </form>
+
+      {showSitePicker && periodDispatches && jobsById && (
+        <SetSiteDialog
+          mode="pick"
+          periodDispatches={periodDispatches}
+          jobsById={jobsById}
+          initialDispatchId={siteDispatchId}
+          onClose={() => setShowSitePicker(false)}
+          onPick={(dispatchId, job) => {
+            setSiteDispatchId(dispatchId);
+            setSiteJob(job);
+            setShowSitePicker(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 }
