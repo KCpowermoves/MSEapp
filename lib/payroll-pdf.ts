@@ -1,12 +1,11 @@
 import "server-only";
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 // Standalone PDFKit build bundles the Standard 14 fonts so this works
 // on Vercel serverless without external font files.
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
 const PDFDocument: any = require("pdfkit/js/pdfkit.standalone");
 
 import { formatCurrency } from "@/lib/utils";
+import { getPayrollLogoBuffer } from "@/lib/payroll-logo";
 import type { PayrollReport, TechRollup } from "@/lib/payroll/compute";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,42 +28,25 @@ const CONTENT_W = PAGE_W - MARGIN * 2; // 516
 
 // ─── Logo loading ────────────────────────────────────────────────────
 //
-// process.cwd() isn't reliable on Vercel serverless because the
-// process can launch from a different directory than the project
-// root. We try several candidate paths in order so the logo loads in
-// any of: local dev (cwd = project root), Vercel serverless (cwd =
-// /var/task with project files at /var/task), and edge-of-bundle
-// resolution via __dirname relative.
+// The MSE logo lives as an inlined base64 string in lib/payroll-logo.ts
+// (auto-generated from public/logo.png, downscaled to 256×256). This
+// dodges every Vercel-serverless gotcha around dynamic fs reads —
+// outputFileTracingIncludes, working-directory drift, asset
+// tracing — by making the logo part of the JS bundle itself.
+//
+// To refresh the embedded logo after a brand asset change:
+//   node scripts/generate-payroll-logo.mjs
+
 let cachedLogo: Buffer | null = null;
-let logoLookupDone = false;
-
 function getLogoBuffer(): Buffer | null {
-  if (logoLookupDone) return cachedLogo;
-  logoLookupDone = true;
-
-  const candidates = [
-    path.join(process.cwd(), "public", "logo.png"),
-    path.join(process.cwd(), "public/logo.png"),
-    // When running from `.next/server/app/...`, the public folder
-    // sits a few levels up.
-    path.resolve(process.cwd(), "..", "..", "..", "public", "logo.png"),
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      if (existsSync(candidate)) {
-        cachedLogo = readFileSync(candidate);
-        console.log(`[payroll-pdf] loaded logo from ${candidate}`);
-        return cachedLogo;
-      }
-    } catch {
-      // try next path
-    }
+  if (cachedLogo) return cachedLogo;
+  try {
+    cachedLogo = getPayrollLogoBuffer();
+    return cachedLogo;
+  } catch (e) {
+    console.warn("[payroll-pdf] failed to decode embedded logo:", e);
+    return null;
   }
-  console.warn(
-    `[payroll-pdf] logo not found in any candidate: ${candidates.join(" | ")}`
-  );
-  return null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
