@@ -129,7 +129,7 @@ function addPageFooter(doc: Doc): void {
     .fontSize(8)
     .font("Helvetica")
     .text(
-      "Maryland Smart Energy · Payroll Report · CONFIDENTIAL",
+      "Maryland Smart Energy · Pay Report · CONFIDENTIAL",
       MARGIN,
       y,
       { width: CONTENT_W, align: "left", continued: true }
@@ -207,7 +207,7 @@ function renderHeader(doc: Doc, report: PayrollReport): void {
     .fillColor(NAVY)
     .font("Helvetica-Bold")
     .fontSize(22)
-    .text("Payroll Report", textLeft, MARGIN + 2);
+    .text("Pay Report", textLeft, MARGIN + 2);
   doc
     .fillColor(MUTED)
     .font("Helvetica")
@@ -305,7 +305,7 @@ function renderSummary(doc: Doc, report: PayrollReport): void {
     doc.restore();
   }
 
-  card(0, "Total Payroll", formatCurrency(report.grandTotal), "navy");
+  card(0, "Total Pay", formatCurrency(report.grandTotal), "navy");
   card(1, "Techs", String(report.techs.length), "gold");
   card(
     2,
@@ -348,10 +348,9 @@ function renderTechSection(doc: Doc, tech: TechRollup): void {
 
   // Subtotal chips
   const chips: Array<{ label: string; value: number; show: boolean }> = [
-    { label: "Install", value: tech.subtotals.install, show: tech.subtotals.install !== 0 },
+    { label: "Service", value: tech.subtotals.service, show: tech.subtotals.service !== 0 },
     { label: "Sales (paid)", value: tech.subtotals.salesPaid, show: tech.subtotals.salesPaid !== 0 },
     { label: "Sales (pending)", value: tech.subtotals.salesPending, show: tech.subtotals.salesPending !== 0 },
-    { label: "Service", value: tech.subtotals.service, show: tech.subtotals.service !== 0 },
     { label: "Standalone", value: tech.subtotals.standalone, show: tech.subtotals.standalone !== 0 },
     { label: "Daily Stipend", value: tech.subtotals.dailyStipend, show: tech.subtotals.dailyStipend !== 0 },
     { label: "Travel Bonus", value: tech.subtotals.travelBonus, show: tech.subtotals.travelBonus !== 0 },
@@ -606,9 +605,9 @@ export async function buildPayrollPdf(opts: BuildOpts): Promise<Buffer> {
         margin: MARGIN,
         bufferPages: true,
         info: {
-          Title: `Payroll · ${prettyDateRange(report.startDate, report.endDate)}`,
+          Title: `Pay Report · ${prettyDateRange(report.startDate, report.endDate)}`,
           Author: "Maryland Smart Energy",
-          Subject: "Payroll Report",
+          Subject: "Pay Report",
         },
       });
 

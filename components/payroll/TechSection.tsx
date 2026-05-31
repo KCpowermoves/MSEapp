@@ -139,10 +139,9 @@ export function TechSection({
   }
 
   const chips: Array<{ label: string; value: number }> = [
-    { label: "Install", value: tech.subtotals.install },
+    { label: "Service", value: tech.subtotals.service },
     { label: "Sales (paid)", value: tech.subtotals.salesPaid },
     { label: "Sales (pending)", value: tech.subtotals.salesPending },
-    { label: "Service", value: tech.subtotals.service },
     { label: "Standalone", value: tech.subtotals.standalone },
     { label: "Stipend", value: tech.subtotals.dailyStipend },
     { label: "Travel", value: tech.subtotals.travelBonus },

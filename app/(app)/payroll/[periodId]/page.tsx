@@ -67,7 +67,7 @@ export default async function TechPayrollDetailPage({
         <div className="relative flex items-start justify-between gap-3 flex-wrap">
           <div>
             <div className="text-[11px] uppercase tracking-[0.12em] font-bold text-mse-gold">
-              Pay Period · {period.periodId}
+              Pay Report Period · {period.periodId}
             </div>
             <h1 className="text-3xl font-bold tracking-tight mt-1">
               {titleText}
@@ -119,10 +119,9 @@ export default async function TechPayrollDetailPage({
       {/* Subtotal chips — gives the tech an at-a-glance breakdown */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
-          { label: "Install", value: rollup.subtotals.install },
+          { label: "Service", value: rollup.subtotals.service },
           { label: "Sales (paid)", value: rollup.subtotals.salesPaid },
           { label: "Sales (pending)", value: rollup.subtotals.salesPending },
-          { label: "Service", value: rollup.subtotals.service },
           { label: "Standalone", value: rollup.subtotals.standalone },
           { label: "Daily Stipend", value: rollup.subtotals.dailyStipend },
           { label: "Travel Bonus", value: rollup.subtotals.travelBonus },

@@ -40,12 +40,20 @@ export interface ReportLineItem {
 export interface TechRollup {
   techName: string;
   lineItems: ReportLineItem[];
-  /** Subtotals by category — surface in cards/summary. */
+  /** Subtotals by category — surface in cards/summary. The historical
+   *  data model has separate "Install" (unit-install pay) and "Service"
+   *  (additional-services pay like thermostat installs) line items —
+   *  per Kevin's spec, both display under a single user-facing
+   *  "Service" bucket so techs see one number instead of two
+   *  semantically-similar ones. The merge happens here so all
+   *  consumers (UI / PDF / CSV) get the merged value without each one
+   *  needing its own translation.
+   */
   subtotals: {
-    install: number;
+    /** Combined: legacy "Install" attribution + legacy "Service" attribution. */
+    service: number;
     salesPaid: number;
     salesPending: number;
-    service: number;
     standalone: number;
     dailyStipend: number;
     travelBonus: number;
@@ -76,14 +84,23 @@ function inDateRange(iso: string, start: string, end: string): boolean {
 }
 
 function bucketKey(lineItem: string): keyof TechRollup["subtotals"] {
-  if (lineItem === "Install") return "install";
+  // Legacy "Install" rows now fold into the unified "Service" bucket
+  // so the rollup matches the user-facing label.
+  if (lineItem === "Install") return "service";
+  if (lineItem === "Service") return "service";
   if (lineItem === "Sales (paid)") return "salesPaid";
   if (lineItem === "Sales (pending)") return "salesPending";
-  if (lineItem === "Service") return "service";
   if (lineItem === "Standalone Trip") return "standalone";
   if (lineItem === "Daily Stipend") return "dailyStipend";
   if (lineItem === "Travel Bonus") return "travelBonus";
   return "adjustments";
+}
+
+/** Translate the historical line-item value for display. "Install"
+ *  rows render as "Service" so the user-facing labeling is uniform. */
+function displayLineType(lineItem: string): string {
+  if (lineItem === "Install") return "Service";
+  return lineItem;
 }
 
 function describeAdjustment(a: PayrollAdjustment): string {
@@ -160,9 +177,9 @@ export async function computePayrollReport(
       id: r.id,
       date: r.date,
       techName: r.techName,
-      lineType: r.lineItem,
+      lineType: displayLineType(r.lineItem),
       amount: r.amount,
-      description: r.notes || r.lineItem,
+      description: r.notes || displayLineType(r.lineItem),
       dispatchId: r.dispatchId,
       unitId: "",
       jobId: dispatch?.jobId ?? "",
@@ -212,10 +229,9 @@ export async function computePayrollReport(
     });
 
     const subtotals: TechRollup["subtotals"] = {
-      install: 0,
+      service: 0,
       salesPaid: 0,
       salesPending: 0,
-      service: 0,
       standalone: 0,
       dailyStipend: 0,
       travelBonus: 0,
@@ -224,6 +240,9 @@ export async function computePayrollReport(
     };
     for (const it of sorted) {
       if (it.source === "attribution") {
+        // bucketKey reads the already-display-translated lineType, but
+        // also accepts the legacy "Install" string defensively in case
+        // any caller bypasses the translation.
         const k = bucketKey(it.lineType);
         subtotals[k] += it.amount;
       } else {
@@ -234,10 +253,9 @@ export async function computePayrollReport(
       }
     }
     subtotals.earned =
-      subtotals.install +
+      subtotals.service +
       subtotals.salesPaid +
       subtotals.salesPending +
-      subtotals.service +
       subtotals.standalone +
       subtotals.dailyStipend +
       subtotals.travelBonus;

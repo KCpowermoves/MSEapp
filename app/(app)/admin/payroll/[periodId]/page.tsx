@@ -135,10 +135,9 @@ export default async function PayrollDetailPage({
                   techName: "",
                   lineItems: [],
                   subtotals: {
-                    install: 0,
+                    service: 0,
                     salesPaid: 0,
                     salesPending: 0,
-                    service: 0,
                     standalone: 0,
                     dailyStipend: 0,
                     travelBonus: 0,

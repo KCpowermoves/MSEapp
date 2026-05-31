@@ -90,7 +90,7 @@ export function PayrollDetailHeader(props: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-mse-gold text-[11px] font-bold uppercase tracking-[0.12em]">
             <DollarSign className="w-3.5 h-3.5" />
-            Payroll period
+            Pay report period
             <span className="text-white/70 font-mono normal-case tracking-normal">
               · {props.periodId}
             </span>

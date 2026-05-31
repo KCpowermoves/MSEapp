@@ -67,7 +67,7 @@ export default async function TechPayrollPage() {
         <div className="text-sm text-mse-muted">My pay</div>
         <h1 className="text-3xl font-bold text-mse-navy tracking-tight flex items-center gap-2">
           <DollarSign className="w-7 h-7 text-mse-gold" />
-          Payroll
+          Pay Report
         </h1>
         <p className="text-sm text-mse-muted mt-1 max-w-xl">
           Your approved + paid runs. Earnings on this page have been finalized
@@ -105,12 +105,12 @@ export default async function TechPayrollPage() {
 
       <section>
         <h2 className="text-sm font-semibold text-mse-muted uppercase tracking-wide mb-3">
-          Pay periods
+          Pay reports
         </h2>
         {cards.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-mse-light p-8 text-center">
             <p className="text-sm text-mse-muted">
-              No approved payroll runs yet. Drafts are still admin-only — once
+              No approved pay reports yet. Drafts are still admin-only — once
               your next pay period is approved, it&apos;ll show up here.
             </p>
           </div>

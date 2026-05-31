@@ -115,7 +115,7 @@ export function SplitChangeDialog({
   return (
     <Dialog
       title="Change crew split"
-      subtitle="Recomputes the unit pay across a new crew. Only Install pay is affected; sales/service/travel stay put."
+      subtitle="Recomputes the unit pay across a new crew. Only Service pay is affected; sales/standalone/travel stay put."
       size="lg"
       onClose={onClose}
     >
