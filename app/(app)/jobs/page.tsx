@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, TrendingUp } from "lucide-react";
+import { CheckCircle2, Clock, Plus } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listJobsForTech } from "@/lib/data/jobs";
 import {
@@ -11,8 +11,14 @@ import {
   payForTechOnDate,
   payForTechInRange,
 } from "@/lib/data/pay-attribution";
+import { listAllPayrollPeriods } from "@/lib/data/payroll-periods";
 import { estimatedInstallPayForTech } from "@/lib/pay-rates";
-import { formatCurrency, todayIsoDate } from "@/lib/utils";
+import {
+  endOfWeekIso,
+  formatCurrency,
+  startOfWeekIso,
+  todayIsoDate,
+} from "@/lib/utils";
 import { SubmittedToast } from "@/components/SubmittedToast";
 import { OfflineJobRows } from "@/components/OfflineJobRows";
 import { JobsList } from "@/components/JobsList";
@@ -49,23 +55,28 @@ export default async function JobsHomePage({
     );
   }
 
-  // 7-day rolling window for the dashboard tile.
-  const sevenDaysAgoIso = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 6); // inclusive of today → 7-day range
-    return d.toISOString().slice(0, 10);
-  })();
+  // Mon-Sun week containing today.
+  const weekStartIso = startOfWeekIso();
+  const weekEndIso = endOfWeekIso();
 
-  const [jobs, dispatches, units, todaysPay, sevenDayPay] = await Promise.all([
+  const [
+    jobs,
+    dispatches,
+    units,
+    todaysPay,
+    weekPay,
+    payrollPeriods,
+  ] = await Promise.all([
     listJobsForTech({ techName, isAdmin }),
     listAllDispatches(),
     listAllUnits(),
     payForTechOnDate({ techName, dateIso: today }),
     payForTechInRange({
       techName,
-      startIso: sevenDaysAgoIso,
-      endIso: today,
+      startIso: weekStartIso,
+      endIso: weekEndIso,
     }),
+    listAllPayrollPeriods(),
   ]);
   const firstName = techName.split(" ")[0] || "there";
 
@@ -75,10 +86,30 @@ export default async function JobsHomePage({
     (r) => r.lineItem === "Install"
   ).length;
 
-  // 7-day summary inputs (same data shape, broader window).
-  const sevenDayDispatchIds = new Set(
-    sevenDayPay.rows.map((r) => r.dispatchId)
+  // Week summary inputs.
+  const weekDispatchIds = new Set(weekPay.rows.map((r) => r.dispatchId));
+
+  // Classify each row in the week as "confirmed" (sits inside a
+  // commission period whose status is Approved or Paid) vs
+  // "unconfirmed" (preview — no approved period covers it yet). A
+  // single approved period that overlaps the row's date is enough to
+  // mark it confirmed, even if other Draft periods also overlap.
+  const lockedPeriods = payrollPeriods.filter(
+    (p) => p.status === "Approved" || p.status === "Paid"
   );
+  let weekConfirmed = 0;
+  let weekUnconfirmed = 0;
+  for (const r of weekPay.rows) {
+    const isConfirmed = lockedPeriods.some(
+      (p) =>
+        p.startDate &&
+        p.endDate &&
+        r.date >= p.startDate &&
+        r.date <= p.endDate
+    );
+    if (isConfirmed) weekConfirmed += r.amount;
+    else weekUnconfirmed += r.amount;
+  }
 
   // Map jobId → set of unsubmitted dispatchIds + the dispatch
   // metadata needed to compute the tech's share.
@@ -166,11 +197,14 @@ export default async function JobsHomePage({
         </Link>
       </div>
 
-      {/* Earnings band: Today's pay + Last 7 days. Hidden 2026-05-05
-          and re-enabled 2026-05-27 per Kevin. Both figures sum from
-          finalized Pay Attribution rows, which are already split-aware
-          (50-50 / 33-33-33 are baked in at finalize time). */}
-      {(todaysPay.total > 0 || sevenDayPay.total > 0) && (
+      {/* Earnings band: today's pay tile + this-week Mon-Sun tile
+          with a confirmed/unconfirmed breakdown. Confirmed = sits
+          inside an Invoice-Approved (or Paid) commission report;
+          unconfirmed = preview, not yet on an approved invoice.
+          Both figures sum from finalized Pay Attribution rows, which
+          are already split-aware (50-50 / 33-33-33 baked in at
+          finalize time). */}
+      {(todaysPay.total > 0 || weekPay.total > 0) && (
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
             <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold">
@@ -186,16 +220,32 @@ export default async function JobsHomePage({
             </div>
           </div>
           <div className="rounded-2xl bg-gradient-to-br from-mse-navy-soft to-mse-navy text-white p-4 shadow-elevated">
-            <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              Last 7 days
+            <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold">
+              This week
             </div>
             <div className="text-3xl font-bold tracking-tight mt-0.5 tabular-nums">
-              {formatCurrency(sevenDayPay.total)}
+              {formatCurrency(weekPay.total)}
             </div>
-            <div className="mt-1 text-[11px] text-white/70">
-              {sevenDayDispatchIds.size} job
-              {sevenDayDispatchIds.size === 1 ? "" : "s"}
+            <div className="mt-2 space-y-0.5 text-[11px] leading-tight">
+              <div className="flex items-center gap-1 text-emerald-300">
+                <CheckCircle2 className="w-3 h-3" />
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(weekConfirmed)}
+                </span>
+                <span className="text-white/55">confirmed</span>
+              </div>
+              <div className="flex items-center gap-1 text-mse-gold/90">
+                <Clock className="w-3 h-3" />
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(weekUnconfirmed)}
+                </span>
+                <span className="text-white/55">preview</span>
+              </div>
+            </div>
+            <div className="mt-1 text-[10px] text-white/45 leading-tight">
+              {weekDispatchIds.size} job
+              {weekDispatchIds.size === 1 ? "" : "s"} ·{" "}
+              Mon – Sun
             </div>
           </div>
         </div>

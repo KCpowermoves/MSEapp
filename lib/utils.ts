@@ -22,6 +22,43 @@ export function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * ISO date (YYYY-MM-DD) of the Monday of the calendar week that
+ * contains the given date. Uses local time so the boundary aligns
+ * with how people read a paper calendar — a Sunday-evening dispatch
+ * lands in the Sunday-evening week, not the next-day Monday.
+ *
+ * Defaults to today.
+ */
+export function startOfWeekIso(date: Date = new Date()): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay(); // 0 = Sunday, 1 = Monday, ... 6 = Saturday
+  const daysSinceMonday = (dow + 6) % 7; // 0 if Mon, ..., 6 if Sun
+  d.setDate(d.getDate() - daysSinceMonday);
+  return localIso(d);
+}
+
+/**
+ * ISO date of the Sunday that closes the week containing the given
+ * date (Mon-Sun week). Defaults to today.
+ */
+export function endOfWeekIso(date: Date = new Date()): string {
+  const d = new Date(startOfWeekIso(date));
+  d.setDate(d.getDate() + 6);
+  return localIso(d);
+}
+
+/** YYYY-MM-DD in local time (not UTC) — needed for date math that
+ *  respects the user's calendar instead of drifting across midnight
+ *  for negative-UTC-offset zones. */
+function localIso(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function ageInDays(iso: string): number {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return Infinity;
