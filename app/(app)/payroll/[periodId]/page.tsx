@@ -67,7 +67,7 @@ export default async function TechPayrollDetailPage({
         <div className="relative flex items-start justify-between gap-3 flex-wrap">
           <div>
             <div className="text-[11px] uppercase tracking-[0.12em] font-bold text-mse-gold">
-              Pay Report Period · {period.periodId}
+              Commission Report Period · {period.periodId}
             </div>
             <h1 className="text-3xl font-bold tracking-tight mt-1">
               {titleText}
@@ -255,6 +255,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
     status === "Paid"
       ? "bg-emerald-500 text-white"
       : "bg-mse-gold text-mse-navy";
+  const label = status === "Approved" ? "Invoice Approved" : status;
   return (
     <span
       className={cn(
@@ -262,7 +263,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
         styles
       )}
     >
-      {status}
+      {label}
     </span>
   );
 }

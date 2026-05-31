@@ -133,6 +133,8 @@ export async function buildLibrarySnapshot(): Promise<LibrarySnapshot> {
   const unitTypeList = new Set<string>();
 
   for (const job of jobs) {
+    // Closed jobs are soft-deleted — keep them out of the library view.
+    if (job.status === "Closed") continue;
     const jobUnits = unitsByJob.get(job.jobId) ?? [];
     if (jobUnits.length === 0) continue;
 

@@ -102,7 +102,11 @@ export default async function PayrollDetailPage({
         <div className="rounded-2xl border-2 border-mse-gold/40 bg-mse-gold/5 px-4 py-3 flex items-start gap-2 text-sm">
           <Lock className="w-4 h-4 text-mse-gold shrink-0 mt-0.5" />
           <div className="text-mse-navy">
-            This period is <strong>{period.status}</strong> — adjustments and
+            This invoice is{" "}
+            <strong>
+              {period.status === "Approved" ? "Approved" : period.status}
+            </strong>{" "}
+            — adjustments and
             re-attributions are locked. Use the{" "}
             <strong>Unlock to edit</strong> button up top to revert it to
             Draft.

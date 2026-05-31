@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Filter,
   FolderOpen,
+  Pencil,
   Search,
   Users,
   X,
@@ -288,6 +289,7 @@ function JobClusterCard({
           <UnitPhotoRow
             key={u.unitId}
             unit={u}
+            jobId={cluster.job.jobId}
             onOpen={(index) => onOpen(u, index)}
           />
         ))}
@@ -298,9 +300,11 @@ function JobClusterCard({
 
 function UnitPhotoRow({
   unit,
+  jobId,
   onOpen,
 }: {
   unit: LibraryUnit;
+  jobId: string;
   onOpen: (index: number) => void;
 }) {
   if (unit.photos.length === 0) return null;
@@ -318,6 +322,14 @@ function UnitPhotoRow({
           <span className="font-mono text-[10px]">· {unit.model}</span>
         )}
         {unit.loggedBy && <span>· logged by {unit.loggedBy}</span>}
+        <Link
+          href={`/jobs/${encodeURIComponent(jobId)}/units/${encodeURIComponent(unit.unitId)}/edit`}
+          className="inline-flex items-center gap-0.5 text-[10px] text-mse-muted hover:text-mse-navy font-bold uppercase tracking-wide"
+          title="Edit unit"
+        >
+          <Pencil className="w-3 h-3" />
+          Edit
+        </Link>
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1.5">
         {unit.photos.map((p, i) => (

@@ -28,7 +28,7 @@ export function buildPayrollCsv(opts: {
   // Header rows — meta first so the CSV is self-describing when
   // opened cold in Excel/QBO. The header for the data table sits
   // on its own row below the meta block.
-  lines.push(row(["Maryland Smart Energy — Pay Report"]));
+  lines.push(row(["Maryland Smart Energy — Commission Report"]));
   lines.push(
     row(["Period", `${report.startDate} to ${report.endDate}`])
   );

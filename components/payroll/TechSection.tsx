@@ -6,6 +6,7 @@ import {
   ArrowRightLeft,
   ChevronDown,
   ChevronUp,
+  Equal,
   Loader2,
   Minus,
   Plus,
@@ -20,6 +21,7 @@ import type {
   TechRollup,
 } from "@/lib/payroll/compute";
 import { AddAdjustmentDialog } from "@/components/payroll/AddAdjustmentDialog";
+import { OverrideDialog } from "@/components/payroll/OverrideDialog";
 import { ReattributeDialog } from "@/components/payroll/ReattributeDialog";
 import { SplitChangeDialog } from "@/components/payroll/SplitChangeDialog";
 
@@ -66,6 +68,9 @@ export function TechSection({
   const [reattribute, setReattribute] = useState<{
     item: ReportLineItem;
   } | null>(null);
+  const [override, setOverride] = useState<{ item: ReportLineItem } | null>(
+    null
+  );
   const [splitChange, setSplitChange] = useState<string | null>(null);
   const [voiding, setVoiding] = useState<string | null>(null);
 
@@ -247,6 +252,7 @@ export function TechSection({
                     item={it}
                     isDraft={isDraft}
                     onReattribute={() => setReattribute({ item: it })}
+                    onOverride={() => setOverride({ item: it })}
                     onVoid={() => voidAdjustment(it.adjustmentId)}
                     isVoiding={voiding === it.adjustmentId}
                   />
@@ -357,6 +363,18 @@ export function TechSection({
           }}
         />
       )}
+      {override && (
+        <OverrideDialog
+          periodId={periodId}
+          techName={techName}
+          item={override.item}
+          onClose={() => setOverride(null)}
+          onSaved={() => {
+            setOverride(null);
+            router.refresh();
+          }}
+        />
+      )}
       {splitChange && (
         <SplitChangeDialog
           periodId={periodId}
@@ -379,12 +397,14 @@ function LineItemRow({
   item,
   isDraft,
   onReattribute,
+  onOverride,
   onVoid,
   isVoiding,
 }: {
   item: ReportLineItem;
   isDraft: boolean;
   onReattribute: () => void;
+  onOverride: () => void;
   onVoid: () => void;
   isVoiding: boolean;
 }) {
@@ -448,15 +468,26 @@ function LineItemRow({
         {isDraft && !voided && (
           <div className="inline-flex items-center gap-1">
             {!isAdj && (
-              <button
-                type="button"
-                onClick={onReattribute}
-                className="p-1.5 rounded-md text-mse-muted hover:text-mse-navy hover:bg-mse-light"
-                aria-label="Reattribute this line to another tech"
-                title="Reattribute"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={onOverride}
+                  className="p-1.5 rounded-md text-mse-muted hover:text-mse-navy hover:bg-mse-light"
+                  aria-label="Override this line's amount"
+                  title="Override amount"
+                >
+                  <Equal className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onReattribute}
+                  className="p-1.5 rounded-md text-mse-muted hover:text-mse-navy hover:bg-mse-light"
+                  aria-label="Reattribute this line to another tech"
+                  title="Reattribute"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                </button>
+              </>
             )}
             {isAdj && (
               <button

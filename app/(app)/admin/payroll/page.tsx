@@ -31,10 +31,10 @@ export default async function PayrollListPage({
         <div>
           <h1 className="text-3xl font-bold text-mse-navy tracking-tight flex items-center gap-2">
             <DollarSign className="w-7 h-7 text-mse-gold" />
-            Pay Report
+            Commission Report
           </h1>
           <p className="text-sm text-mse-muted mt-1 max-w-xl">
-            Run a pay report for any date range. Add adjustments, re-attribute
+            Run a commission report for any date range. Add adjustments, re-attribute
             units, and export a PDF or CSV when you&apos;re ready to cut checks.
           </p>
         </div>
@@ -53,7 +53,7 @@ export default async function PayrollListPage({
         <section className="rounded-2xl bg-white border border-mse-light shadow-card p-5">
           <div className="flex items-center gap-2 text-mse-navy">
             <Plus className="w-4 h-4 text-mse-gold" />
-            <h2 className="font-bold">Run a new pay report period</h2>
+            <h2 className="font-bold">Run a new commission report period</h2>
           </div>
           <p className="text-xs text-mse-muted mt-1">
             Pick a date range. Period is created in <strong>Draft</strong> so
@@ -90,7 +90,7 @@ export default async function PayrollListPage({
         </div>
         {summaries.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-mse-light p-8 text-center text-sm text-mse-muted">
-            No pay report periods yet. Create your first one above.
+            No commission report periods yet. Create your first one above.
           </div>
         ) : (
           <ul className="space-y-2">
@@ -176,7 +176,7 @@ export default async function PayrollListPage({
         <code className="font-mono bg-mse-light px-1 rounded">
           node scripts/init-payroll-tabs.mjs
         </code>{" "}
-        to create the Pay Report tabs in the Sheet.
+        to create the Commission Report tabs in the Sheet.
       </div>
     </div>
   );
@@ -228,6 +228,10 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       : status === "Paid"
       ? "bg-emerald-600/15 text-emerald-700"
       : "bg-mse-light text-mse-muted";
+  // Commission reports surface the lifecycle as billing language —
+  // "Invoice Approved" beats the bare HR-y "Approved" on a sheet
+  // people are about to cut checks against.
+  const label = status === "Approved" ? "Invoice Approved" : status;
   return (
     <span
       className={cn(
@@ -235,7 +239,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
         styles
       )}
     >
-      {status}
+      {label}
     </span>
   );
 }

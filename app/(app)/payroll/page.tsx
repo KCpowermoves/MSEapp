@@ -67,7 +67,7 @@ export default async function TechPayrollPage() {
         <div className="text-sm text-mse-muted">My pay</div>
         <h1 className="text-3xl font-bold text-mse-navy tracking-tight flex items-center gap-2">
           <DollarSign className="w-7 h-7 text-mse-gold" />
-          Pay Report
+          Commission Report
         </h1>
         <p className="text-sm text-mse-muted mt-1 max-w-xl">
           Your approved + paid runs. Earnings on this page have been finalized
@@ -105,7 +105,7 @@ export default async function TechPayrollPage() {
 
       <section>
         <h2 className="text-sm font-semibold text-mse-muted uppercase tracking-wide mb-3">
-          Pay reports
+          Commission reports
         </h2>
         {cards.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-mse-light p-8 text-center">
@@ -179,6 +179,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       : status === "Paid"
       ? "bg-emerald-600/15 text-emerald-700"
       : "bg-mse-light text-mse-muted";
+  const label = status === "Approved" ? "Invoice Approved" : status;
   return (
     <span
       className={cn(
@@ -186,7 +187,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
         styles
       )}
     >
-      {status}
+      {label}
     </span>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { getCustomerDetail } from "@/lib/admin/customers";
 import { buildLibrarySnapshot } from "@/lib/admin/library";
 import type { LibraryJobCluster } from "@/lib/admin/library";
+import { RenameCustomerButton } from "@/components/admin/RenameCustomerButton";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -58,9 +59,15 @@ export default async function CustomerDetailPage({
               <Building2 className="w-3.5 h-3.5" />
               Customer
             </div>
-            <h1 className="text-3xl font-bold tracking-tight mt-1">
-              {customer.customerName}
-            </h1>
+            <div className="flex items-center gap-3 flex-wrap mt-1">
+              <h1 className="text-3xl font-bold tracking-tight">
+                {customer.customerName}
+              </h1>
+              <RenameCustomerButton
+                currentName={customer.customerName}
+                jobCount={customer.jobCount}
+              />
+            </div>
             <div className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-2 flex-wrap">
               {customer.utilityTerritories.length > 0 && (
                 <span className="inline-flex items-center gap-1">

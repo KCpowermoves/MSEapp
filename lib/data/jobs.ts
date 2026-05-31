@@ -211,3 +211,40 @@ export async function updateJob(opts: {
     await bumpLastActivity(opts.jobId);
   }
 }
+
+/**
+ * Rename a customer across every job row that currently has the
+ * matching name. Used by the admin /customers detail page so a typo
+ * fix or merge propagates without the operator having to open every
+ * job individually. Case-insensitive match on the input; the new
+ * name is written verbatim so capitalization choices stick.
+ *
+ * Returns the list of affected jobIds.
+ */
+export async function renameCustomer(opts: {
+  fromName: string;
+  toName: string;
+}): Promise<{ updatedJobIds: string[] }> {
+  const from = opts.fromName.trim().toLowerCase();
+  const to = opts.toName.trim();
+  if (!from) throw new Error("fromName required");
+  if (!to) throw new Error("toName required");
+  if (from === to.toLowerCase()) {
+    return { updatedJobIds: [] };
+  }
+
+  const all = await listAllJobs({ fresh: true });
+  const targets = all.filter(
+    (j) => j.customerName.trim().toLowerCase() === from
+  );
+  if (targets.length === 0) return { updatedJobIds: [] };
+
+  const updatedJobIds: string[] = [];
+  for (const job of targets) {
+    const rowIndex = await findRowIndex(TABS.jobs, "A", job.jobId);
+    if (!rowIndex) continue;
+    await updateCell(`${TABS.jobs}!D${rowIndex}`, to);
+    updatedJobIds.push(job.jobId);
+  }
+  return { updatedJobIds };
+}

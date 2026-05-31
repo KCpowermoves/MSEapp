@@ -129,7 +129,7 @@ function addPageFooter(doc: Doc): void {
     .fontSize(8)
     .font("Helvetica")
     .text(
-      "Maryland Smart Energy · Pay Report · CONFIDENTIAL",
+      "Maryland Smart Energy · Commission Report · CONFIDENTIAL",
       MARGIN,
       y,
       { width: CONTENT_W, align: "left", continued: true }
@@ -139,7 +139,10 @@ function addPageFooter(doc: Doc): void {
 }
 
 function statusPill(doc: Doc, status: string, x: number, y: number): void {
-  const label = status.toUpperCase();
+  // "Approved" reads as "INVOICE APPROVED" on the printed report so
+  // the pill matches the in-app commission report language.
+  const label =
+    status === "Approved" ? "INVOICE APPROVED" : status.toUpperCase();
   doc.save();
   doc.font("Helvetica-Bold").fontSize(8);
   const w = doc.widthOfString(label) + 16;
@@ -207,7 +210,7 @@ function renderHeader(doc: Doc, report: PayrollReport): void {
     .fillColor(NAVY)
     .font("Helvetica-Bold")
     .fontSize(22)
-    .text("Pay Report", textLeft, MARGIN + 2);
+    .text("Commission Report", textLeft, MARGIN + 2);
   doc
     .fillColor(MUTED)
     .font("Helvetica")
@@ -237,7 +240,12 @@ function renderHeader(doc: Doc, report: PayrollReport): void {
         { width: labelW, align: "right" }
       );
     // Status pill — measure first, then position to the right edge.
-    const pillLabel = report.period.status.toUpperCase();
+    // Keep this label calculation in sync with statusPill()'s
+    // internal label override.
+    const pillLabel =
+      report.period.status === "Approved"
+        ? "INVOICE APPROVED"
+        : report.period.status.toUpperCase();
     doc.font("Helvetica-Bold").fontSize(8);
     const pillW = doc.widthOfString(pillLabel) + 16;
     statusPill(doc, report.period.status, rightX - pillW, MARGIN + 38);
@@ -605,9 +613,9 @@ export async function buildPayrollPdf(opts: BuildOpts): Promise<Buffer> {
         margin: MARGIN,
         bufferPages: true,
         info: {
-          Title: `Pay Report · ${prettyDateRange(report.startDate, report.endDate)}`,
+          Title: `Commission Report · ${prettyDateRange(report.startDate, report.endDate)}`,
           Author: "Maryland Smart Energy",
-          Subject: "Pay Report",
+          Subject: "Commission Report",
         },
       });
 

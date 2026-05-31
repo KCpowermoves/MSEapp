@@ -44,7 +44,7 @@ const TABS: Tab[] = [
   },
   {
     href: "/admin/payroll",
-    label: "Pay Report",
+    label: "Commission Report",
     icon: <DollarSign className="w-3.5 h-3.5" />,
     match: (p) => p.startsWith("/admin/payroll"),
   },

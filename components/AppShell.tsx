@@ -63,7 +63,7 @@ export function AppShell({
             <PendingBadge />
             <Link
               href="/payroll"
-              aria-label="My pay report"
+              aria-label="My commission report"
               className="p-2 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
             >
               <DollarSign className="w-5 h-5" />

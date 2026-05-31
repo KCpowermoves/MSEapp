@@ -44,6 +44,10 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
 
   const byCustomer = new Map<string, CustomerSummary>();
   for (const job of jobs) {
+    // Closed jobs are soft-deleted; keep them out of the customer
+    // rollup so they don't lift a customer's last-activity date or
+    // pad the job count.
+    if (job.status === "Closed") continue;
     const name = (job.customerName || "").trim();
     if (!name) continue;
     const key = name.toLowerCase();

@@ -90,7 +90,7 @@ export function PayrollDetailHeader(props: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-mse-gold text-[11px] font-bold uppercase tracking-[0.12em]">
             <DollarSign className="w-3.5 h-3.5" />
-            Pay report period
+            Commission report period
             <span className="text-white/70 font-mono normal-case tracking-normal">
               · {props.periodId}
             </span>
@@ -113,7 +113,7 @@ export function PayrollDetailHeader(props: Props) {
           {props.status === "Approved" && props.approvedBy && (
             <div className="text-[11px] text-white/85 font-semibold flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-mse-gold" />
-              by {props.approvedBy}
+              invoice approved by {props.approvedBy}
             </div>
           )}
           {props.status === "Paid" && props.paidBy && (
@@ -139,14 +139,14 @@ export function PayrollDetailHeader(props: Props) {
             onClick={() =>
               setStatus(
                 "Approved",
-                "Approve this period? Adjustments will be locked until you unlock."
+                "Approve this invoice? Adjustments will be locked until you unlock."
               )
             }
             disabled={busy}
             className={primaryBtn(busy)}
           >
             {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            Approve
+            Approve invoice
           </button>
         )}
         {props.status === "Approved" && (
@@ -276,6 +276,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       : status === "Paid"
       ? "bg-emerald-500 text-white"
       : "bg-white/15 text-white";
+  const display = displayStatus(status);
   return (
     <span
       className={cn(
@@ -283,9 +284,17 @@ function StatusPill({ status }: { status: PayrollStatus }) {
         styles
       )}
     >
-      {status}
+      {display}
     </span>
   );
+}
+
+// User-facing status label. The data model uses "Approved" / "Paid"
+// for transition logic; we render "Invoice Approved" / "Paid" so the
+// commission report reads like a billing artifact rather than HR jargon.
+function displayStatus(status: PayrollStatus): string {
+  if (status === "Approved") return "Invoice Approved";
+  return status;
 }
 
 function primaryBtn(busy: boolean): string {
