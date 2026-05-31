@@ -28,21 +28,33 @@ const CONTENT_W = PAGE_W - MARGIN * 2; // 516
 
 // ─── Logo loading ────────────────────────────────────────────────────
 //
-// The MSE logo lives as an inlined base64 string in lib/payroll-logo.ts
-// (auto-generated from public/logo.png, downscaled to 256×256). This
-// dodges every Vercel-serverless gotcha around dynamic fs reads —
-// outputFileTracingIncludes, working-directory drift, asset
-// tracing — by making the logo part of the JS bundle itself.
+// The MSE logo lives as an inlined base64 JPEG in lib/payroll-logo.ts
+// (auto-generated from public/logo.png, downscaled to 256×256 with a
+// white background flatten). Embedding means zero runtime fs reads.
+//
+// CRITICAL: we hand PDFKit an ArrayBuffer, NOT a Node Buffer. The
+// `pdfkit/js/pdfkit.standalone` build we use here is a browserify
+// bundle — its internal `Buffer.isBuffer()` only recognizes its own
+// polyfilled Buffer class and rejects Node-native Buffers. Passing
+// a Buffer makes PDFKit fall through to a `fs.readFileSync` path that
+// doesn't exist in the bundle, throwing silently and dropping us to
+// the fallback brand badge. PDFKit DOES handle `ArrayBuffer`
+// explicitly, then rebuilds its own Buffer from it — that path works
+// on both Node and serverless.
 //
 // To refresh the embedded logo after a brand asset change:
 //   node scripts/generate-payroll-logo.mjs
 
-let cachedLogo: Buffer | null = null;
-function getLogoBuffer(): Buffer | null {
-  if (cachedLogo) return cachedLogo;
+let cachedLogoAb: ArrayBuffer | null = null;
+function getLogoArrayBuffer(): ArrayBuffer | null {
+  if (cachedLogoAb) return cachedLogoAb;
   try {
-    cachedLogo = getPayrollLogoBuffer();
-    return cachedLogo;
+    const buf = getPayrollLogoBuffer();
+    cachedLogoAb = buf.buffer.slice(
+      buf.byteOffset,
+      buf.byteOffset + buf.byteLength
+    ) as ArrayBuffer;
+    return cachedLogoAb;
   } catch (e) {
     console.warn("[payroll-pdf] failed to decode embedded logo:", e);
     return null;
@@ -156,17 +168,16 @@ function moneyAlignRight(
 function renderHeader(doc: Doc, report: PayrollReport): void {
   drawTopRule(doc);
 
-  // Logo block — sits at top-left at 56x56pt. If the PNG file can't
-  // be read on this runtime (cold serverless, missing tracing, etc.)
-  // we fall back to a circular brand badge drawn via shapes so the
-  // header always has identifiable branding.
+  // Logo block — sits at top-left at 56x56pt. Falls back to a drawn
+  // circular brand badge if the embedded JPEG can't be decoded for
+  // some reason; the header is never logo-less.
   const logoSize = 56;
   const logoY = MARGIN;
   let logoRendered = false;
-  const logo = getLogoBuffer();
-  if (logo) {
+  const logoAb = getLogoArrayBuffer();
+  if (logoAb) {
     try {
-      doc.image(logo, MARGIN, logoY, { fit: [logoSize, logoSize] });
+      doc.image(logoAb, MARGIN, logoY, { fit: [logoSize, logoSize] });
       logoRendered = true;
     } catch (e) {
       console.warn("[payroll-pdf] failed to render logo image:", e);
