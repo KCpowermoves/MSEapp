@@ -1,5 +1,5 @@
 import "server-only";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 // Standalone PDFKit build bundles the Standard 14 fonts so this works
 // on Vercel serverless without external font files.
@@ -27,18 +27,44 @@ const PAGE_H = 792;
 const MARGIN = 48;
 const CONTENT_W = PAGE_W - MARGIN * 2; // 516
 
-// ─── Logo loaded once at module evaluation ───────────────────────────
+// ─── Logo loading ────────────────────────────────────────────────────
+//
+// process.cwd() isn't reliable on Vercel serverless because the
+// process can launch from a different directory than the project
+// root. We try several candidate paths in order so the logo loads in
+// any of: local dev (cwd = project root), Vercel serverless (cwd =
+// /var/task with project files at /var/task), and edge-of-bundle
+// resolution via __dirname relative.
 let cachedLogo: Buffer | null = null;
+let logoLookupDone = false;
+
 function getLogoBuffer(): Buffer | null {
-  if (cachedLogo) return cachedLogo;
-  try {
-    const p = path.join(process.cwd(), "public", "logo.png");
-    cachedLogo = readFileSync(p);
-    return cachedLogo;
-  } catch (e) {
-    console.warn("[payroll-pdf] could not load logo:", e);
-    return null;
+  if (logoLookupDone) return cachedLogo;
+  logoLookupDone = true;
+
+  const candidates = [
+    path.join(process.cwd(), "public", "logo.png"),
+    path.join(process.cwd(), "public/logo.png"),
+    // When running from `.next/server/app/...`, the public folder
+    // sits a few levels up.
+    path.resolve(process.cwd(), "..", "..", "..", "public", "logo.png"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate)) {
+        cachedLogo = readFileSync(candidate);
+        console.log(`[payroll-pdf] loaded logo from ${candidate}`);
+        return cachedLogo;
+      }
+    } catch {
+      // try next path
+    }
   }
+  console.warn(
+    `[payroll-pdf] logo not found in any candidate: ${candidates.join(" | ")}`
+  );
+  return null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -147,16 +173,42 @@ function moneyAlignRight(
 
 function renderHeader(doc: Doc, report: PayrollReport): void {
   drawTopRule(doc);
+
+  // Logo block — sits at top-left at 56x56pt. If the PNG file can't
+  // be read on this runtime (cold serverless, missing tracing, etc.)
+  // we fall back to a circular brand badge drawn via shapes so the
+  // header always has identifiable branding.
+  const logoSize = 56;
+  const logoY = MARGIN;
+  let logoRendered = false;
   const logo = getLogoBuffer();
-  let textLeft = MARGIN;
   if (logo) {
     try {
-      doc.image(logo, MARGIN, MARGIN, { fit: [56, 56] });
-      textLeft = MARGIN + 70;
+      doc.image(logo, MARGIN, logoY, { fit: [logoSize, logoSize] });
+      logoRendered = true;
     } catch (e) {
-      console.warn("[payroll-pdf] failed to render logo:", e);
+      console.warn("[payroll-pdf] failed to render logo image:", e);
     }
   }
+  if (!logoRendered) {
+    // Fallback: navy circle + gold "MSE" wordmark. Tells the reader
+    // this is a Maryland Smart Energy document even if the asset
+    // didn't make it into the deployment.
+    doc.save();
+    doc
+      .circle(MARGIN + logoSize / 2, logoY + logoSize / 2, logoSize / 2)
+      .fill(NAVY);
+    doc
+      .fillColor(GOLD)
+      .font("Helvetica-Bold")
+      .fontSize(16)
+      .text("MSE", MARGIN, logoY + logoSize / 2 - 9, {
+        width: logoSize,
+        align: "center",
+      });
+    doc.restore();
+  }
+  const textLeft = MARGIN + logoSize + 14;
 
   doc
     .fillColor(NAVY)
@@ -222,7 +274,7 @@ function renderHeader(doc: Doc, report: PayrollReport): void {
 
 function renderSummary(doc: Doc, report: PayrollReport): void {
   const cardW = (CONTENT_W - 16) / 3;
-  const cardH = 56;
+  const cardH = 64;
   const startY = doc.y;
 
   function card(
@@ -234,27 +286,29 @@ function renderSummary(doc: Doc, report: PayrollReport): void {
     const x = MARGIN + i * (cardW + 8);
     doc.save();
     const bg = accent === "navy" ? NAVY : accent === "gold" ? GOLD_SOFT : "white";
-    const stroke = accent === "muted" ? LIGHT : "transparent";
     doc.roundedRect(x, startY, cardW, cardH, 8).fill(bg);
     if (accent === "muted") {
-      doc.roundedRect(x, startY, cardW, cardH, 8).strokeColor(stroke).stroke();
+      doc.roundedRect(x, startY, cardW, cardH, 8).strokeColor(LIGHT).lineWidth(1).stroke();
     }
+    // Labels: PDFKit doesn't parse rgba() — must use solid colors.
+    // Navy cards get the brand gold caption so the label has high
+    // contrast against the dark fill (same pattern as the web UI).
     const labelColor =
-      accent === "navy" ? "rgba(255,255,255,0.55)" : MUTED;
+      accent === "navy" ? GOLD : accent === "gold" ? NAVY : MUTED;
     const valueColor = accent === "navy" ? "white" : NAVY;
     doc
       .fillColor(labelColor)
       .font("Helvetica-Bold")
-      .fontSize(8)
-      .text(label.toUpperCase(), x + 12, startY + 10, {
-        width: cardW - 24,
-        characterSpacing: 0.6,
+      .fontSize(9.5)
+      .text(label.toUpperCase(), x + 14, startY + 12, {
+        width: cardW - 28,
+        characterSpacing: 1.2,
       });
     doc
       .fillColor(valueColor)
       .font("Helvetica-Bold")
-      .fontSize(18)
-      .text(value, x + 12, startY + 26, { width: cardW - 24 });
+      .fontSize(20)
+      .text(value, x + 14, startY + 30, { width: cardW - 28 });
     doc.restore();
   }
 
@@ -332,16 +386,16 @@ function renderTechSection(doc: Doc, tech: TechRollup): void {
       doc
         .fillColor(MUTED)
         .font("Helvetica-Bold")
-        .fontSize(7)
-        .text(c.label.toUpperCase(), x + 8, y + 6, {
+        .fontSize(8.5)
+        .text(c.label.toUpperCase(), x + 8, y + 5, {
           width: chipW - 16,
-          characterSpacing: 0.4,
+          characterSpacing: 0.8,
         });
       doc
         .fillColor(negative ? RED : NAVY)
         .font("Helvetica-Bold")
-        .fontSize(11)
-        .text(formatCurrency(c.value), x + 8, y + 16, { width: chipW - 16 });
+        .fontSize(12)
+        .text(formatCurrency(c.value), x + 8, y + 17, { width: chipW - 16 });
       doc.restore();
     }
     const rows = Math.ceil(chips.length / chipsPerRow);
@@ -356,13 +410,18 @@ function renderTechSection(doc: Doc, tech: TechRollup): void {
 }
 
 function renderLineItemsTable(doc: Doc, tech: TechRollup): void {
-  // Column geometry — right-edge anchored amount column.
+  // Column geometry. CONTENT_W = 516pt (letter, 48pt margins).
+  // Widths sum to 516; amount column's right edge lands exactly on
+  // MARGIN+CONTENT_W so right-aligned values stop at the page margin
+  // instead of bleeding past it.
+  //
+  // date 58 + gap 4 + job 170 + gap 4 + type 70 + gap 4 + desc 134 + gap 4 + amount 68 = 516
   const cols = {
-    date: { x: MARGIN, w: 64 },
-    job: { x: MARGIN + 70, w: 170 },
-    type: { x: MARGIN + 246, w: 80 },
-    desc: { x: MARGIN + 332, w: 100 },
-    amount: { x: MARGIN + 438, w: CONTENT_W - 438 + MARGIN }, // ~78
+    date: { x: MARGIN, w: 58 },
+    job: { x: MARGIN + 62, w: 170 },
+    type: { x: MARGIN + 236, w: 70 },
+    desc: { x: MARGIN + 310, w: 134 },
+    amount: { x: MARGIN + 448, w: 68 },
   };
   const rightEdge = MARGIN + CONTENT_W;
 
