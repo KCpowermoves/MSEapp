@@ -169,7 +169,7 @@ export default async function TechPayrollDetailPage({
               <tr className="text-[10px] uppercase tracking-wider text-mse-muted bg-mse-light/40">
                 <th className="text-left py-2 px-3 font-semibold">Date</th>
                 <th className="text-left py-2 px-3 font-semibold">
-                  Customer / Job
+                  Job
                 </th>
                 <th className="text-left py-2 px-3 font-semibold">Type</th>
                 <th className="text-left py-2 px-3 font-semibold">

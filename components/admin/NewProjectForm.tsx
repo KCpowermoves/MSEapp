@@ -36,7 +36,7 @@ export function NewProjectForm({ crewEligibleTechs, allTechs }: Props) {
   const [projectLead, setProjectLead] = useState("");
   const [salesRep, setSalesRep] = useState("");
   const [crew, setCrew] = useState<string[]>([]);
-  const [driver, setDriver] = useState("");
+  const [drivers, setDrivers] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +47,20 @@ export function NewProjectForm({ crewEligibleTechs, allTechs }: Props) {
     return "33-33-33";
   }, [crew.length]);
 
-  // Keep driver consistent — if they fall off the crew, clear it.
+  // Keep drivers consistent — anyone removed from crew gets pulled
+  // out of the drivers list too.
   useEffect(() => {
-    if (driver && !crew.includes(driver)) setDriver("");
-  }, [crew, driver]);
+    setDrivers((prev) => prev.filter((d) => crew.includes(d)));
+  }, [crew]);
 
   const toggleCrew = (name: string) => {
     setCrew((prev) =>
+      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]
+    );
+  };
+
+  const toggleDriver = (name: string) => {
+    setDrivers((prev) =>
       prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]
     );
   };
@@ -79,7 +86,7 @@ export function NewProjectForm({ crewEligibleTechs, allTechs }: Props) {
           projectLead,
           salesRep,
           crew,
-          driver,
+          drivers,
           notes: notes.trim(),
         }),
       });
@@ -241,22 +248,40 @@ export function NewProjectForm({ crewEligibleTechs, allTechs }: Props) {
 
         {crew.length >= 1 && (
           <Field
-            label="Driver (optional)"
-            hint="Only relevant for travel territories (Delmarva / SMECO)."
+            label="Drivers (optional)"
+            hint="Pick everyone who's driving to the site. Multiple drivers split the travel pay evenly. Only relevant for travel territories (Delmarva / SMECO)."
             iconBefore={<Truck className="w-3.5 h-3.5 text-mse-gold" />}
           >
-            <select
-              value={driver}
-              onChange={(e) => setDriver(e.target.value)}
-              className={baseInput}
-            >
-              <option value="">— No driver designated —</option>
-              {crew.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap gap-1.5">
+              {crew.map((c) => {
+                const picked = drivers.includes(c);
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => toggleDriver(c)}
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-[background-color,border-color,color]",
+                      "active:scale-95",
+                      picked
+                        ? "bg-mse-gold/20 border-mse-gold text-mse-navy"
+                        : "bg-white border-mse-light text-mse-muted hover:border-mse-navy/30 hover:text-mse-navy"
+                    )}
+                  >
+                    {picked && (
+                      <Truck className="w-3 h-3 inline mr-1 -mt-0.5" />
+                    )}
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+            {drivers.length > 1 && (
+              <div className="text-[11px] text-mse-muted mt-2">
+                <strong className="text-mse-navy">{drivers.length}</strong>{" "}
+                drivers — travel pay will split evenly.
+              </div>
+            )}
           </Field>
         )}
       </Section>

@@ -5,6 +5,7 @@ import { getPayrollPeriod } from "@/lib/data/payroll-periods";
 import { computePayrollReport } from "@/lib/payroll/compute";
 import { listActiveTechNames } from "@/lib/data/techs";
 import { listAllDispatches } from "@/lib/data/dispatches";
+import { listAllJobs } from "@/lib/data/jobs";
 import { listAllUnits } from "@/lib/data/units";
 import { formatCurrency } from "@/lib/utils";
 import { PayrollDetailHeader } from "@/components/payroll/PayrollDetailHeader";
@@ -23,16 +24,47 @@ export default async function PayrollDetailPage({
   const period = await getPayrollPeriod(periodId);
   if (!period) notFound();
 
-  const [report, activeTechs, allDispatches, allUnits] = await Promise.all([
-    computePayrollReport({
-      periodId: period.periodId,
-      startDate: period.startDate,
-      endDate: period.endDate,
-    }),
-    listActiveTechNames(),
-    listAllDispatches(),
-    listAllUnits(),
-  ]);
+  const [report, activeTechs, allDispatches, allUnits, allJobs] =
+    await Promise.all([
+      computePayrollReport({
+        periodId: period.periodId,
+        startDate: period.startDate,
+        endDate: period.endDate,
+      }),
+      listActiveTechNames(),
+      listAllDispatches(),
+      listAllUnits(),
+      listAllJobs(),
+    ]);
+
+  // Slim job lookup for the inline EditJobDialog — only jobs that
+  // actually show up in this period's line items.
+  const referencedJobIds = new Set<string>();
+  for (const tech of report.techs) {
+    for (const it of tech.lineItems) {
+      if (it.jobId) referencedJobIds.add(it.jobId);
+    }
+  }
+  const jobsById: Record<
+    string,
+    {
+      jobId: string;
+      customerName: string;
+      siteAddress: string;
+      utilityTerritory: string;
+      notes: string;
+    }
+  > = {};
+  for (const j of allJobs) {
+    if (!referencedJobIds.has(j.jobId)) continue;
+    jobsById[j.jobId] = {
+      jobId: j.jobId,
+      customerName: j.customerName,
+      siteAddress: j.siteAddress,
+      utilityTerritory: j.utilityTerritory,
+      notes: j.notes,
+    };
+  }
 
   // Plumb a list of dispatches in this period so the split-change
   // modal has a picker. Filter by date range AND by submittedAt
@@ -155,6 +187,7 @@ export default async function PayrollDetailPage({
                 activeTechs={activeTechs}
                 periodDispatches={periodDispatches}
                 dispatchUnits={dispatchUnits}
+                jobsById={jobsById}
                 emptyMode
               />
             </div>
@@ -172,6 +205,7 @@ export default async function PayrollDetailPage({
               activeTechs={activeTechs}
               periodDispatches={periodDispatches}
               dispatchUnits={dispatchUnits}
+              jobsById={jobsById}
             />
           ))}
         </div>

@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     salesRep?: unknown;
     crew?: unknown;
     driver?: unknown;
+    drivers?: unknown;
     notes?: unknown;
   };
   try {
@@ -72,13 +73,26 @@ export async function POST(request: Request) {
   ) as UtilityTerritory;
   const projectLead = String(body.projectLead ?? "").trim();
   const salesRep = String(body.salesRep ?? "").trim();
-  const driver = String(body.driver ?? "").trim();
   const notes = String(body.notes ?? "").trim();
   const crew = Array.isArray(body.crew)
     ? (body.crew as unknown[])
         .map((c) => String(c ?? "").trim())
         .filter(Boolean)
     : [];
+
+  // Drivers: accept either `drivers: string[]` (new multi-driver flow)
+  // or the legacy single `driver: string` for any caller that hasn't
+  // updated. Multiples get persisted as a comma-separated string in
+  // Dispatches column F.
+  const drivers: string[] = (() => {
+    if (Array.isArray(body.drivers)) {
+      return (body.drivers as unknown[])
+        .map((d) => String(d ?? "").trim())
+        .filter(Boolean);
+    }
+    const single = String(body.driver ?? "").trim();
+    return single ? [single] : [];
+  })();
 
   // ── Validation ──────────────────────────────────────────────────
   if (!customerName) {
@@ -93,12 +107,14 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  // Driver, if set, must be one of the crew.
-  if (driver && !crew.includes(driver)) {
-    return NextResponse.json(
-      { error: "Driver must be one of the crew members" },
-      { status: 400 }
-    );
+  // Every driver, if set, must be one of the crew.
+  for (const d of drivers) {
+    if (!crew.includes(d)) {
+      return NextResponse.json(
+        { error: `Driver "${d}" must be one of the crew members` },
+        { status: 400 }
+      );
+    }
   }
 
   try {
@@ -121,7 +137,11 @@ export async function POST(request: Request) {
         const split = deriveSplitFromCrewSize(crew.length);
         await setDispatchCrew(dispatch.dispatchId, crew, split);
         // setDispatchCrew doesn't touch driver — write it ourselves.
-        if (driver) {
+        // Multi-driver flow: persist as a comma-separated string in
+        // Dispatches col F. Existing single-driver consumers can read
+        // it as a string; a future writeAttributions update can split
+        // the travel bonus across the list.
+        if (drivers.length > 0) {
           const rowIndex = await findRowIndex(
             TABS.dispatches,
             "A",
@@ -130,7 +150,7 @@ export async function POST(request: Request) {
           if (rowIndex) {
             await updateCell(
               `${TABS.dispatches}!F${rowIndex}`,
-              driver,
+              drivers.join(", "),
               "RAW"
             );
           }
@@ -153,7 +173,7 @@ export async function POST(request: Request) {
       meta: {
         crew,
         crewSize: crewSize(deriveSplitFromCrewSize(crew.length)),
-        driver,
+        drivers,
         projectLead,
         salesRep,
       },

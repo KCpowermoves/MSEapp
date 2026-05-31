@@ -106,19 +106,35 @@ function buildRows(input: AttributionInput): AttribRow[] {
     }
   }
 
+  // Travel bonus — Dispatches col F may be a single driver or a
+  // comma-separated list (multi-driver projects). Split the bonus
+  // evenly across however many drivers are named so two drivers on
+  // a trip each take half.
   if (
     dispatch.travelDispatchBonus > 0 &&
     dispatch.driver &&
     isTravelTerritory(job.utilityTerritory)
   ) {
-    rows.push({
-      date,
-      dispatchId: dispatch.dispatchId,
-      techName: dispatch.driver,
-      lineItem: "Travel Bonus",
-      amount: dispatch.travelDispatchBonus,
-      notes: `${job.utilityTerritory} territory`,
-    });
+    const driverList = dispatch.driver
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (driverList.length > 0) {
+      const perDriver = dispatch.travelDispatchBonus / driverList.length;
+      for (const d of driverList) {
+        rows.push({
+          date,
+          dispatchId: dispatch.dispatchId,
+          techName: d,
+          lineItem: "Travel Bonus",
+          amount: perDriver,
+          notes:
+            driverList.length === 1
+              ? `${job.utilityTerritory} territory`
+              : `${job.utilityTerritory} territory (split ${driverList.length} ways)`,
+        });
+      }
+    }
   }
 
   return rows;

@@ -21,6 +21,7 @@ import type {
   TechRollup,
 } from "@/lib/payroll/compute";
 import { AddAdjustmentDialog } from "@/components/payroll/AddAdjustmentDialog";
+import { EditJobDialog } from "@/components/payroll/EditJobDialog";
 import { OverrideDialog } from "@/components/payroll/OverrideDialog";
 import { ReattributeDialog } from "@/components/payroll/ReattributeDialog";
 import { SplitChangeDialog } from "@/components/payroll/SplitChangeDialog";
@@ -34,6 +35,14 @@ export interface PeriodDispatchLite {
   crewSplit: string;
 }
 
+export interface JobLite {
+  jobId: string;
+  customerName: string;
+  siteAddress: string;
+  utilityTerritory: string;
+  notes: string;
+}
+
 interface Props {
   periodId: string;
   periodStatus: PayrollStatus;
@@ -45,6 +54,9 @@ interface Props {
     string,
     { unitId: string; unitNumberOnJob: number; unitType: string }[]
   >;
+  /** Slim job lookup so the inline EditJobDialog can pre-fill from
+   *  the current record without a fetch. */
+  jobsById: Record<string, JobLite>;
   /** When true (orphan section for the empty period case), render only
    *  the standalone-line widget without a tech header. */
   emptyMode?: boolean;
@@ -58,6 +70,7 @@ export function TechSection({
   activeTechs,
   periodDispatches,
   dispatchUnits,
+  jobsById,
   emptyMode,
 }: Props) {
   const router = useRouter();
@@ -72,6 +85,7 @@ export function TechSection({
   const [override, setOverride] = useState<{ item: ReportLineItem } | null>(
     null
   );
+  const [editJobId, setEditJobId] = useState<string | null>(null);
   const [splitChange, setSplitChange] = useState<string | null>(null);
   const [voiding, setVoiding] = useState<string | null>(null);
 
@@ -242,7 +256,7 @@ export function TechSection({
                 <tr className="text-[10px] uppercase tracking-wider text-mse-muted">
                   <th className="text-left py-1 px-2 font-semibold">Date</th>
                   <th className="text-left py-1 px-2 font-semibold">
-                    Customer / Job
+                    Job
                   </th>
                   <th className="text-left py-1 px-2 font-semibold">Type</th>
                   <th className="text-left py-1 px-2 font-semibold">
@@ -262,6 +276,8 @@ export function TechSection({
                     key={`${it.source}-${it.id}`}
                     item={it}
                     isDraft={isDraft}
+                    canEditJob={Boolean(it.jobId && jobsById[it.jobId])}
+                    onEditJob={() => it.jobId && setEditJobId(it.jobId)}
                     onReattribute={() => setReattribute({ item: it })}
                     onOverride={() => setOverride({ item: it })}
                     onVoid={() => voidAdjustment(it.adjustmentId)}
@@ -400,6 +416,26 @@ export function TechSection({
           }}
         />
       )}
+      {editJobId && jobsById[editJobId] && (
+        <EditJobDialog
+          jobId={editJobId}
+          initialCustomerName={jobsById[editJobId].customerName}
+          initialSiteAddress={jobsById[editJobId].siteAddress}
+          initialUtilityTerritory={
+            jobsById[editJobId].utilityTerritory as
+              | "BGE"
+              | "PEPCO"
+              | "Delmarva"
+              | "SMECO"
+          }
+          initialNotes={jobsById[editJobId].notes}
+          onClose={() => setEditJobId(null)}
+          onSaved={() => {
+            setEditJobId(null);
+            router.refresh();
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -407,6 +443,8 @@ export function TechSection({
 function LineItemRow({
   item,
   isDraft,
+  canEditJob,
+  onEditJob,
   onReattribute,
   onOverride,
   onVoid,
@@ -414,6 +452,8 @@ function LineItemRow({
 }: {
   item: ReportLineItem;
   isDraft: boolean;
+  canEditJob: boolean;
+  onEditJob: () => void;
   onReattribute: () => void;
   onOverride: () => void;
   onVoid: () => void;
@@ -435,9 +475,24 @@ function LineItemRow({
         {item.date || "—"}
       </td>
       <td className="py-2 px-2 max-w-[180px]">
-        <div className="text-mse-navy text-sm font-semibold truncate">
-          {item.customerName || (isAdj ? "—" : item.jobId || "—")}
-        </div>
+        {canEditJob ? (
+          <button
+            type="button"
+            onClick={onEditJob}
+            className={cn(
+              "text-mse-navy text-sm font-semibold truncate text-left",
+              "hover:underline decoration-mse-gold underline-offset-2",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-1 rounded-sm"
+            )}
+            title={`Edit ${item.customerName || item.jobId}`}
+          >
+            {item.customerName || item.jobId || "—"}
+          </button>
+        ) : (
+          <div className="text-mse-navy text-sm font-semibold truncate">
+            {item.customerName || (isAdj ? "—" : item.jobId || "—")}
+          </div>
+        )}
         {item.unitId && (
           <div className="text-[10px] text-mse-muted font-mono">
             {item.unitId}

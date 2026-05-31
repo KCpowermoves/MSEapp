@@ -14,6 +14,7 @@ import {
 import { listAllPayrollPeriods } from "@/lib/data/payroll-periods";
 import { estimatedInstallPayForTech } from "@/lib/pay-rates";
 import {
+  cn,
   endOfWeekIso,
   formatCurrency,
   startOfWeekIso,
@@ -55,9 +56,20 @@ export default async function JobsHomePage({
     );
   }
 
-  // Mon-Sun week containing today.
+  // Mon-Sun week containing today + the prior Mon-Sun week for the
+  // "Last week's invoice" preview tile.
   const weekStartIso = startOfWeekIso();
   const weekEndIso = endOfWeekIso();
+  const lastWeekStartIso = (() => {
+    const d = new Date(weekStartIso);
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  })();
+  const lastWeekEndIso = (() => {
+    const d = new Date(weekStartIso);
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  })();
 
   const [
     jobs,
@@ -65,6 +77,7 @@ export default async function JobsHomePage({
     units,
     todaysPay,
     weekPay,
+    lastWeekPay,
     payrollPeriods,
   ] = await Promise.all([
     listJobsForTech({ techName, isAdmin }),
@@ -75,6 +88,11 @@ export default async function JobsHomePage({
       techName,
       startIso: weekStartIso,
       endIso: weekEndIso,
+    }),
+    payForTechInRange({
+      techName,
+      startIso: lastWeekStartIso,
+      endIso: lastWeekEndIso,
     }),
     listAllPayrollPeriods(),
   ]);
@@ -97,19 +115,32 @@ export default async function JobsHomePage({
   const lockedPeriods = payrollPeriods.filter(
     (p) => p.status === "Approved" || p.status === "Paid"
   );
-  let weekConfirmed = 0;
-  let weekUnconfirmed = 0;
-  for (const r of weekPay.rows) {
-    const isConfirmed = lockedPeriods.some(
+  function isRowConfirmed(rowDate: string): boolean {
+    return lockedPeriods.some(
       (p) =>
         p.startDate &&
         p.endDate &&
-        r.date >= p.startDate &&
-        r.date <= p.endDate
+        rowDate >= p.startDate &&
+        rowDate <= p.endDate
     );
-    if (isConfirmed) weekConfirmed += r.amount;
+  }
+  let weekConfirmed = 0;
+  let weekUnconfirmed = 0;
+  for (const r of weekPay.rows) {
+    if (isRowConfirmed(r.date)) weekConfirmed += r.amount;
     else weekUnconfirmed += r.amount;
   }
+  let lastWeekConfirmed = 0;
+  let lastWeekUnconfirmed = 0;
+  const lastWeekDispatchIds = new Set(
+    lastWeekPay.rows.map((r) => r.dispatchId)
+  );
+  for (const r of lastWeekPay.rows) {
+    if (isRowConfirmed(r.date)) lastWeekConfirmed += r.amount;
+    else lastWeekUnconfirmed += r.amount;
+  }
+  const lastWeekFullyConfirmed =
+    lastWeekPay.total > 0 && lastWeekUnconfirmed === 0;
 
   // Map jobId → set of unsubmitted dispatchIds + the dispatch
   // metadata needed to compute the tech's share.
@@ -197,6 +228,88 @@ export default async function JobsHomePage({
         </Link>
       </div>
 
+      {/* Last week's invoice — sits above the today/this-week pair
+          so the tech sees the big payable number first thing. Status
+          pill flips green once an admin has approved the commission
+          report covering that week; stays gold while it's still a
+          preview. Hides when last week had no activity at all. */}
+      {lastWeekPay.total > 0 && (
+        <div
+          className={cn(
+            "rounded-2xl p-4 shadow-elevated text-white relative overflow-hidden",
+            lastWeekFullyConfirmed
+              ? "bg-gradient-to-br from-emerald-700 to-emerald-900"
+              : "bg-gradient-to-br from-mse-navy to-mse-navy-soft"
+          )}
+        >
+          <div
+            className={cn(
+              "pointer-events-none absolute -top-12 -right-12 w-40 h-40 rounded-full blur-3xl",
+              lastWeekFullyConfirmed ? "bg-emerald-300/20" : "bg-mse-gold/25"
+            )}
+            aria-hidden
+          />
+          <div className="relative flex items-start justify-between gap-3">
+            <div>
+              <div
+                className={cn(
+                  "text-[11px] uppercase tracking-[0.12em] font-bold",
+                  lastWeekFullyConfirmed
+                    ? "text-emerald-200"
+                    : "text-mse-gold"
+                )}
+              >
+                Last week&apos;s invoice
+              </div>
+              <div className="text-[11px] text-white/65 mt-0.5">
+                {prettyDateRange(lastWeekStartIso, lastWeekEndIso)}
+              </div>
+            </div>
+            <span
+              className={cn(
+                "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap inline-flex items-center gap-1",
+                lastWeekFullyConfirmed
+                  ? "bg-emerald-300 text-emerald-900"
+                  : "bg-mse-gold text-mse-navy"
+              )}
+            >
+              {lastWeekFullyConfirmed ? (
+                <CheckCircle2 className="w-3 h-3" />
+              ) : (
+                <Clock className="w-3 h-3" />
+              )}
+              {lastWeekFullyConfirmed ? "Confirmed" : "Preview"}
+            </span>
+          </div>
+          <div className="relative mt-2 text-4xl font-bold tracking-tight tabular-nums">
+            {formatCurrency(lastWeekPay.total)}
+          </div>
+          {!lastWeekFullyConfirmed && lastWeekConfirmed > 0 && (
+            <div className="relative mt-2 text-[11px] text-white/70">
+              <span className="inline-flex items-center gap-1 text-emerald-300">
+                <CheckCircle2 className="w-3 h-3" />
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(lastWeekConfirmed)}
+                </span>
+                <span className="text-white/55">confirmed</span>
+              </span>
+              <span className="mx-1.5 text-white/30">·</span>
+              <span className="inline-flex items-center gap-1 text-mse-gold/90">
+                <Clock className="w-3 h-3" />
+                <span className="font-semibold tabular-nums">
+                  {formatCurrency(lastWeekUnconfirmed)}
+                </span>
+                <span className="text-white/55">preview</span>
+              </span>
+            </div>
+          )}
+          <div className="relative mt-2 text-[10px] text-white/45">
+            {lastWeekDispatchIds.size} job
+            {lastWeekDispatchIds.size === 1 ? "" : "s"} · Mon – Sun
+          </div>
+        </div>
+      )}
+
       {/* Earnings band: today's pay tile + this-week Mon-Sun tile
           with a confirmed/unconfirmed breakdown. Confirmed = sits
           inside an Invoice-Approved (or Paid) commission report;
@@ -269,5 +382,29 @@ export default async function JobsHomePage({
 
     </div>
   );
+}
+
+// Compact "May 25 – May 31" date-range formatter for the last-week
+// tile. Drops the year when both endpoints are in the current year
+// to keep the line tight on small screens.
+function prettyDateRange(startIso: string, endIso: string): string {
+  const s = new Date(startIso);
+  const e = new Date(endIso);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+    return `${startIso} – ${endIso}`;
+  }
+  const sameYear = s.getFullYear() === e.getFullYear();
+  const currentYear = new Date().getFullYear();
+  const sFmt = s.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: sameYear && s.getFullYear() === currentYear ? undefined : "numeric",
+  });
+  const eFmt = e.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: e.getFullYear() === currentYear ? undefined : "numeric",
+  });
+  return `${sFmt} – ${eFmt}`;
 }
 
