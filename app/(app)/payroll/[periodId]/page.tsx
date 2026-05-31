@@ -211,7 +211,15 @@ export default async function TechPayrollDetailPage({
                       </span>
                     </td>
                     <td className="py-2 px-3 text-xs text-mse-muted max-w-[280px]">
-                      {it.description || "—"}
+                      <div>{it.description || "—"}</div>
+                      {isAdj && it.note && it.note !== it.description && (
+                        <div className="mt-1 text-[11px] text-mse-navy/80 bg-mse-gold/10 border border-mse-gold/30 rounded-md px-2 py-1 italic">
+                          <span className="not-italic font-bold text-mse-navy/70 mr-1">
+                            Admin note:
+                          </span>
+                          {it.note}
+                        </div>
+                      )}
                     </td>
                     <td
                       className={cn(

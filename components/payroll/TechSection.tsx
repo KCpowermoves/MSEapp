@@ -24,6 +24,7 @@ import { AddAdjustmentDialog } from "@/components/payroll/AddAdjustmentDialog";
 import { OverrideDialog } from "@/components/payroll/OverrideDialog";
 import { ReattributeDialog } from "@/components/payroll/ReattributeDialog";
 import { SplitChangeDialog } from "@/components/payroll/SplitChangeDialog";
+import { useUndoStack } from "@/components/payroll/UndoContext";
 
 export interface PeriodDispatchLite {
   dispatchId: string;
@@ -83,6 +84,8 @@ export function TechSection({
     );
   }, [periodDispatches, techName]);
 
+  const undo = useUndoStack();
+
   const voidAdjustment = async (adjustmentId: string) => {
     if (
       typeof window !== "undefined" &&
@@ -101,6 +104,14 @@ export function TechSection({
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      // Voids are non-undoable — push the entry so the toast still
+      // surfaces the action, but clicking "Undo" yields the proper
+      // "permanent" error.
+      undo.push({
+        label: `Voided adjustment ${adjustmentId}`,
+        adjustmentIds: [],
+        undoable: false,
+      });
       router.refresh();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Could not void");

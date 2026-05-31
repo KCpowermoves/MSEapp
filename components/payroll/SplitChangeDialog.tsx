@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Loader2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/payroll/Dialog";
+import { useUndoStack } from "@/components/payroll/UndoContext";
 import type { CrewSplit } from "@/lib/types";
 import type { PeriodDispatchLite } from "@/components/payroll/TechSection";
 
@@ -86,6 +87,8 @@ export function SplitChangeDialog({
   const canSubmit =
     !!dispatch && !sizeMismatch && newCrew.length > 0 && !submitting;
 
+  const undo = useUndoStack();
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -103,8 +106,21 @@ export function SplitChangeDialog({
           note,
         }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        rows?: { adjustmentId?: string }[];
+      };
       if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      const ids = (body.rows ?? [])
+        .map((r) => r?.adjustmentId)
+        .filter((x): x is string => Boolean(x));
+      if (ids.length > 0) {
+        undo.push({
+          label: `Changed crew split on ${dispatchId}`,
+          adjustmentIds: ids,
+          undoable: true,
+        });
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not change split");

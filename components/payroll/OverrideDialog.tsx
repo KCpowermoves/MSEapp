@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Dialog } from "@/components/payroll/Dialog";
+import { useUndoStack } from "@/components/payroll/UndoContext";
 import type { ReportLineItem } from "@/lib/payroll/compute";
 
 // Override a single auto-attributed line item to a different amount.
@@ -32,6 +33,7 @@ export function OverrideDialog({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const undo = useUndoStack();
 
   const newAmountNum = Number(newAmount);
   const delta =
@@ -67,8 +69,18 @@ export function OverrideDialog({
           note: reason.trim(),
         }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        adjustment?: { adjustmentId?: string };
+      };
       if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      if (body.adjustment?.adjustmentId) {
+        undo.push({
+          label: `Overrode ${item.lineType} on ${item.customerName || item.jobId || "line"}`,
+          adjustmentIds: [body.adjustment.adjustmentId],
+          undoable: true,
+        });
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't override");

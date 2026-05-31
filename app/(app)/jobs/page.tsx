@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, DollarSign } from "lucide-react";
+import { Plus, TrendingUp } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listJobsForTech } from "@/lib/data/jobs";
 import {
@@ -7,7 +7,11 @@ import {
   listAllDispatches,
 } from "@/lib/data/dispatches";
 import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
-import { payForTechOnDate } from "@/lib/data/pay-attribution";
+import {
+  payForTechOnDate,
+  payForTechInRange,
+} from "@/lib/data/pay-attribution";
+import { estimatedInstallPayForTech } from "@/lib/pay-rates";
 import { formatCurrency, todayIsoDate } from "@/lib/utils";
 import { SubmittedToast } from "@/components/SubmittedToast";
 import { OfflineJobRows } from "@/components/OfflineJobRows";
@@ -19,6 +23,10 @@ interface JobStats {
   pendingUnits: number;
   photosUploaded: number;
   photosRequired: number;
+  /** Tech's estimated install pay across the pending units, with
+   *  crew-split factored in. Motivational figure — locks in on
+   *  finalize. Zero if the tech isn't on the dispatch crew. */
+  estimatedPay: number;
 }
 
 export default async function JobsHomePage({
@@ -41,11 +49,23 @@ export default async function JobsHomePage({
     );
   }
 
-  const [jobs, dispatches, units, todaysPay] = await Promise.all([
+  // 7-day rolling window for the dashboard tile.
+  const sevenDaysAgoIso = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6); // inclusive of today → 7-day range
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const [jobs, dispatches, units, todaysPay, sevenDayPay] = await Promise.all([
     listJobsForTech({ techName, isAdmin }),
     listAllDispatches(),
     listAllUnits(),
     payForTechOnDate({ techName, dateIso: today }),
+    payForTechInRange({
+      techName,
+      startIso: sevenDaysAgoIso,
+      endIso: today,
+    }),
   ]);
   const firstName = techName.split(" ")[0] || "there";
 
@@ -55,17 +75,38 @@ export default async function JobsHomePage({
     (r) => r.lineItem === "Install"
   ).length;
 
-  // Map jobId → stats from any unsubmitted dispatch
+  // 7-day summary inputs (same data shape, broader window).
+  const sevenDayDispatchIds = new Set(
+    sevenDayPay.rows.map((r) => r.dispatchId)
+  );
+
+  // Map jobId → set of unsubmitted dispatchIds + the dispatch
+  // metadata needed to compute the tech's share.
   const draftDispatchesByJob = new Map<string, Set<string>>();
+  const draftDispatchById = new Map<
+    string,
+    { jobId: string; techsOnSite: string[]; crewSplit: "Solo" | "50-50" | "33-33-33" }
+  >();
   for (const d of dispatches) {
     if (d.submittedAt) continue;
     if (!draftDispatchesByJob.has(d.jobId)) {
       draftDispatchesByJob.set(d.jobId, new Set());
     }
     draftDispatchesByJob.get(d.jobId)!.add(d.dispatchId);
+    draftDispatchById.set(d.dispatchId, {
+      jobId: d.jobId,
+      techsOnSite: d.techsOnSite,
+      crewSplit: d.crewSplit,
+    });
   }
 
   const statsByJob = new Map<string, JobStats>();
+  // Group pending units by dispatch so the crew-split estimate is
+  // calculated per dispatch (which is where the split lives).
+  const unitsByDraftDispatch = new Map<
+    string,
+    { unitType: string }[]
+  >();
   for (const u of units) {
     const drafts = draftDispatchesByJob.get(u.jobId);
     if (!drafts || !drafts.has(u.dispatchId)) continue;
@@ -74,11 +115,36 @@ export default async function JobsHomePage({
       pendingUnits: 0,
       photosUploaded: 0,
       photosRequired: 0,
+      estimatedPay: 0,
     };
     cur.pendingUnits += 1;
     cur.photosUploaded += uploaded;
     cur.photosRequired += required;
     statsByJob.set(u.jobId, cur);
+
+    const arr = unitsByDraftDispatch.get(u.dispatchId) ?? [];
+    arr.push({ unitType: u.unitType });
+    unitsByDraftDispatch.set(u.dispatchId, arr);
+  }
+
+  // Per-dispatch pay estimate → fold into the job's total. Splits are
+  // applied via estimatedInstallPayForTech so a 50-50 dispatch shows
+  // half the install rate to this tech.
+  if (techName) {
+    for (const [dispatchId, dispatchUnits] of Array.from(
+      unitsByDraftDispatch.entries()
+    )) {
+      const meta = draftDispatchById.get(dispatchId);
+      if (!meta) continue;
+      const share = estimatedInstallPayForTech({
+        units: dispatchUnits as { unitType: import("@/lib/types").UnitType }[],
+        crewSplit: meta.crewSplit,
+        techsOnSite: meta.techsOnSite,
+        techName,
+      });
+      const cur = statsByJob.get(meta.jobId);
+      if (cur) cur.estimatedPay += share;
+    }
   }
 
   return (
@@ -100,34 +166,37 @@ export default async function JobsHomePage({
         </Link>
       </div>
 
-      {/* Today's earnings card. Hidden 2026-05-05 and re-enabled
-          2026-05-27 per Kevin. Shows accumulated install + service
-          pay for the logged-in tech for today, across however many
-          dispatches they've contributed to. */}
-      {todaysPay.total > 0 && (
-        <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-white/60 font-semibold">
-                Today
-              </div>
-              <div className="text-3xl font-bold tracking-tight mt-0.5">
-                {formatCurrency(todaysPay.total)}
-              </div>
+      {/* Earnings band: Today's pay + Last 7 days. Hidden 2026-05-05
+          and re-enabled 2026-05-27 per Kevin. Both figures sum from
+          finalized Pay Attribution rows, which are already split-aware
+          (50-50 / 33-33-33 are baked in at finalize time). */}
+      {(todaysPay.total > 0 || sevenDayPay.total > 0) && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold">
+              Today
             </div>
-            <div className="text-right text-xs text-white/70">
-              <div>
-                {installRowCount} unit{installRowCount === 1 ? "" : "s"}
-              </div>
-              <div>
-                {distinctDispatchIds.size} job
-                {distinctDispatchIds.size === 1 ? "" : "s"}
-              </div>
+            <div className="text-3xl font-bold tracking-tight mt-0.5 tabular-nums">
+              {formatCurrency(todaysPay.total)}
+            </div>
+            <div className="mt-1 text-[11px] text-white/70">
+              {installRowCount} unit{installRowCount === 1 ? "" : "s"} ·{" "}
+              {distinctDispatchIds.size} job
+              {distinctDispatchIds.size === 1 ? "" : "s"}
             </div>
           </div>
-          <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-white/60">
-            <DollarSign className="w-3 h-3" />
-            updates after each job is submitted
+          <div className="rounded-2xl bg-gradient-to-br from-mse-navy-soft to-mse-navy text-white p-4 shadow-elevated">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              Last 7 days
+            </div>
+            <div className="text-3xl font-bold tracking-tight mt-0.5 tabular-nums">
+              {formatCurrency(sevenDayPay.total)}
+            </div>
+            <div className="mt-1 text-[11px] text-white/70">
+              {sevenDayDispatchIds.size} job
+              {sevenDayDispatchIds.size === 1 ? "" : "s"}
+            </div>
           </div>
         </div>
       )}

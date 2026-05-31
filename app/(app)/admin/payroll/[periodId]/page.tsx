@@ -9,6 +9,7 @@ import { listAllUnits } from "@/lib/data/units";
 import { formatCurrency } from "@/lib/utils";
 import { PayrollDetailHeader } from "@/components/payroll/PayrollDetailHeader";
 import { TechSection } from "@/components/payroll/TechSection";
+import { UndoProviderShell } from "@/components/payroll/UndoProviderShell";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -114,6 +115,7 @@ export default async function PayrollDetailPage({
         </div>
       )}
 
+      <UndoProviderShell>
       {report.techs.length === 0 ? (
         <section className="rounded-2xl border-2 border-dashed border-mse-light p-10 text-center">
           <div className="text-3xl font-bold text-mse-navy mb-1">
@@ -174,6 +176,7 @@ export default async function PayrollDetailPage({
           ))}
         </div>
       )}
+      </UndoProviderShell>
 
       <div className="text-[11px] text-mse-muted text-center pt-6 pb-8">
         Created by {period.createdBy || "—"} ·{" "}

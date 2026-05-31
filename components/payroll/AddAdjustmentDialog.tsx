@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/payroll/Dialog";
+import { useUndoStack } from "@/components/payroll/UndoContext";
 
 // Single dialog for both:
 //   - mode="manual"     → +/- adjustment with note
@@ -33,6 +34,7 @@ export function AddAdjustmentDialog({
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const undo = useUndoStack();
 
   const amountNum = Number(amount);
   const canSubmit =
@@ -60,8 +62,21 @@ export function AddAdjustmentDialog({
           note,
         }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        adjustment?: { adjustmentId?: string };
+      };
       if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      if (body.adjustment?.adjustmentId) {
+        undo.push({
+          label:
+            mode === "standalone"
+              ? `Added standalone line to ${tech}`
+              : `Added adjustment to ${tech}`,
+          adjustmentIds: [body.adjustment.adjustmentId],
+          undoable: true,
+        });
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");

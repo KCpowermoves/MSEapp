@@ -195,6 +195,38 @@ export async function listAllAttributions(): Promise<AttribReadRow[]> {
 }
 
 /**
+ * Sum a tech's pay attributions over an inclusive date range. Returns
+ * the total $ + the matching rows so callers can break out subtotals
+ * (line item count, distinct jobs, etc.). All attribution rows are
+ * already split-aware — when a tech worked a 50-50 dispatch, their
+ * row was written with the per-share amount at finalize time. No
+ * extra splitting needed here.
+ */
+export async function payForTechInRange(opts: {
+  techName: string;
+  startIso: string; // YYYY-MM-DD inclusive
+  endIso: string;   // YYYY-MM-DD inclusive
+}): Promise<{ total: number; rows: AttribReadRow[] }> {
+  if (!opts.techName) return { total: 0, rows: [] };
+  if (!opts.startIso || !opts.endIso || opts.endIso < opts.startIso) {
+    return { total: 0, rows: [] };
+  }
+  const rows = await readTab(TABS.payAttribution);
+  const filtered = rows
+    .filter((r) => r[0])
+    .map(rowToAttrib)
+    .filter(
+      (r) =>
+        r.techName === opts.techName &&
+        r.date >= opts.startIso &&
+        r.date <= opts.endIso &&
+        Number.isFinite(r.amount)
+    );
+  const total = filtered.reduce((s, r) => s + r.amount, 0);
+  return { total, rows: filtered };
+}
+
+/**
  * Sum a tech's pay attributions for a single day. Returns the total $
  * across all line items for that tech on that date.
  */

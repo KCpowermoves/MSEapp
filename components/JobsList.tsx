@@ -12,13 +12,14 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { ageInDays, cn } from "@/lib/utils";
+import { ageInDays, cn, formatCurrency } from "@/lib/utils";
 import type { Job, UtilityTerritory } from "@/lib/types";
 
 interface JobStats {
   pendingUnits: number;
   photosUploaded: number;
   photosRequired: number;
+  estimatedPay?: number;
 }
 
 interface Props {
@@ -245,7 +246,19 @@ export function JobsList({ jobs, statsByJob }: Props) {
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-mse-muted shrink-0 mt-1" />
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {stats && (stats.estimatedPay ?? 0) > 0 && (
+                        <div className="text-right">
+                          <div className="text-lg font-bold tabular-nums text-mse-navy leading-none">
+                            {formatCurrency(stats.estimatedPay ?? 0)}
+                          </div>
+                          <div className="text-[10px] uppercase tracking-wider font-bold text-mse-gold leading-tight mt-0.5">
+                            Est. earnings
+                          </div>
+                        </div>
+                      )}
+                      <ChevronRight className="w-5 h-5 text-mse-muted mt-1" />
+                    </div>
                   </div>
                 </a>
               </li>

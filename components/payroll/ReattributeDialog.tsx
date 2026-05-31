@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRightLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/payroll/Dialog";
+import { useUndoStack } from "@/components/payroll/UndoContext";
 import type { ReportLineItem } from "@/lib/payroll/compute";
 
 // Move one line's pay from this tech to another. Writes a paired
@@ -37,6 +38,7 @@ export function ReattributeDialog({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const undo = useUndoStack();
 
   const amountNum = Number(amount);
   const canSubmit =
@@ -74,8 +76,23 @@ export function ReattributeDialog({
           relatedUnitId: item.unitId,
         }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        fromRow?: { adjustmentId?: string };
+        toRow?: { adjustmentId?: string };
+      };
       if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      const ids = [
+        body.fromRow?.adjustmentId,
+        body.toRow?.adjustmentId,
+      ].filter((x): x is string => Boolean(x));
+      if (ids.length > 0) {
+        undo.push({
+          label: `Reattributed ${fromTech} → ${toTech}`,
+          adjustmentIds: ids,
+          undoable: true,
+        });
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reattribute");
