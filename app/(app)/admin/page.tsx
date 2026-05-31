@@ -412,7 +412,7 @@ export default async function AdminDashboard() {
                         <span className="font-bold text-sm text-mse-navy truncate">
                           {d.customerName}
                         </span>
-                        <span className="px-1.5 py-0.5 rounded-full bg-mse-navy/8 text-mse-navy text-[10px] font-bold uppercase tracking-wide">
+                        <span className="px-1.5 py-0.5 rounded-full bg-mse-navy/10 text-mse-navy text-[10px] font-bold uppercase tracking-wide">
                           In progress
                         </span>
                       </div>

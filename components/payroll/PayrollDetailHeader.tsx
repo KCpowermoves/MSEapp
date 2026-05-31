@@ -88,21 +88,21 @@ export function PayrollDetailHeader(props: Props) {
 
       <div className="relative flex items-start justify-between gap-4 flex-wrap">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-white/65 text-[11px] font-bold uppercase tracking-wider">
-            <DollarSign className="w-3.5 h-3.5 text-mse-gold" />
+          <div className="flex items-center gap-2 text-mse-gold text-[11px] font-bold uppercase tracking-[0.12em]">
+            <DollarSign className="w-3.5 h-3.5" />
             Payroll period
-            <span className="text-white/40 font-mono normal-case tracking-normal">
+            <span className="text-white/70 font-mono normal-case tracking-normal">
               · {props.periodId}
             </span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight mt-1">
             {titleText}
           </h1>
-          <div className="text-sm text-white/65 mt-1">
+          <div className="text-sm font-semibold text-white/85 mt-1">
             {prettyRange(props.startDate, props.endDate)}
           </div>
           {props.note && (
-            <div className="mt-2 text-xs text-white/65 max-w-md italic">
+            <div className="mt-2 text-xs text-white/80 max-w-md italic">
               {props.note}
             </div>
           )}
@@ -111,14 +111,14 @@ export function PayrollDetailHeader(props: Props) {
         <div className="flex flex-col items-end gap-2 shrink-0">
           <StatusPill status={props.status} />
           {props.status === "Approved" && props.approvedBy && (
-            <div className="text-[11px] text-white/55 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" />
+            <div className="text-[11px] text-white/85 font-semibold flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-mse-gold" />
               by {props.approvedBy}
             </div>
           )}
           {props.status === "Paid" && props.paidBy && (
-            <div className="text-[11px] text-white/55 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" />
+            <div className="text-[11px] text-white/85 font-semibold flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
               paid by {props.paidBy}
             </div>
           )}
@@ -257,12 +257,14 @@ function Stat({
   value: string;
 }) {
   return (
-    <div className="rounded-xl bg-white/8 px-3 py-2 backdrop-blur-sm">
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-white/55 flex items-center gap-1">
+    <div className="rounded-xl bg-white/10 ring-1 ring-inset ring-white/20 px-3 py-2.5">
+      <div className="text-[11px] uppercase tracking-[0.12em] font-bold text-mse-gold flex items-center gap-1">
         {icon}
         {label}
       </div>
-      <div className="text-xl font-bold tabular-nums mt-0.5">{value}</div>
+      <div className="text-2xl font-bold tabular-nums mt-1 text-white">
+        {value}
+      </div>
     </div>
   );
 }

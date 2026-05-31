@@ -66,13 +66,13 @@ export default async function TechPayrollDetailPage({
         />
         <div className="relative flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-[11px] uppercase tracking-wider font-bold text-white/55">
+            <div className="text-[11px] uppercase tracking-[0.12em] font-bold text-mse-gold">
               Pay Period · {period.periodId}
             </div>
             <h1 className="text-3xl font-bold tracking-tight mt-1">
               {titleText}
             </h1>
-            <div className="text-sm text-white/65 mt-1">
+            <div className="text-sm font-semibold text-white/85 mt-1">
               {prettyRange(period.startDate, period.endDate)}
             </div>
           </div>
@@ -80,14 +80,14 @@ export default async function TechPayrollDetailPage({
         </div>
 
         <div className="relative mt-5">
-          <div className="text-[10px] uppercase tracking-wider font-semibold text-white/55">
+          <div className="text-[11px] uppercase tracking-[0.12em] font-bold text-mse-gold">
             Your total
           </div>
-          <div className="text-5xl font-bold tabular-nums tracking-tight">
+          <div className="text-5xl font-bold tabular-nums tracking-tight text-white mt-1">
             {formatCurrency(rollup.grandTotal)}
           </div>
           {period.status === "Paid" && period.paidAt && (
-            <div className="inline-flex items-center gap-1 text-xs text-mse-gold mt-1 font-semibold">
+            <div className="inline-flex items-center gap-1 text-xs text-mse-gold mt-1 font-bold">
               <CheckCircle2 className="w-3.5 h-3.5" />
               Paid {formatStamp(period.paidAt)}
             </div>

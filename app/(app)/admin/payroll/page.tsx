@@ -191,18 +191,32 @@ function Pill({
   value: string;
   accent?: "navy" | "gold" | "muted";
 }) {
-  const styles =
+  // Label color is per-accent rather than `opacity-70` so the navy
+  // tile gets a high-contrast gold caption instead of low-contrast
+  // dim-white — the same brand pattern as the hero stats.
+  const tile =
     accent === "navy"
       ? "bg-mse-navy text-white"
       : accent === "gold"
-      ? "bg-mse-gold/15 text-mse-navy border border-mse-gold/30"
+      ? "bg-mse-gold/15 text-mse-navy border border-mse-gold/40"
       : "bg-white border border-mse-light text-mse-navy";
+  const labelClass =
+    accent === "navy"
+      ? "text-mse-gold"
+      : accent === "gold"
+      ? "text-mse-navy/75"
+      : "text-mse-muted";
   return (
-    <div className={cn("rounded-xl px-3 py-2 min-w-[100px]", styles)}>
-      <div className="text-[10px] uppercase tracking-wider opacity-70 font-semibold">
+    <div className={cn("rounded-xl px-3.5 py-2.5 min-w-[110px]", tile)}>
+      <div
+        className={cn(
+          "text-[11px] uppercase tracking-[0.12em] font-bold",
+          labelClass
+        )}
+      >
         {label}
       </div>
-      <div className="font-bold tabular-nums">{value}</div>
+      <div className="font-bold tabular-nums text-lg mt-0.5">{value}</div>
     </div>
   );
 }

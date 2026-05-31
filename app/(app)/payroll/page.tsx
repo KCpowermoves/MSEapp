@@ -82,18 +82,18 @@ export default async function TechPayrollPage() {
             aria-hidden
           />
           <div className="relative">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-white/55">
+            <div className="text-[11px] uppercase tracking-[0.12em] font-bold text-mse-gold">
               Lifetime · Approved + Paid
             </div>
-            <div className="text-4xl font-bold tracking-tight tabular-nums mt-1">
+            <div className="text-4xl font-bold tracking-tight tabular-nums mt-1 text-white">
               {formatCurrency(lifetimePay)}
             </div>
-            <div className="text-xs text-white/65 mt-1">
+            <div className="text-xs text-white/80 mt-1 font-medium">
               {cards.length} period{cards.length === 1 ? "" : "s"}
               {paidCount > 0 && (
                 <>
                   {" · "}
-                  <span className="text-mse-gold font-semibold">
+                  <span className="text-mse-gold font-bold">
                     {paidCount} paid
                   </span>
                 </>

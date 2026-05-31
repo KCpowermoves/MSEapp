@@ -156,7 +156,7 @@ export function TechSection({
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-mse-light/40 transition-colors text-left"
       >
-        <div className="w-9 h-9 rounded-full bg-mse-navy/8 flex items-center justify-center text-mse-navy font-bold text-sm shrink-0">
+        <div className="w-9 h-9 rounded-full bg-mse-navy/10 flex items-center justify-center text-mse-navy font-bold text-sm shrink-0">
           {techName
             .split(" ")
             .map((p) => p[0])
@@ -209,7 +209,7 @@ export function TechSection({
                   className={cn(
                     "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
                     c.value < 0
-                      ? "bg-mse-red/8 text-mse-red"
+                      ? "bg-mse-red/10 text-mse-red"
                       : c.label === "Adjustments"
                       ? "bg-mse-gold/15 text-mse-navy"
                       : "bg-mse-navy/5 text-mse-navy"

@@ -187,9 +187,9 @@ function AutoUploadCard({
       />
 
       <div className="relative flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2 text-white/75">
+        <div className="flex items-center gap-2">
           <CloudUpload className="w-4 h-4 text-mse-gold shrink-0" />
-          <span className="text-[11px] font-bold uppercase tracking-wider">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-mse-gold">
             Earning so far on this job
           </span>
         </div>
@@ -200,7 +200,7 @@ function AutoUploadCard({
         <span className="text-4xl font-bold tracking-tight tabular-nums">
           {formatCurrency(payEstimate)}
         </span>
-        <span className="text-[11px] text-white/55 leading-tight">
+        <span className="text-[11px] text-white/75 leading-tight font-medium">
           estimated
           <br />
           locks in at finalize
@@ -250,19 +250,21 @@ function Stat({
   return (
     <div
       className={cn(
-        "rounded-xl px-3 py-2",
-        accent ? "bg-mse-gold/20" : "bg-white/5"
+        "rounded-xl px-3 py-2.5 ring-1 ring-inset",
+        accent
+          ? "bg-mse-gold/20 ring-mse-gold/30"
+          : "bg-white/10 ring-white/20"
       )}
     >
       <div
         className={cn(
-          "text-[10px] uppercase tracking-wider font-semibold",
-          accent ? "text-mse-gold" : "text-white/55"
+          "text-[11px] uppercase tracking-[0.12em] font-bold",
+          accent ? "text-mse-gold" : "text-mse-gold/90"
         )}
       >
         {label}
       </div>
-      <div className="text-lg font-bold leading-tight mt-0.5 tabular-nums">
+      <div className="text-lg font-bold leading-tight mt-0.5 tabular-nums text-white">
         {value}
       </div>
     </div>
