@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import {
   AlertTriangle,
   Camera,
@@ -8,6 +9,7 @@ import {
   DollarSign,
   ExternalLink,
   MapPin,
+  Plus,
   Wrench,
 } from "lucide-react";
 import { getSession, loadActiveTechs } from "@/lib/auth";
@@ -212,14 +214,27 @@ export default async function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="text-sm text-mse-muted">Admin</div>
-        <h1 className="text-3xl font-bold text-mse-navy tracking-tight">
-          Dashboard
-        </h1>
-        <p className="text-xs text-mse-muted mt-1">
-          Read-only view of the last 7 days. Refresh after submissions.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-sm text-mse-muted">Admin</div>
+          <h1 className="text-3xl font-bold text-mse-navy tracking-tight">
+            Dashboard
+          </h1>
+          <p className="text-xs text-mse-muted mt-1">
+            Read-only view of the last 7 days. Refresh after submissions.
+          </p>
+        </div>
+        <Link
+          href="/admin/projects/new"
+          className={cn(
+            "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold",
+            "bg-mse-navy text-white hover:bg-mse-navy-soft shadow-card",
+            "active:scale-95 transition-[background-color,transform]"
+          )}
+        >
+          <Plus className="w-4 h-4" />
+          New project
+        </Link>
       </div>
 
       {/* Top stats */}

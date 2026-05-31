@@ -84,6 +84,30 @@ export function JobDetail({
             <TerritoryPill territory={job.utilityTerritory} />
             <span className="text-xs text-mse-muted font-mono">{job.jobId}</span>
           </div>
+          {(job.projectLead || (job.selfSold && job.soldBy)) && (
+            <div className="flex items-center gap-3 mt-2 flex-wrap text-[11px] text-mse-muted">
+              {job.projectLead && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-mse-gold">
+                    Lead
+                  </span>
+                  <span className="text-mse-navy font-semibold">
+                    {job.projectLead}
+                  </span>
+                </span>
+              )}
+              {job.selfSold && job.soldBy && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-mse-gold">
+                    Sales
+                  </span>
+                  <span className="text-mse-navy font-semibold">
+                    {job.soldBy}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <a
           href={`/jobs/${encodeURIComponent(job.jobId)}/edit`}

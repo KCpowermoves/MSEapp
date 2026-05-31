@@ -86,6 +86,7 @@ export function OfflineAddUnit({ jobId }: { jobId: string }) {
       driveFolderId: "",
       createdBy: "",
       notes: "",
+      projectLead: "",
     };
     return <AddUnitForm job={fakeJob} nextUnitNumber={nextNumber} />;
   }
@@ -107,6 +108,7 @@ export function OfflineAddUnit({ jobId }: { jobId: string }) {
     driveFolderId: "",
     createdBy: "",
     notes: "",
+    projectLead: "",
   };
   return <AddUnitForm job={minimalJob} nextUnitNumber={nextNumber} />;
 }

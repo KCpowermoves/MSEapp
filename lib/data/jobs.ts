@@ -27,6 +27,7 @@ function rowToJob(row: string[]): Job {
     driveFolderId,
     createdBy: String(row[11] ?? ""),
     notes: String(row[12] ?? ""),
+    projectLead: String(row[13] ?? ""),
   };
 }
 
@@ -127,6 +128,9 @@ export async function createJob(opts: {
   soldBy: string;
   createdBy: string;
   notes?: string;
+  /** Optional — when set, stamps the Project Lead column on the new
+   *  Jobs row. Used by /admin/projects/new. */
+  projectLead?: string;
 }): Promise<Job> {
   const jobId = await nextJobId();
   const created = new Date();
@@ -139,6 +143,7 @@ export async function createJob(opts: {
 
   const isoNow = nowIso();
   const hyperlink = `=HYPERLINK("${folder.url}", "Open folder")`;
+  const projectLead = (opts.projectLead ?? "").trim();
 
   await appendRow(TABS.jobs, [
     jobId,
@@ -154,6 +159,7 @@ export async function createJob(opts: {
     folder.id,
     opts.createdBy,
     opts.notes ?? "",
+    projectLead,
   ]);
 
   return {
@@ -170,6 +176,7 @@ export async function createJob(opts: {
     driveFolderId: folder.id,
     createdBy: opts.createdBy,
     notes: opts.notes ?? "",
+    projectLead,
   };
 }
 
@@ -188,6 +195,7 @@ export async function updateJob(opts: {
   selfSold?: boolean;
   soldBy?: string;
   notes?: string;
+  projectLead?: string;
 }): Promise<void> {
   const rowIndex = await findRowIndex(TABS.jobs, "A", opts.jobId);
   if (!rowIndex) throw new Error(`Job not found: ${opts.jobId}`);
@@ -206,6 +214,8 @@ export async function updateJob(opts: {
     updates.push(updateCell(`${TABS.jobs}!I${rowIndex}`, opts.soldBy));
   if (opts.notes !== undefined)
     updates.push(updateCell(`${TABS.jobs}!M${rowIndex}`, opts.notes));
+  if (opts.projectLead !== undefined)
+    updates.push(updateCell(`${TABS.jobs}!N${rowIndex}`, opts.projectLead));
   if (updates.length > 0) {
     await Promise.all(updates);
     await bumpLastActivity(opts.jobId);

@@ -80,6 +80,10 @@ export interface Job {
   driveFolderId: string;
   createdBy: string;
   notes: string;
+  /** Tech in charge of the project. Set when an admin creates the
+   *  project via /admin/projects/new; blank for tech-initiated jobs.
+   *  Stored in column N of the Jobs sheet. */
+  projectLead: string;
 }
 
 export interface Dispatch {

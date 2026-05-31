@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, Building2, MapPin, Users, Wrench } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  MapPin,
+  Plus,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { listCustomers } from "@/lib/admin/customers";
 import { cn } from "@/lib/utils";
 
@@ -13,16 +20,29 @@ export default async function AdminCustomersPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <div className="text-sm text-mse-muted">Admin</div>
-        <h1 className="text-3xl font-bold text-mse-navy tracking-tight flex items-center gap-2">
-          <Building2 className="w-7 h-7 text-mse-gold" />
-          Customers
-        </h1>
-        <p className="text-sm text-mse-muted mt-1 max-w-2xl">
-          Rolled up from every job in the Jobs sheet. Click a customer for
-          their full history, photos, and documents.
-        </p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-sm text-mse-muted">Admin</div>
+          <h1 className="text-3xl font-bold text-mse-navy tracking-tight flex items-center gap-2">
+            <Building2 className="w-7 h-7 text-mse-gold" />
+            Customers
+          </h1>
+          <p className="text-sm text-mse-muted mt-1 max-w-2xl">
+            Rolled up from every job in the Jobs sheet. Click a customer for
+            their full history, photos, and documents.
+          </p>
+        </div>
+        <Link
+          href="/admin/projects/new"
+          className={cn(
+            "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold",
+            "bg-mse-navy text-white hover:bg-mse-navy-soft shadow-card",
+            "active:scale-95 transition-[background-color,transform]"
+          )}
+        >
+          <Plus className="w-4 h-4" />
+          New project
+        </Link>
       </header>
 
       <section className="grid grid-cols-3 gap-2">
