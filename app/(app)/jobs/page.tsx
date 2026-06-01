@@ -124,20 +124,20 @@ export default async function JobsHomePage({
         rowDate <= p.endDate
     );
   }
-  let weekConfirmed = 0;
+  // Compact this-week tile only needs to know whether any rows are
+  // still in preview state — flipping the label between "preview"
+  // and "confirmed". The detailed confirmed/preview $ split is now
+  // visible on the per-period page.
   let weekUnconfirmed = 0;
   for (const r of weekPay.rows) {
-    if (isRowConfirmed(r.date)) weekConfirmed += r.amount;
-    else weekUnconfirmed += r.amount;
+    if (!isRowConfirmed(r.date)) weekUnconfirmed += r.amount;
   }
-  let lastWeekConfirmed = 0;
+  // Only need the unconfirmed total to know whether last week's
+  // invoice has been fully approved — the compact tile no longer
+  // surfaces the confirmed/preview split or the job count.
   let lastWeekUnconfirmed = 0;
-  const lastWeekDispatchIds = new Set(
-    lastWeekPay.rows.map((r) => r.dispatchId)
-  );
   for (const r of lastWeekPay.rows) {
-    if (isRowConfirmed(r.date)) lastWeekConfirmed += r.amount;
-    else lastWeekUnconfirmed += r.amount;
+    if (!isRowConfirmed(r.date)) lastWeekUnconfirmed += r.amount;
   }
   const lastWeekFullyConfirmed =
     lastWeekPay.total > 0 && lastWeekUnconfirmed === 0;
@@ -228,139 +228,82 @@ export default async function JobsHomePage({
         </Link>
       </div>
 
-      {/* Last week's invoice — sits above the today/this-week pair
-          so the tech sees the big payable number first thing. Status
-          pill flips green once an admin has approved the commission
-          report covering that week; stays gold while it's still a
-          preview. Hides when last week had no activity at all. */}
-      {lastWeekPay.total > 0 && (
+      {/* Earnings summary — three tiles in one row at the very top of
+          the dashboard so the tech sees Today, This week, and Last
+          week side-by-side without scrolling. Last week takes equal
+          column width but trims its detail lines so the 3-up fits on
+          a phone. Status pill on Last week flips green once an admin
+          approves the commission report covering that week; stays
+          gold while it's still a preview. */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl bg-mse-navy text-white p-3 shadow-elevated">
+          <div className="text-[10px] uppercase tracking-[0.1em] text-mse-gold font-bold">
+            Today
+          </div>
+          <div className="text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
+            {formatCurrency(todaysPay.total)}
+          </div>
+          <div className="mt-1 text-[10px] text-white/65 leading-tight">
+            {installRowCount} unit{installRowCount === 1 ? "" : "s"} ·{" "}
+            {distinctDispatchIds.size} job
+            {distinctDispatchIds.size === 1 ? "" : "s"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-gradient-to-br from-mse-navy-soft to-mse-navy text-white p-3 shadow-elevated">
+          <div className="text-[10px] uppercase tracking-[0.1em] text-mse-gold font-bold">
+            This week
+          </div>
+          <div className="text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
+            {formatCurrency(weekPay.total)}
+          </div>
+          <div className="mt-1 text-[10px] text-white/65 leading-tight">
+            {weekDispatchIds.size} job{weekDispatchIds.size === 1 ? "" : "s"} ·
+            {weekUnconfirmed > 0 ? " preview" : " confirmed"}
+          </div>
+        </div>
+
+        {/* Last week — same column width, status-tinted background so
+            the tech can tell at a glance whether last week's invoice
+            has been approved. Renders even at $0 to keep the three
+            columns balanced. */}
         <div
           className={cn(
-            "rounded-2xl p-4 shadow-elevated text-white relative overflow-hidden",
+            "rounded-2xl p-3 shadow-elevated text-white relative overflow-hidden",
             lastWeekFullyConfirmed
               ? "bg-gradient-to-br from-emerald-700 to-emerald-900"
-              : "bg-gradient-to-br from-mse-navy to-mse-navy-soft"
+              : lastWeekPay.total > 0
+              ? "bg-gradient-to-br from-mse-navy to-mse-navy-soft"
+              : "bg-mse-navy-soft/80"
           )}
         >
           <div
             className={cn(
-              "pointer-events-none absolute -top-12 -right-12 w-40 h-40 rounded-full blur-3xl",
-              lastWeekFullyConfirmed ? "bg-emerald-300/20" : "bg-mse-gold/25"
+              "text-[10px] uppercase tracking-[0.1em] font-bold",
+              lastWeekFullyConfirmed ? "text-emerald-200" : "text-mse-gold"
             )}
-            aria-hidden
-          />
-          <div className="relative flex items-start justify-between gap-3">
-            <div>
-              <div
-                className={cn(
-                  "text-[11px] uppercase tracking-[0.12em] font-bold",
-                  lastWeekFullyConfirmed
-                    ? "text-emerald-200"
-                    : "text-mse-gold"
-                )}
-              >
-                Last week&apos;s invoice
-              </div>
-              <div className="text-[11px] text-white/65 mt-0.5">
-                {prettyDateRange(lastWeekStartIso, lastWeekEndIso)}
-              </div>
-            </div>
-            <span
-              className={cn(
-                "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap inline-flex items-center gap-1",
-                lastWeekFullyConfirmed
-                  ? "bg-emerald-300 text-emerald-900"
-                  : "bg-mse-gold text-mse-navy"
-              )}
-            >
-              {lastWeekFullyConfirmed ? (
-                <CheckCircle2 className="w-3 h-3" />
-              ) : (
-                <Clock className="w-3 h-3" />
-              )}
-              {lastWeekFullyConfirmed ? "Confirmed" : "Preview"}
-            </span>
+          >
+            Last week
           </div>
-          <div className="relative mt-2 text-4xl font-bold tracking-tight tabular-nums">
+          <div className="text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
             {formatCurrency(lastWeekPay.total)}
           </div>
-          {!lastWeekFullyConfirmed && lastWeekConfirmed > 0 && (
-            <div className="relative mt-2 text-[11px] text-white/70">
-              <span className="inline-flex items-center gap-1 text-emerald-300">
-                <CheckCircle2 className="w-3 h-3" />
-                <span className="font-semibold tabular-nums">
-                  {formatCurrency(lastWeekConfirmed)}
-                </span>
-                <span className="text-white/55">confirmed</span>
+          <div className="mt-1 flex items-center gap-1 text-[10px] leading-tight">
+            {lastWeekFullyConfirmed ? (
+              <span className="inline-flex items-center gap-1 text-emerald-300 font-semibold uppercase tracking-wider">
+                <CheckCircle2 className="w-2.5 h-2.5" />
+                Confirmed
               </span>
-              <span className="mx-1.5 text-white/30">·</span>
-              <span className="inline-flex items-center gap-1 text-mse-gold/90">
-                <Clock className="w-3 h-3" />
-                <span className="font-semibold tabular-nums">
-                  {formatCurrency(lastWeekUnconfirmed)}
-                </span>
-                <span className="text-white/55">preview</span>
+            ) : lastWeekPay.total > 0 ? (
+              <span className="inline-flex items-center gap-1 text-mse-gold font-semibold uppercase tracking-wider">
+                <Clock className="w-2.5 h-2.5" />
+                Preview
               </span>
-            </div>
-          )}
-          <div className="relative mt-2 text-[10px] text-white/45">
-            {lastWeekDispatchIds.size} job
-            {lastWeekDispatchIds.size === 1 ? "" : "s"} · Mon – Sun
+            ) : (
+              <span className="text-white/50">No activity</span>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Earnings band: today's pay tile + this-week Mon-Sun tile
-          with a confirmed/unconfirmed breakdown. Confirmed = sits
-          inside an Invoice-Approved (or Paid) commission report;
-          unconfirmed = preview, not yet on an approved invoice.
-          Both figures sum from finalized Pay Attribution rows, which
-          are already split-aware (50-50 / 33-33-33 baked in at
-          finalize time). Both tiles render even at $0 so the tech
-          always has the same three widgets on their dashboard. */}
-      <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
-            <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold">
-              Today
-            </div>
-            <div className="text-3xl font-bold tracking-tight mt-0.5 tabular-nums">
-              {formatCurrency(todaysPay.total)}
-            </div>
-            <div className="mt-1 text-[11px] text-white/70">
-              {installRowCount} unit{installRowCount === 1 ? "" : "s"} ·{" "}
-              {distinctDispatchIds.size} job
-              {distinctDispatchIds.size === 1 ? "" : "s"}
-            </div>
-          </div>
-          <div className="rounded-2xl bg-gradient-to-br from-mse-navy-soft to-mse-navy text-white p-4 shadow-elevated">
-            <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold">
-              This week
-            </div>
-            <div className="text-3xl font-bold tracking-tight mt-0.5 tabular-nums">
-              {formatCurrency(weekPay.total)}
-            </div>
-            <div className="mt-2 space-y-0.5 text-[11px] leading-tight">
-              <div className="flex items-center gap-1 text-emerald-300">
-                <CheckCircle2 className="w-3 h-3" />
-                <span className="font-semibold tabular-nums">
-                  {formatCurrency(weekConfirmed)}
-                </span>
-                <span className="text-white/55">confirmed</span>
-              </div>
-              <div className="flex items-center gap-1 text-mse-gold/90">
-                <Clock className="w-3 h-3" />
-                <span className="font-semibold tabular-nums">
-                  {formatCurrency(weekUnconfirmed)}
-                </span>
-                <span className="text-white/55">preview</span>
-              </div>
-            </div>
-            <div className="mt-1 text-[10px] text-white/45 leading-tight">
-              {weekDispatchIds.size} job
-              {weekDispatchIds.size === 1 ? "" : "s"} ·{" "}
-              Mon – Sun
-            </div>
-          </div>
       </div>
 
       <section>
@@ -383,27 +326,4 @@ export default async function JobsHomePage({
   );
 }
 
-// Compact "May 25 – May 31" date-range formatter for the last-week
-// tile. Drops the year when both endpoints are in the current year
-// to keep the line tight on small screens.
-function prettyDateRange(startIso: string, endIso: string): string {
-  const s = new Date(startIso);
-  const e = new Date(endIso);
-  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
-    return `${startIso} – ${endIso}`;
-  }
-  const sameYear = s.getFullYear() === e.getFullYear();
-  const currentYear = new Date().getFullYear();
-  const sFmt = s.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: sameYear && s.getFullYear() === currentYear ? undefined : "numeric",
-  });
-  const eFmt = e.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: e.getFullYear() === currentYear ? undefined : "numeric",
-  });
-  return `${sFmt} – ${eFmt}`;
-}
 
