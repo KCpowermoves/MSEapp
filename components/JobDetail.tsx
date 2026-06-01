@@ -131,6 +131,21 @@ export function JobDetail({
         )}
       </div>
 
+      {/* Earning summary lives at the very top of the job page (right
+          under the customer header) so the tech sees the pay figure
+          and photo progress before scrolling through units. The
+          finalized / empty fallback variants stay where they are —
+          they're contextual prompts for what to do next. */}
+      {hasPending && (
+        <AutoUploadCard
+          unitCount={pendingUnits.length}
+          photosUploaded={pendingPhotosUploaded}
+          photosRequired={pendingPhotosRequired}
+          payEstimate={pendingPayEstimate}
+          alsoFinalizedToday={wasSubmittedToday}
+        />
+      )}
+
       <div className="grid grid-cols-1 gap-3">
         <a
           href={`/jobs/${encodeURIComponent(job.jobId)}/units/new`}
@@ -147,19 +162,10 @@ export function JobDetail({
         ))}
       </UnitsSection>
 
-      {/* Passive auto-upload status card. Replaces the old "Submit job"
-          red button — the dispatch now closes itself when the tech
-          moves on (server-side trigger on next page load) or by 8pm
-          ET via cron. No barrier to forget. */}
-      {hasPending ? (
-        <AutoUploadCard
-          unitCount={pendingUnits.length}
-          photosUploaded={pendingPhotosUploaded}
-          photosRequired={pendingPhotosRequired}
-          payEstimate={pendingPayEstimate}
-          alsoFinalizedToday={wasSubmittedToday}
-        />
-      ) : wasSubmittedToday ? (
+      {/* Fallback states — finalized banner or empty prompt — stay
+          below the units section since they don't have the running
+          earnings figure to anchor at the top. */}
+      {!hasPending && wasSubmittedToday && (
         <section className="rounded-2xl border-2 border-mse-gold/40 bg-mse-gold/5 p-4 flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
@@ -170,7 +176,8 @@ export function JobDetail({
             </p>
           </div>
         </section>
-      ) : (
+      )}
+      {!hasPending && !wasSubmittedToday && (
         <section className="rounded-2xl border-2 border-dashed border-mse-light p-5 text-center">
           <p className="text-sm text-mse-muted">
             Add a unit above to get started. Everything uploads as you go —
