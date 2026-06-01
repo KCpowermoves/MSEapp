@@ -159,6 +159,25 @@ export async function computePayrollReport(
     inDateRange(r.date, input.startDate, input.endDate)
   );
 
+  // ── Attribution-row deletions ───────────────────────────────────
+  // Deleting an attribution row in the admin UI writes a manual
+  // counter-adjustment with note "Offsets attribution row <id>". We
+  // hide BOTH rows from the report so the deletion is visible as an
+  // actual disappearance instead of a pair that nets to zero. The
+  // audit story still lives in the sheet (original Pay Attribution
+  // row intact + counter-adjustment row intact).
+  const deletedAttributionIds = new Set<string>();
+  const offsetAdjustmentIds = new Set<string>();
+  for (const a of adjustments) {
+    const m = (a.note ?? "")
+      .trim()
+      .match(/^Offsets attribution row\s+(.+)$/i);
+    if (m && m[1]) {
+      deletedAttributionIds.add(m[1].trim());
+      offsetAdjustmentIds.add(a.adjustmentId);
+    }
+  }
+
   // ── Group by tech ───────────────────────────────────────────────
   const techMap = new Map<string, ReportLineItem[]>();
 
@@ -170,6 +189,7 @@ export async function computePayrollReport(
   }
 
   for (const r of inWindow) {
+    if (deletedAttributionIds.has(r.id)) continue;
     const dispatch = dispatchById.get(r.dispatchId);
     const job = dispatch ? jobById.get(dispatch.jobId) : undefined;
     pushForTech(r.techName, {
@@ -192,6 +212,22 @@ export async function computePayrollReport(
   }
 
   for (const a of adjustments) {
+    // Deleted / voided adjustments are filtered out of the report.
+    // The row still lives in the Payroll Adjustments sheet (audit
+    // trail), but it no longer contributes to any total or appears
+    // in any UI. Two signals — either is sufficient:
+    //   1. Note text starts with "VOIDED" (legacy void path).
+    //   2. Amount has been zeroed (also the void path) AND the row's
+    //      type is "manual" — preserves real zero-delta adjustments
+    //      created intentionally (e.g. crew-split deltas where the
+    //      math happens to net out exactly even).
+    if (
+      (a.note ?? "").trim().toUpperCase().startsWith("VOIDED") ||
+      (a.amount === 0 && a.type === "manual") ||
+      offsetAdjustmentIds.has(a.adjustmentId)
+    ) {
+      continue;
+    }
     const dispatch = a.relatedDispatchId
       ? dispatchById.get(a.relatedDispatchId)
       : undefined;

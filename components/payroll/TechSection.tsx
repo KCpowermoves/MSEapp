@@ -91,7 +91,7 @@ export function TechSection({
     item: ReportLineItem;
   } | null>(null);
   const [splitChange, setSplitChange] = useState<string | null>(null);
-  const [voiding, setVoiding] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   // Distinct dispatches this tech worked on in the period — feeds the
   // "Change crew split" picker when this tech is the section owner.
@@ -104,17 +104,21 @@ export function TechSection({
 
   const undo = useUndoStack();
 
-  const voidAdjustment = async (adjustmentId: string) => {
+  const deleteAdjustment = async (adjustmentId: string) => {
     if (
       typeof window !== "undefined" &&
       !window.confirm(
-        "Void this adjustment? It stays in the sheet for audit but stops counting toward the total."
+        "Delete this adjustment? It stays in the sheet for audit but disappears from the report and stops counting toward the total."
       )
     ) {
       return;
     }
-    setVoiding(adjustmentId);
+    setDeleting(adjustmentId);
     try {
+      // Backed by the existing void endpoint — sets amount=0 + VOIDED
+      // note. Compute now filters voided rows out of the report
+      // entirely so the line disappears instead of rendering with a
+      // strikethrough.
       const res = await fetch("/api/admin/payroll/adjustments/void", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -122,19 +126,80 @@ export function TechSection({
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
-      // Voids are non-undoable — push the entry so the toast still
+      // Deletes are non-undoable — push the entry so the toast still
       // surfaces the action, but clicking "Undo" yields the proper
       // "permanent" error.
       undo.push({
-        label: `Voided adjustment ${adjustmentId}`,
+        label: `Deleted line ${adjustmentId}`,
         adjustmentIds: [],
         undoable: false,
       });
       router.refresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Could not void");
+      alert(e instanceof Error ? e.message : "Could not delete");
     } finally {
-      setVoiding(null);
+      setDeleting(null);
+    }
+  };
+
+  // Deleting an attribution row writes a counter-adjustment of -amount
+  // so the report total reflects the deletion. The original Pay
+  // Attribution row stays in its sheet (immutable history of what
+  // was earned at finalize time); the new manual adjustment carries
+  // the offset with a clear description so the audit story stays
+  // legible.
+  const deleteAttributionLine = async (item: ReportLineItem) => {
+    if (item.amount === 0) {
+      // Nothing to offset.
+      return;
+    }
+    const customerLabel = item.customerName || item.jobId || "this line";
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Delete this ${item.lineType.toLowerCase()} line (${customerLabel}, ${item.amount < 0 ? "-" : ""}$${Math.abs(
+          item.amount
+        ).toFixed(2)})? Writes an offsetting adjustment so the report total reflects the removal.`
+      )
+    ) {
+      return;
+    }
+    setDeleting(item.id);
+    try {
+      const description = `Deleted ${item.lineType} line: ${customerLabel} (${item.amount < 0 ? "-" : ""}$${Math.abs(
+        item.amount
+      ).toFixed(2)})`;
+      const res = await fetch("/api/admin/payroll/adjustments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodId,
+          techName: item.techName,
+          type: "manual",
+          amount: -item.amount,
+          description,
+          relatedDispatchId: item.dispatchId,
+          relatedUnitId: item.unitId,
+          note: `Offsets attribution row ${item.id}`,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        adjustment?: { adjustmentId?: string };
+      };
+      if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      if (body.adjustment?.adjustmentId) {
+        undo.push({
+          label: `Deleted ${item.lineType} on ${customerLabel}`,
+          adjustmentIds: [body.adjustment.adjustmentId],
+          undoable: true,
+        });
+      }
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not delete");
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -290,8 +355,17 @@ export function TechSection({
                     onSetSite={() => setSetSiteFor({ item: it })}
                     onReattribute={() => setReattribute({ item: it })}
                     onOverride={() => setOverride({ item: it })}
-                    onVoid={() => voidAdjustment(it.adjustmentId)}
-                    isVoiding={voiding === it.adjustmentId}
+                    onDelete={() =>
+                      it.source === "adjustment"
+                        ? deleteAdjustment(it.adjustmentId)
+                        : deleteAttributionLine(it)
+                    }
+                    isDeleting={
+                      deleting ===
+                      (it.source === "adjustment"
+                        ? it.adjustmentId
+                        : it.id)
+                    }
                   />
                 ))}
                 {tech.lineItems.length === 0 && (
@@ -477,8 +551,8 @@ function LineItemRow({
   onSetSite,
   onReattribute,
   onOverride,
-  onVoid,
-  isVoiding,
+  onDelete,
+  isDeleting,
 }: {
   item: ReportLineItem;
   isDraft: boolean;
@@ -487,8 +561,8 @@ function LineItemRow({
   onSetSite: () => void;
   onReattribute: () => void;
   onOverride: () => void;
-  onVoid: () => void;
-  isVoiding: boolean;
+  onDelete: () => void;
+  isDeleting: boolean;
 }) {
   const isAdj = item.source === "adjustment";
   const negative = item.amount < 0;
@@ -608,22 +682,24 @@ function LineItemRow({
                 </button>
               </>
             )}
-            {isAdj && (
-              <button
-                type="button"
-                onClick={onVoid}
-                disabled={isVoiding}
-                className="p-1.5 rounded-md text-mse-muted hover:text-mse-red hover:bg-mse-red/10"
-                aria-label="Void this adjustment"
-                title="Void"
-              >
-                {isVoiding ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
-                )}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="p-1.5 rounded-md text-mse-muted hover:text-mse-red hover:bg-mse-red/10"
+              aria-label={
+                isAdj
+                  ? "Delete this adjustment"
+                  : "Delete this line (writes a counter-adjustment)"
+              }
+              title="Delete"
+            >
+              {isDeleting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
+            </button>
           </div>
         )}
       </td>
