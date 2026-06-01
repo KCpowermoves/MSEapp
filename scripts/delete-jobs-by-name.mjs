@@ -30,17 +30,12 @@ if (!SHEET_ID || !SA_EMAIL || !SA_KEY) {
 
 const apply = process.argv.includes("--apply");
 
-// The 9 test jobs Kevin flagged on 2026-05-31.
+// Test jobs Kevin flagged for cleanup. Updated 2026-05-31 with the
+// three junk rows created during cover-photo QA.
 const TARGET_NAMES = [
-  "Ffff",
-  "Gsgd",
-  "Tt",
-  "Ggg",
-  "Rr",
-  "Hdhd",
-  "Tee St",
-  "Palonia",
-  "Rivera Deli",
+  "hsdhfshd",
+  "34234234",
+  "table store",
 ];
 const targets = new Set(TARGET_NAMES.map((n) => n.trim().toLowerCase()));
 

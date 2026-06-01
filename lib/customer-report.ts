@@ -125,9 +125,14 @@ export async function buildCustomerReport(
     listAllDispatches(),
   ]);
 
-  const customerJobs = jobs
-    .filter((j) => j.status === "Active")
-    .filter((j) => j.customerName.trim().toLowerCase() === target);
+  // Full customer history — include Closed jobs so the rollup PDF
+  // works as a complete property file (warranty research, BEPS
+  // benchmarking, repeat-visit context). The customer detail page
+  // still hides Closed jobs from its in-app list, so the report and
+  // the page diverge intentionally on this dimension.
+  const customerJobs = jobs.filter(
+    (j) => j.customerName.trim().toLowerCase() === target
+  );
   if (customerJobs.length === 0) return null;
 
   // Canonical display name — first job's spelling wins so capitalization
