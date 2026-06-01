@@ -67,6 +67,41 @@ export async function POST(request: Request) {
   const rootFolderId = job.driveFolderId || (await ensureJobFolderId(job));
 
   try {
+    // Kind-first: job-cover and signature are unambiguous intents and
+    // should win over any stray unitId/serviceId on the request,
+    // since those fields could be left over from a previous form
+    // state and we don't want to silently misroute an upload.
+    if (kind === "job-cover") {
+      // Cover photo for the whole job. One file per job — overwriting
+      // is fine since the previous cover is still in Drive history,
+      // and the Sheets cell only stores the most recent fileId. We
+      // always upload a new file rather than overwriting in-place to
+      // keep the Drive view auditable.
+      const safeCustomer = slugForFilename(job.customerName) || "job";
+      const filename = `Cover_${safeCustomer}_${Date.now()}.jpg`;
+      const uploaded = await uploadImage({
+        folderId: rootFolderId,
+        filename,
+        mimeType,
+        body: buffer,
+      });
+      try {
+        await setJobCoverPhotoId({ jobId, fileId: uploaded.id });
+      } catch (e) {
+        // Sheet write failed but the file is in Drive — log the
+        // orphan fileId so it's recoverable from the audit log.
+        console.error(
+          `[upload] job-cover orphan: fileId=${uploaded.id} jobId=${jobId}`,
+          e
+        );
+        throw e;
+      }
+      revalidatePath("/jobs");
+      revalidatePath(`/jobs/${jobId}`);
+      revalidatePath("/admin/customers");
+      return NextResponse.json({ url: uploaded.url, fileId: uploaded.id });
+    }
+
     if (unitId) {
       if (!PHOTO_SLOTS.includes(slot as PhotoSlot)) {
         return NextResponse.json(
@@ -116,27 +151,6 @@ export async function POST(request: Request) {
       });
       await appendServicePhotoUrl(serviceId, uploaded.url);
       return NextResponse.json({ url: uploaded.url });
-    }
-
-    if (kind === "job-cover") {
-      // Cover photo for the whole job. One file per job — overwriting
-      // is fine since the previous cover is still in Drive history,
-      // and the Sheets cell only stores the most recent fileId. We
-      // always upload a new file rather than overwriting in-place to
-      // keep the Drive view auditable.
-      const safeCustomer = slugForFilename(job.customerName) || "job";
-      const filename = `Cover_${safeCustomer}_${Date.now()}.jpg`;
-      const uploaded = await uploadImage({
-        folderId: rootFolderId,
-        filename,
-        mimeType,
-        body: buffer,
-      });
-      await setJobCoverPhotoId({ jobId, fileId: uploaded.id });
-      revalidatePath("/jobs");
-      revalidatePath(`/jobs/${jobId}`);
-      revalidatePath("/admin/customers");
-      return NextResponse.json({ url: uploaded.url, fileId: uploaded.id });
     }
 
     if (dispatchId && kind === "signature") {

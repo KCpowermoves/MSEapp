@@ -240,7 +240,7 @@ export default async function JobsHomePage({
           <div className="text-[10px] uppercase tracking-[0.1em] text-mse-gold font-bold">
             Today
           </div>
-          <div className="text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
+          <div className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
             {formatCurrency(todaysPay.total)}
           </div>
           <div className="mt-1 text-[10px] text-white/65 leading-tight">
@@ -254,7 +254,7 @@ export default async function JobsHomePage({
           <div className="text-[10px] uppercase tracking-[0.1em] text-mse-gold font-bold">
             This week
           </div>
-          <div className="text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
+          <div className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
             {formatCurrency(weekPay.total)}
           </div>
           <div className="mt-1 text-[10px] text-white/65 leading-tight">
@@ -285,7 +285,7 @@ export default async function JobsHomePage({
           >
             Last week
           </div>
-          <div className="text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
+          <div className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 tabular-nums">
             {formatCurrency(lastWeekPay.total)}
           </div>
           <div className="mt-1 flex items-center gap-1 text-[10px] leading-tight">

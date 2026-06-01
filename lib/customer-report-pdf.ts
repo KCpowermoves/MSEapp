@@ -68,6 +68,31 @@ async function fetchDriveImage(
 // what an admin actually needs in a rollup.
 const PHOTOS_PER_JOB_CAP = 12;
 
+/**
+ * Pick the inline-grid photos for one job's section, distributing
+ * across units round-robin so a many-unit job doesn't show only the
+ * first unit's photos and starve the rest. Each unit contributes its
+ * first photo before any unit contributes a second.
+ */
+function selectGridPhotos(
+  units: CustomerReportJob["units"],
+  cap: number
+): CustomerReportJob["units"][number]["photos"] {
+  const out: CustomerReportJob["units"][number]["photos"] = [];
+  for (let depth = 0; out.length < cap; depth++) {
+    let added = false;
+    for (const u of units) {
+      if (depth < u.photos.length) {
+        out.push(u.photos[depth]);
+        added = true;
+        if (out.length >= cap) return out;
+      }
+    }
+    if (!added) break;
+  }
+  return out;
+}
+
 async function buildImageMap(
   report: CustomerReport
 ): Promise<Map<string, ArrayBuffer>> {
@@ -77,10 +102,9 @@ async function buildImageMap(
     for (const u of rj.units) {
       if (u.nameplateFileId) ids.add(u.nameplateFileId);
     }
-    // First N photos per job for the inline grid.
-    const grid = rj.units
-      .flatMap((u) => u.photos)
-      .slice(0, PHOTOS_PER_JOB_CAP);
+    // Inline-grid photos: distribute across units so the PDF shows
+    // *every* unit's first photo before doubling up on any one unit.
+    const grid = selectGridPhotos(rj.units, PHOTOS_PER_JOB_CAP);
     for (const p of grid) ids.add(p.fileId);
   }
   const out = new Map<string, ArrayBuffer>();
@@ -376,10 +400,10 @@ function renderJobSection(
   }
 
   // Photo grid — a horizontal strip of up to PHOTOS_PER_JOB_CAP
-  // thumbnails. Pages flow when room runs out.
-  const allPhotos = rj.units
-    .flatMap((u) => u.photos)
-    .slice(0, PHOTOS_PER_JOB_CAP);
+  // thumbnails, distributed round-robin across units so every unit
+  // shows up before any one unit doubles. Pages flow when room runs
+  // out.
+  const allPhotos = selectGridPhotos(rj.units, PHOTOS_PER_JOB_CAP);
   if (allPhotos.length > 0) {
     const renderable = allPhotos
       .map((p) => ({ p, img: images.get(p.fileId) }))
