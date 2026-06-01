@@ -200,14 +200,18 @@ export function PayrollDetailHeader(props: Props) {
 
         {/* Exports */}
         <div className="grow" />
+        {/* PDFs are bundled as a ZIP, one file per tech, so admin can
+            forward individual invoices without sending the full crew
+            roll-up to every recipient. The per-tech "PDF" button in
+            each TechSection still grabs a single-tech PDF. */}
         <a
           href={`/api/admin/payroll/periods/${encodeURIComponent(
             props.periodId
-          )}/export?format=pdf`}
+          )}/export?format=zip`}
           className={exportBtn()}
         >
           <Download className="w-3.5 h-3.5" />
-          PDF
+          PDFs (ZIP)
         </a>
         <a
           href={`/api/admin/payroll/periods/${encodeURIComponent(

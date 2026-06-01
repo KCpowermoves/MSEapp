@@ -5,26 +5,97 @@ import { listAllDispatches } from "@/lib/data/dispatches";
 import { extractDriveFileId } from "@/lib/utils";
 import type { Job, UnitServiced } from "@/lib/types";
 
-// Photo URL slot definitions — same layout the PDF generator uses,
-// just expressed as (column, label) tuples so the library UI can
-// caption each thumbnail consistently. Pulled into one place so a
-// future "Side B" addition stays in sync everywhere.
-const PHOTO_SLOT_LABELS: Array<{
-  key: keyof UnitServiced;
-  label: string;
-}> = [
-  { key: "nameplateUrl", label: "Nameplate" },
-  { key: "pre1Url", label: "Before · 1" },
-  { key: "pre2Url", label: "Before · 2" },
-  { key: "pre3Url", label: "Before · 3" },
-  { key: "post1Url", label: "After · 1" },
-  { key: "post2Url", label: "After · 2" },
-  { key: "post3Url", label: "After · 3" },
-  { key: "filterUrl", label: "Filter" },
-  { key: "inNameplateUrl", label: "Air handler nameplate" },
-  { key: "inPreUrl", label: "Air handler · before" },
-  { key: "inPostUrl", label: "Air handler · after" },
+// Photo URL slot definitions — the same column letter (G/H/I/J/...)
+// means different things depending on the unit type the row was
+// captured with. PHOTO_SLOT_KEYS lists every column we might pull a
+// URL from; LABELS_BY_TYPE maps (unitType, columnKey) → human label.
+//
+// For unit types not explicitly mapped (legacy "Split System" rows,
+// future types), we fall through to a sensible default that doesn't
+// invent a "· 1" suffix when there's only a single photo of that
+// kind.
+const PHOTO_SLOT_KEYS: (keyof UnitServiced)[] = [
+  "nameplateUrl",
+  "pre1Url",
+  "pre2Url",
+  "pre3Url",
+  "post1Url",
+  "post2Url",
+  "post3Url",
+  "filterUrl",
+  "inNameplateUrl",
+  "inPreUrl",
+  "inPostUrl",
 ];
+
+type LabelMap = Partial<Record<keyof UnitServiced, string>>;
+
+const LABELS_DEFAULT: LabelMap = {
+  nameplateUrl: "Nameplate",
+  pre1Url: "Before",
+  pre2Url: "Before · 2",
+  pre3Url: "Before · 3",
+  post1Url: "After",
+  post2Url: "After · 2",
+  post3Url: "After · 3",
+  filterUrl: "Filter",
+  inNameplateUrl: "Air handler nameplate",
+  inPreUrl: "Air handler · before",
+  inPostUrl: "Air handler · after",
+};
+
+// PTAC / Ductless: a single Before + a single After + nameplate.
+// Drop the "· N" suffix entirely.
+const LABELS_PTAC: LabelMap = {
+  nameplateUrl: "Nameplate",
+  pre1Url: "Before",
+  post1Url: "After",
+  filterUrl: "Filter",
+};
+
+// RTU: pre1/pre2 are the two coils' BEFORE photos; post1/post2 are
+// the AFTERs; pre3 is filter-before; post3 is filter-after.
+const LABELS_RTU: LabelMap = {
+  nameplateUrl: "Nameplate",
+  pre1Url: "Coil 1 · before",
+  pre2Url: "Coil 2 · before",
+  pre3Url: "Filter · before",
+  post1Url: "Coil 1 · after",
+  post2Url: "Coil 2 · after",
+  post3Url: "Filter · after",
+};
+
+// Outdoor Split System: pre1/2/3 = three sides BEFORE; post1/2/3 =
+// three sides AFTER; one filter; one outdoor nameplate.
+const LABELS_OUTDOOR_SPLIT: LabelMap = {
+  nameplateUrl: "Outdoor nameplate",
+  pre1Url: "Side 1 · before",
+  pre2Url: "Side 2 · before",
+  pre3Url: "Side 3 · before",
+  post1Url: "Side 1 · after",
+  post2Url: "Side 2 · after",
+  post3Url: "Side 3 · after",
+  filterUrl: "Filter",
+};
+
+// Indoor Split System (air handler): air handler before + after +
+// nameplate, in different columns (V/W/X) than the outdoor unit.
+const LABELS_INDOOR_SPLIT: LabelMap = {
+  inNameplateUrl: "Air handler nameplate",
+  inPreUrl: "Air handler · before",
+  inPostUrl: "Air handler · after",
+  filterUrl: "Filter",
+};
+
+function labelFor(unitType: string, key: keyof UnitServiced): string {
+  let map: LabelMap = LABELS_DEFAULT;
+  if (unitType === "PTAC / Ductless") map = LABELS_PTAC;
+  else if (unitType === "RTU-S" || unitType === "RTU-M" || unitType === "RTU-L")
+    map = LABELS_RTU;
+  else if (unitType === "Outdoor Split System") map = LABELS_OUTDOOR_SPLIT;
+  else if (unitType === "Indoor Split System") map = LABELS_INDOOR_SPLIT;
+  return map[key] ?? LABELS_DEFAULT[key] ?? "Photo";
+}
 
 export interface LibraryPhoto {
   fileId: string;
@@ -65,12 +136,12 @@ export interface LibrarySnapshot {
 
 function photosForUnit(u: UnitServiced): LibraryPhoto[] {
   const photos: LibraryPhoto[] = [];
-  for (const { key, label } of PHOTO_SLOT_LABELS) {
+  for (const key of PHOTO_SLOT_KEYS) {
     const url = String(u[key] ?? "");
     if (!url) continue;
     const fileId = extractDriveFileId(url);
     if (!fileId) continue;
-    photos.push({ fileId, url, slotLabel: label });
+    photos.push({ fileId, url, slotLabel: labelFor(u.unitType, key) });
   }
   // Additional photos column is a CSV of URLs.
   const csv = String(u.additionalUrls ?? "");

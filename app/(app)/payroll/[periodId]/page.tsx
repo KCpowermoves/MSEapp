@@ -197,6 +197,26 @@ export default async function TechPayrollDetailPage({
                       <div className="text-mse-navy text-sm font-semibold truncate">
                         {it.customerName || (isAdj ? "—" : it.jobId || "—")}
                       </div>
+                      {(it.unitLabel || it.unitId) && (
+                        <div className="text-[10px] text-mse-muted mt-0.5 inline-flex items-center gap-1.5">
+                          {it.nameplateFileId && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={`/api/photo?fileId=${encodeURIComponent(
+                                it.nameplateFileId
+                              )}&w=120`}
+                              alt=""
+                              loading="lazy"
+                              className="w-5 h-5 rounded-sm object-cover border border-mse-light"
+                            />
+                          )}
+                          <span
+                            className={it.unitLabel ? "" : "font-mono"}
+                          >
+                            {it.unitLabel || it.unitId}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-2 px-3 text-xs">
                       <span

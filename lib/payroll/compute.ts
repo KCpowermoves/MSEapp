@@ -7,9 +7,12 @@ import {
 import { listAdjustmentsForPeriod } from "@/lib/data/payroll-adjustments";
 import { listAllDispatches } from "@/lib/data/dispatches";
 import { listAllJobs } from "@/lib/data/jobs";
+import { listAllUnits } from "@/lib/data/units";
+import { extractDriveFileId } from "@/lib/utils";
 import type {
   PayrollAdjustment,
   PayrollPeriod,
+  UnitServiced,
 } from "@/lib/types";
 
 // ─── Output shape ────────────────────────────────────────────────────
@@ -35,6 +38,13 @@ export interface ReportLineItem {
   adjustmentId: string;    // empty for attribution rows
   adjustmentType: string;  // empty for attribution rows
   relatedTech: string;     // counterparty for re-attributions
+  /** Drive file ID of the unit's nameplate photo, when this row
+   *  refers to a unit and a nameplate exists. Drives the tiny
+   *  thumbnail next to the unit number in the report. */
+  nameplateFileId: string;
+  /** Display label for the unit ("PTAC 308", "RTU-M 1", etc.) —
+   *  same string the tech sees on the job detail page. */
+  unitLabel: string;
 }
 
 export interface TechRollup {
@@ -141,18 +151,44 @@ interface ComputeInput {
 export async function computePayrollReport(
   input: ComputeInput
 ): Promise<PayrollReport> {
-  const [attributions, dispatches, jobs, adjustments, period] =
+  const [attributions, dispatches, jobs, units, adjustments, period] =
     await Promise.all([
       listAllAttributions(),
       listAllDispatches(),
       listAllJobs(),
+      listAllUnits(),
       input.periodId ? listAdjustmentsForPeriod(input.periodId) : Promise.resolve([] as PayrollAdjustment[]),
       input.periodId ? getPayrollPeriod(input.periodId) : Promise.resolve(null),
     ]);
 
-  // Index jobs by id so we can resolve customer names quickly.
+  // Index jobs / dispatches by id.
   const jobById = new Map(jobs.map((j) => [j.jobId, j]));
   const dispatchById = new Map(dispatches.map((d) => [d.dispatchId, d]));
+
+  // Index units by dispatch + unit number so attribution rows can
+  // look up their source unit for the nameplate thumbnail. Pay
+  // Attribution rows don't carry a unitId directly, but their notes
+  // column embeds "Unit-NNN <unitType> (<crewSplit>)" — we parse the
+  // NNN and look the row up against the dispatch.
+  const unitsByDispatchAndNumber = new Map<string, UnitServiced>();
+  for (const u of units) {
+    if (u.deleted) continue;
+    unitsByDispatchAndNumber.set(`${u.dispatchId}#${u.unitNumberOnJob}`, u);
+  }
+  function findUnitForAttribution(
+    dispatchId: string,
+    notes: string
+  ): UnitServiced | undefined {
+    const m = notes.match(/Unit-(\d+)/i);
+    if (!m) return undefined;
+    const n = parseInt(m[1], 10);
+    if (!Number.isFinite(n)) return undefined;
+    return unitsByDispatchAndNumber.get(`${dispatchId}#${n}`);
+  }
+  function unitLabel(u: UnitServiced): string {
+    if (u.label && u.label.trim()) return u.label;
+    return `Unit ${String(u.unitNumberOnJob).padStart(3, "0")}`;
+  }
 
   // Filter attributions into the date window.
   const inWindow = attributions.filter((r) =>
@@ -192,6 +228,10 @@ export async function computePayrollReport(
     if (deletedAttributionIds.has(r.id)) continue;
     const dispatch = dispatchById.get(r.dispatchId);
     const job = dispatch ? jobById.get(dispatch.jobId) : undefined;
+    const unit = findUnitForAttribution(r.dispatchId, r.notes);
+    const nameplateFileId = unit
+      ? extractDriveFileId(unit.nameplateUrl || unit.inNameplateUrl || "") ?? ""
+      : "";
     pushForTech(r.techName, {
       source: "attribution",
       id: r.id,
@@ -201,13 +241,15 @@ export async function computePayrollReport(
       amount: r.amount,
       description: r.notes || displayLineType(r.lineItem),
       dispatchId: r.dispatchId,
-      unitId: "",
+      unitId: unit?.unitId ?? "",
       jobId: dispatch?.jobId ?? "",
       customerName: job?.customerName ?? "",
       note: "",
       adjustmentId: "",
       adjustmentType: "",
       relatedTech: "",
+      nameplateFileId,
+      unitLabel: unit ? unitLabel(unit) : "",
     });
   }
 
@@ -232,6 +274,21 @@ export async function computePayrollReport(
       ? dispatchById.get(a.relatedDispatchId)
       : undefined;
     const job = dispatch ? jobById.get(dispatch.jobId) : undefined;
+    // If the adjustment is linked to a specific unit, surface its
+    // nameplate + display label so the row gets the same thumbnail
+    // treatment as the auto-attributed Service line it overrides.
+    let adjNameplateFileId = "";
+    let adjUnitLabel = "";
+    if (a.relatedUnitId) {
+      const unit = units.find(
+        (u) => u.unitId === a.relatedUnitId && !u.deleted
+      );
+      if (unit) {
+        adjNameplateFileId =
+          extractDriveFileId(unit.nameplateUrl || unit.inNameplateUrl || "") ?? "";
+        adjUnitLabel = unitLabel(unit);
+      }
+    }
     pushForTech(a.techName, {
       source: "adjustment",
       id: a.adjustmentId,
@@ -248,6 +305,8 @@ export async function computePayrollReport(
       adjustmentId: a.adjustmentId,
       adjustmentType: a.type,
       relatedTech: a.relatedTech,
+      nameplateFileId: adjNameplateFileId,
+      unitLabel: adjUnitLabel,
     });
   }
 

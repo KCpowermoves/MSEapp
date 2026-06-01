@@ -620,9 +620,22 @@ function LineItemRow({
             {item.customerName || (isAdj ? "—" : item.jobId || "—")}
           </div>
         )}
-        {item.unitId && (
-          <div className="text-[10px] text-mse-muted font-mono">
-            {item.unitId}
+        {(item.unitLabel || item.unitId) && (
+          <div className="text-[10px] text-mse-muted mt-0.5 inline-flex items-center gap-1.5">
+            {item.nameplateFileId && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`/api/photo?fileId=${encodeURIComponent(
+                  item.nameplateFileId
+                )}&w=120`}
+                alt=""
+                loading="lazy"
+                className="w-5 h-5 rounded-sm object-cover border border-mse-light"
+              />
+            )}
+            <span className={item.unitLabel ? "" : "font-mono"}>
+              {item.unitLabel || item.unitId}
+            </span>
           </div>
         )}
       </td>

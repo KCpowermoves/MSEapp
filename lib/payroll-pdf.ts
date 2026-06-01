@@ -6,6 +6,7 @@ const PDFDocument: any = require("pdfkit/js/pdfkit.standalone");
 
 import { formatCurrency } from "@/lib/utils";
 import { getPayrollLogoBuffer } from "@/lib/payroll-logo";
+import { getDriveClient } from "@/lib/google/auth";
 import type { PayrollReport, TechRollup } from "@/lib/payroll/compute";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,6 +45,61 @@ const CONTENT_W = PAGE_W - MARGIN * 2; // 516
 //
 // To refresh the embedded logo after a brand asset change:
 //   node scripts/generate-payroll-logo.mjs
+
+// Per-PDF nameplate cache: Drive fetches happen once per fileId per
+// render, hand the same ArrayBuffer to doc.image() each row (same
+// reason we hand it an ArrayBuffer, not a Node Buffer, for the logo).
+async function fetchNameplate(fileId: string): Promise<ArrayBuffer | null> {
+  try {
+    const drive = getDriveClient();
+    const res = await drive.files.get(
+      {
+        fileId,
+        alt: "media",
+        supportsAllDrives: true,
+        acknowledgeAbuse: true,
+      },
+      { responseType: "arraybuffer" }
+    );
+    const buf = res.data as ArrayBuffer;
+    if (!buf || (buf as ArrayBuffer).byteLength === 0) return null;
+    // First two bytes tell us if it's a JPEG or PNG — anything else
+    // can't be embedded by PDFKit's standalone build.
+    const view = new Uint8Array(buf);
+    const isJpeg = view[0] === 0xff && view[1] === 0xd8;
+    const isPng =
+      view[0] === 0x89 &&
+      view[1] === 0x50 &&
+      view[2] === 0x4e &&
+      view[3] === 0x47;
+    if (!isJpeg && !isPng) return null;
+    return buf;
+  } catch (e) {
+    console.warn("[payroll-pdf] nameplate fetch failed:", e);
+    return null;
+  }
+}
+
+async function buildNameplateMap(
+  report: PayrollReport,
+  techNameFilter?: string
+): Promise<Map<string, ArrayBuffer>> {
+  const ids = new Set<string>();
+  for (const tech of report.techs) {
+    if (techNameFilter && tech.techName !== techNameFilter) continue;
+    for (const item of tech.lineItems) {
+      if (item.nameplateFileId) ids.add(item.nameplateFileId);
+    }
+  }
+  const out = new Map<string, ArrayBuffer>();
+  await Promise.all(
+    Array.from(ids).map(async (id) => {
+      const buf = await fetchNameplate(id);
+      if (buf) out.set(id, buf);
+    })
+  );
+  return out;
+}
 
 let cachedLogoAb: ArrayBuffer | null = null;
 function getLogoArrayBuffer(): ArrayBuffer | null {
@@ -327,7 +383,11 @@ function renderSummary(doc: Doc, report: PayrollReport): void {
 
 // ─── Per-tech section ────────────────────────────────────────────────
 
-function renderTechSection(doc: Doc, tech: TechRollup): void {
+function renderTechSection(
+  doc: Doc,
+  tech: TechRollup,
+  nameplates: Map<string, ArrayBuffer>
+): void {
   ensureRoom(doc, 140);
 
   // Section header band
@@ -404,12 +464,16 @@ function renderTechSection(doc: Doc, tech: TechRollup): void {
 
   // Line items table
   ensureRoom(doc, 64);
-  renderLineItemsTable(doc, tech);
+  renderLineItemsTable(doc, tech, nameplates);
 
   doc.y += 18;
 }
 
-function renderLineItemsTable(doc: Doc, tech: TechRollup): void {
+function renderLineItemsTable(
+  doc: Doc,
+  tech: TechRollup,
+  nameplates: Map<string, ArrayBuffer>
+): void {
   // Column geometry. CONTENT_W = 516pt (letter, 48pt margins).
   // Widths sum to 516; amount column's right edge lands exactly on
   // MARGIN+CONTENT_W so right-aligned values stop at the page margin
@@ -445,15 +509,20 @@ function renderLineItemsTable(doc: Doc, tech: TechRollup): void {
   for (const item of tech.lineItems) {
     const isAdj = item.source === "adjustment";
     const negative = item.amount < 0;
+    // A unit line (with optional nameplate thumbnail) renders beneath
+    // the customer name when the line item is tied to a specific unit.
+    // Grow the row so the thumbnail/label has its own band.
+    const hasUnit = Boolean(item.unitLabel || item.unitId);
+    const rowH = hasUnit ? 34 : 22;
 
-    // Reserve up to ~36pt for a tall row (description wraps).
-    ensureRoom(doc, 38);
+    // Reserve room for the row plus a bit of padding.
+    ensureRoom(doc, rowH + 4);
     const rowY = doc.y;
 
     // Subtle alternating-row band so adjustments visually distinct
     if (isAdj) {
       doc
-        .rect(MARGIN, rowY - 1, CONTENT_W, 22)
+        .rect(MARGIN, rowY - 1, CONTENT_W, rowH)
         .fillOpacity(0.06)
         .fill(GOLD);
       doc.fillOpacity(1);
@@ -471,6 +540,36 @@ function renderLineItemsTable(doc: Doc, tech: TechRollup): void {
       width: cols.job.w,
       ellipsis: true,
     });
+
+    // Unit line — thumbnail (if Drive returned a renderable JPEG/PNG)
+    // and the unit label or ID. The thumbnail is intentionally tiny
+    // (12pt square) so a packed table stays readable on letter paper.
+    if (hasUnit) {
+      const unitY = rowY + 18;
+      let textX = cols.job.x;
+      const thumb = item.nameplateFileId
+        ? nameplates.get(item.nameplateFileId)
+        : undefined;
+      if (thumb) {
+        try {
+          doc.image(thumb, cols.job.x, unitY - 2, { fit: [12, 12] });
+          textX = cols.job.x + 16;
+        } catch (e) {
+          // If PDFKit can't decode this particular nameplate (rare
+          // CMYK JPEG, malformed PNG), fall back to label-only so the
+          // row still renders cleanly.
+          console.warn("[payroll-pdf] nameplate render failed:", e);
+        }
+      }
+      doc
+        .fillColor(MUTED)
+        .font("Helvetica")
+        .fontSize(7.5)
+        .text(item.unitLabel || item.unitId || "", textX, unitY, {
+          width: cols.job.w - (textX - cols.job.x),
+          ellipsis: true,
+        });
+    }
 
     doc
       .fillColor(isAdj ? GOLD : MUTED)
@@ -500,7 +599,7 @@ function renderLineItemsTable(doc: Doc, tech: TechRollup): void {
       rowY + 4,
       cols.amount.w - 6
     );
-    doc.y = rowY + 22;
+    doc.y = rowY + rowH;
   }
 
   // Total row
@@ -606,6 +705,12 @@ export async function buildPayrollPdf(opts: BuildOpts): Promise<Buffer> {
     ? report.techs.filter((t) => t.techName === techNameFilter)
     : report.techs;
 
+  // Fetch nameplate thumbnails up front — PDFKit's render loop below
+  // runs synchronously inside the Promise constructor, so we cannot
+  // await Drive calls mid-render. One Drive round-trip per unique
+  // fileId; results land in a per-render Map.
+  const nameplates = await buildNameplateMap(report, techNameFilter);
+
   return new Promise<Buffer>((resolve, reject) => {
     try {
       const doc: Doc = new PDFDocument({
@@ -639,7 +744,7 @@ export async function buildPayrollPdf(opts: BuildOpts): Promise<Buffer> {
           });
       } else {
         for (const tech of techs) {
-          renderTechSection(doc, tech);
+          renderTechSection(doc, tech, nameplates);
         }
       }
 

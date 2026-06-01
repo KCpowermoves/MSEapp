@@ -316,9 +316,9 @@ export default async function JobsHomePage({
           unconfirmed = preview, not yet on an approved invoice.
           Both figures sum from finalized Pay Attribution rows, which
           are already split-aware (50-50 / 33-33-33 baked in at
-          finalize time). */}
-      {(todaysPay.total > 0 || weekPay.total > 0) && (
-        <div className="grid grid-cols-2 gap-2">
+          finalize time). Both tiles render even at $0 so the tech
+          always has the same three widgets on their dashboard. */}
+      <div className="grid grid-cols-2 gap-2">
           <div className="rounded-2xl bg-mse-navy text-white p-4 shadow-elevated">
             <div className="text-[11px] uppercase tracking-[0.12em] text-mse-gold font-bold">
               Today
@@ -361,8 +361,7 @@ export default async function JobsHomePage({
               Mon – Sun
             </div>
           </div>
-        </div>
-      )}
+      </div>
 
       <section>
         <div className="flex items-center justify-between mb-3">
