@@ -102,6 +102,32 @@ export function TechSection({
     );
   }, [periodDispatches, techName]);
 
+  // Unit thumbnail strip — deduped nameplates from every line item in
+  // this tech's section, in line-item order so the visual order tracks
+  // the table below. Declared up here (above the emptyMode early
+  // return) to keep the hook order stable across renders.
+  const unitThumbs = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{
+      key: string;
+      fileId: string;
+      label: string;
+      jobLabel: string;
+    }> = [];
+    for (const it of tech.lineItems) {
+      if (!it.nameplateFileId) continue;
+      if (seen.has(it.nameplateFileId)) continue;
+      seen.add(it.nameplateFileId);
+      out.push({
+        key: it.nameplateFileId,
+        fileId: it.nameplateFileId,
+        label: it.unitLabel || it.unitId || "",
+        jobLabel: it.customerName || it.jobId || "",
+      });
+    }
+    return out;
+  }, [tech.lineItems]);
+
   const undo = useUndoStack();
 
   const deleteAdjustment = async (adjustmentId: string) => {
@@ -318,6 +344,45 @@ export function TechSection({
                   {c.label} {formatCurrency(c.value)}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Unit nameplate gallery — visual summary of every unit on
+              this tech's invoice. Horizontally scrolls on overflow so
+              a 20-unit week stays in a single tidy row. The label
+              under each thumbnail repeats the unit identifier so the
+              admin can scan for a specific one without hover. */}
+          {unitThumbs.length > 0 && (
+            <div className="mt-3 -mx-2 px-2 py-2 bg-mse-light/30 rounded-xl">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-mse-muted mb-1.5">
+                Units on this invoice · {unitThumbs.length}
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+                {unitThumbs.map((u) => (
+                  <div
+                    key={u.key}
+                    className="shrink-0 w-14 text-center"
+                    title={
+                      u.jobLabel
+                        ? `${u.label} — ${u.jobLabel}`
+                        : u.label
+                    }
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/photo?fileId=${encodeURIComponent(
+                        u.fileId
+                      )}&w=160`}
+                      alt={u.label || "Unit nameplate"}
+                      loading="lazy"
+                      className="w-14 h-14 rounded-lg object-cover border border-mse-light bg-white"
+                    />
+                    <div className="mt-1 text-[9px] font-bold text-mse-navy truncate leading-tight">
+                      {u.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
