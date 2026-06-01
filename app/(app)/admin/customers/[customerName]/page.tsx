@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
+  Download,
   ExternalLink,
+  FileSpreadsheet,
   FolderOpen,
   MapPin,
   Users,
@@ -92,6 +94,31 @@ export default async function CustomerDetailPage({
           <Stat label="Jobs" value={customer.jobCount} />
           <Stat label="Units" value={customer.unitCount} />
           <Stat label="Dispatches" value={customer.dispatchCount} />
+        </div>
+
+        {/* Per-customer rollup report — branded PDF or flat CSV. The
+            PDF mirrors the commission report look so admins can hand
+            it to a property manager as a polished summary. CSV gives
+            a unit-level table for Excel / QuickBooks. */}
+        <div className="relative mt-5 flex flex-wrap gap-2">
+          <a
+            href={`/api/admin/customers/${encodeURIComponent(
+              customer.customerName
+            )}/export?format=pdf`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-mse-gold text-mse-navy hover:bg-mse-gold/90 active:scale-95 text-xs font-bold transition-[background-color,transform]"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Customer report (PDF)
+          </a>
+          <a
+            href={`/api/admin/customers/${encodeURIComponent(
+              customer.customerName
+            )}/export?format=csv`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-bold text-white transition-[background-color,transform]"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            CSV
+          </a>
         </div>
       </header>
 
