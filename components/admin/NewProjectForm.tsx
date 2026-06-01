@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
+  Camera,
   CheckCircle2,
   Crown,
   Loader2,
@@ -15,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { JobCoverCapture } from "@/components/JobCoverCapture";
 import type { UtilityTerritory } from "@/lib/types";
 
 const TERRITORIES: UtilityTerritory[] = ["BGE", "PEPCO", "Delmarva", "SMECO"];
@@ -38,6 +40,7 @@ export function NewProjectForm({ crewEligibleTechs, allTechs }: Props) {
   const [crew, setCrew] = useState<string[]>([]);
   const [drivers, setDrivers] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
+  const [coverPhoto, setCoverPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,6 +103,23 @@ export function NewProjectForm({ crewEligibleTechs, allTechs }: Props) {
       }
       const newJobId = body.job?.jobId;
       if (!newJobId) throw new Error("Project created but no jobId returned");
+
+      // Cover photo (optional) — fire after the job row exists so the
+      // upload route can stamp the fileId on the right Jobs row. We
+      // don't block redirect on a cover failure; the job is created
+      // either way and the admin can re-attach from the job page.
+      if (coverPhoto) {
+        try {
+          const fd = new FormData();
+          fd.append("file", coverPhoto);
+          fd.append("jobId", newJobId);
+          fd.append("kind", "job-cover");
+          await fetch("/api/upload", { method: "POST", body: fd });
+        } catch (e) {
+          console.warn("[admin/new-project] cover upload failed:", e);
+        }
+      }
+
       router.push(`/jobs/${encodeURIComponent(newJobId)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create project");
@@ -284,6 +304,19 @@ export function NewProjectForm({ crewEligibleTechs, allTechs }: Props) {
             )}
           </Field>
         )}
+      </Section>
+
+      {/* ── Cover photo ─────────────────────────────────────────── */}
+      <Section
+        icon={<Camera className="w-4 h-4 text-mse-gold" />}
+        title="Cover photo"
+        hint="Optional. Anchor image for the whole project — a building exterior, a marquee shot of the equipment, whatever helps the crew identify the site at a glance. Shows up on the job card and the job detail page."
+      >
+        <JobCoverCapture
+          file={coverPhoto}
+          onChange={setCoverPhoto}
+          variant="tall"
+        />
       </Section>
 
       {/* ── Notes ──────────────────────────────────────────────── */}

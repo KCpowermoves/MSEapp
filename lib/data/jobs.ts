@@ -28,6 +28,7 @@ function rowToJob(row: string[]): Job {
     createdBy: String(row[11] ?? ""),
     notes: String(row[12] ?? ""),
     projectLead: String(row[13] ?? ""),
+    coverPhotoFileId: String(row[14] ?? ""),
   };
 }
 
@@ -160,6 +161,7 @@ export async function createJob(opts: {
     opts.createdBy,
     opts.notes ?? "",
     projectLead,
+    "", // O: cover photo file ID — populated by setJobCoverPhotoId
   ]);
 
   return {
@@ -177,7 +179,23 @@ export async function createJob(opts: {
     createdBy: opts.createdBy,
     notes: opts.notes ?? "",
     projectLead,
+    coverPhotoFileId: "",
   };
+}
+
+/**
+ * Stamp the cover photo Drive file ID onto a Jobs row (column O).
+ * Called by the /api/upload route after a job-cover upload completes.
+ * No-ops gracefully if the row isn't found (caller logs).
+ */
+export async function setJobCoverPhotoId(opts: {
+  jobId: string;
+  fileId: string;
+}): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.jobs, "A", opts.jobId);
+  if (!rowIndex) throw new Error(`Job not found: ${opts.jobId}`);
+  await updateCell(`${TABS.jobs}!O${rowIndex}`, opts.fileId);
+  await bumpLastActivity(opts.jobId);
 }
 
 export async function bumpLastActivity(jobId: string): Promise<void> {

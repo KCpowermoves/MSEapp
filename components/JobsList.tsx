@@ -226,6 +226,17 @@ export function JobsList({ jobs, statsByJob }: Props) {
                   className="block bg-white rounded-2xl border border-mse-light p-4 shadow-card hover:shadow-elevated active:scale-[0.99] transition-[transform,box-shadow]"
                 >
                   <div className="flex items-start gap-3">
+                    {j.coverPhotoFileId && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`/api/photo?fileId=${encodeURIComponent(
+                          j.coverPhotoFileId
+                        )}&w=240`}
+                        alt=""
+                        loading="lazy"
+                        className="w-14 h-14 rounded-lg object-cover border border-mse-light shrink-0"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-mse-navy truncate">
                         {j.customerName}

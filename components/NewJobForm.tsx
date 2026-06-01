@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
+import { JobCoverCapture } from "@/components/JobCoverCapture";
 import { enqueueDraftJob } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { captureLocationEvent } from "@/lib/location";
@@ -29,6 +30,7 @@ export function NewJobForm({
     currentUserName ? [currentUserName] : []
   );
   const [crewSplit, setCrewSplit] = useState<CrewSplit>("Solo");
+  const [coverPhoto, setCoverPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,6 +124,20 @@ export function NewJobForm({
       const job = await httpResponse!.json();
       captureLocationEvent("job-create", { jobId: job.jobId }, { force: true })
         .catch(() => {});
+      // Cover photo (optional) — only attempt online. Offline-drafted
+      // jobs don't carry a cover yet; the tech can attach one once the
+      // job lands on the server.
+      if (coverPhoto) {
+        try {
+          const fd = new FormData();
+          fd.append("file", coverPhoto);
+          fd.append("jobId", job.jobId);
+          fd.append("kind", "job-cover");
+          await fetch("/api/upload", { method: "POST", body: fd });
+        } catch (e) {
+          console.warn("[new-job] cover upload failed:", e);
+        }
+      }
       router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create job");
@@ -202,6 +218,17 @@ export function NewJobForm({
             not surfaced to the tech. The auto-select effect above
             keeps the value sane. Keep the logic in place so we can
             unhide later if pay UI comes back. */}
+
+        <Field
+          label="Cover photo"
+          hint="Optional. A quick site or equipment shot so the next tech can spot the job at a glance."
+        >
+          <JobCoverCapture
+            file={coverPhoto}
+            onChange={setCoverPhoto}
+            variant="tall"
+          />
+        </Field>
 
         {error && (
           <div className="text-mse-red text-sm bg-mse-red/5 border border-mse-red/20 rounded-xl px-4 py-3">

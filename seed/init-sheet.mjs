@@ -54,6 +54,8 @@ const TABS = [
       "Drive Folder ID",
       "Created By",
       "Notes",
+      "Project Lead",
+      "Cover Photo File ID",
     ],
     validations: [
       { col: "F", values: ["BGE", "PEPCO", "Delmarva", "SMECO"] },

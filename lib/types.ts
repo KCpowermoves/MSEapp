@@ -84,6 +84,11 @@ export interface Job {
    *  project via /admin/projects/new; blank for tech-initiated jobs.
    *  Stored in column N of the Jobs sheet. */
   projectLead: string;
+  /** Drive file ID of the job's cover photo. Optional — set when the
+   *  admin/tech uploads one during job creation, or later via the
+   *  edit page. Empty string when not provided. Stored in column O of
+   *  the Jobs sheet. */
+  coverPhotoFileId: string;
 }
 
 export interface Dispatch {
