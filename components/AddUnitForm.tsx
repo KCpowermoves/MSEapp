@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Loader2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, X } from "lucide-react";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
 import { PhotoCapture, type CapturedPhoto } from "@/components/PhotoCapture";
 import {
@@ -423,6 +423,24 @@ export function AddUnitForm({
 
   return (
     <div className="space-y-6 pb-24">
+      {/* Compliance banner — pulses gently to catch the tech's eye
+          before they start photographing a unit that won't qualify.
+          motion-reduce drops the animation entirely for users with
+          the OS-level reduced-motion preference. */}
+      <div
+        role="alert"
+        className={cn(
+          "rounded-xl border border-yellow-400/70 px-4 py-3",
+          "text-sm font-bold text-mse-navy flex items-start gap-2",
+          "animate-soft-blink motion-reduce:animate-none motion-reduce:bg-yellow-200"
+        )}
+      >
+        <AlertTriangle className="w-5 h-5 text-mse-navy shrink-0 mt-0.5" />
+        <span className="leading-snug">
+          HVAC units must be at least two years old to qualify for the program.
+        </span>
+      </div>
+
       <div className="flex items-center gap-2">
         <button
           type="button"

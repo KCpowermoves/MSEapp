@@ -33,9 +33,24 @@ const config: Config = {
           "0%": { opacity: "0", transform: "translateY(4px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        // Subtle attention pulse for compliance banners — warm yellow
+        // glow plus a small opacity dip. Soft enough to live in
+        // peripheral vision without becoming the only thing on the
+        // screen.
+        "soft-blink": {
+          "0%, 100%": {
+            backgroundColor: "rgb(254 240 138)", // yellow-200
+            boxShadow: "0 0 0 0 rgba(234, 179, 8, 0.0)",
+          },
+          "50%": {
+            backgroundColor: "rgb(253 224 71)", // yellow-300
+            boxShadow: "0 0 0 6px rgba(234, 179, 8, 0.12)",
+          },
+        },
       },
       animation: {
         "fade-in": "fade-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "soft-blink": "soft-blink 2.4s ease-in-out infinite",
       },
     },
   },
