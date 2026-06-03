@@ -12,7 +12,16 @@ import {
 import type { UnitType } from "@/lib/types";
 
 const UNIT_TYPES: UnitType[] = [
-  "PTAC / Ductless", "Split System", "RTU-S", "RTU-M", "RTU-L",
+  "PTAC / Ductless",
+  // "Split System" is the legacy combined-side type kept in the
+  // union for historical rows. New units choose between the
+  // Outdoor / Indoor split variants below.
+  "Split System",
+  "Outdoor Split System",
+  "Indoor Split System",
+  "RTU-S",
+  "RTU-M",
+  "RTU-L",
 ];
 
 export async function POST(request: Request) {
