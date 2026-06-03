@@ -307,8 +307,7 @@ function AutoUploadCard({
       </div>
 
       <p className="relative text-[12px] text-white/65 leading-snug mt-4">
-        Auto-closes when you head to your next job, or by 8&nbsp;PM ET at the
-        latest. No submit needed.
+        Tap Job Complete below when you&apos;re finished. Photos still upload as you go.
       </p>
 
       {alsoFinalizedToday && (

@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getJob, techCanAccessJob } from "@/lib/data/jobs";
 import {
-  autoFinalizeOpenDraftsForTech,
   findDraftDispatch,
   listAllDispatches,
 } from "@/lib/data/dispatches";
@@ -41,15 +40,9 @@ export default async function JobDetailPage({
   const canAccess = await techCanAccessJob({ job, techName, isAdmin });
   if (!canAccess) notFound();
 
-  // Tech opened a job — finalize any of their other open drafts from
-  // today on different jobs. Fire-and-forget so this page renders fast.
-  // Idempotent (skips already-submitted dispatches) and the 8pm cron
-  // is the catch-all safety net.
-  if (techName) {
-    autoFinalizeOpenDraftsForTech(techName, { exceptJobId: jobId }).catch(
-      (e) => console.warn("[job-detail] auto-finalize failed:", e)
-    );
-  }
+  // Auto-finalize-on-job-open was removed 2026-06-02. Dispatch
+  // finalize now requires the explicit Job Complete button on the job
+  // page (or admin force-finalize via the Stuck Drafts panel).
 
   const draft = await findDraftDispatch(jobId, todayIsoDate());
   const [allUnits, dispatches, activeTechs] = await Promise.all([
