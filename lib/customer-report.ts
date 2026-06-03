@@ -2,6 +2,8 @@ import "server-only";
 import { listAllJobs } from "@/lib/data/jobs";
 import { listAllUnits } from "@/lib/data/units";
 import { listAllDispatches } from "@/lib/data/dispatches";
+import { getAuditForJob } from "@/lib/data/audits";
+import { listAuditItemsForAudit } from "@/lib/data/audit-items";
 import { extractDriveFileId } from "@/lib/utils";
 import type {
   Dispatch,
@@ -42,6 +44,17 @@ export interface CustomerReportJob {
   units: CustomerReportUnit[];
   totalPhotos: number;
   techNames: string[];
+  audit: {
+    auditId: string;
+    status: "Draft" | "Complete";
+    frontPhotoUrl: string;
+    firePlanPhotoUrl: string;
+    basPhotoUrl: string;
+    basNotes: string;
+    walkInCount: number;
+    thermostatCount: number;
+    waterSourceCount: number;
+  } | null;
 }
 
 export interface CustomerReport {
@@ -209,6 +222,24 @@ export async function buildCustomerReport(
     unitCount += reportUnits.length;
     photoCount += jobPhotoCount;
 
+    const auditRow = await getAuditForJob(job.jobId);
+    const auditItems = auditRow
+      ? (await listAuditItemsForAudit(auditRow.auditId)).filter((i) => i.status === "Active")
+      : [];
+    const audit = auditRow
+      ? {
+          auditId: auditRow.auditId,
+          status: auditRow.status,
+          frontPhotoUrl: auditRow.frontPhotoUrl,
+          firePlanPhotoUrl: auditRow.firePlanPhotoUrl,
+          basPhotoUrl: auditRow.basPhotoUrl,
+          basNotes: auditRow.basNotes,
+          walkInCount: auditItems.filter((i) => i.itemType === "Walk-In").length,
+          thermostatCount: auditItems.filter((i) => i.itemType === "Thermostat").length,
+          waterSourceCount: auditItems.filter((i) => i.itemType === "Water-Source").length,
+        }
+      : null;
+
     reportJobs.push({
       job,
       dispatches: jobDispatches,
@@ -217,6 +248,7 @@ export async function buildCustomerReport(
       techNames: Array.from(
         new Set(jobDispatches.flatMap((d) => d.techsOnSite))
       ).sort(),
+      audit,
     });
   }
 

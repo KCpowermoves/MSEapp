@@ -1,5 +1,7 @@
 import "server-only";
 import { TABS, appendRow, readTab } from "@/lib/google/sheets";
+import { getSheetsClient } from "@/lib/google/auth";
+import { env } from "@/lib/env";
 import {
   INSTALL_PAY,
   SALES_BONUS,
@@ -263,4 +265,75 @@ export async function payForTechOnDate(opts: {
     );
   const total = filtered.reduce((s, r) => s + r.amount, 0);
   return { total, rows: filtered };
+}
+
+/**
+ * Delete every Pay Attribution row whose Dispatch ID (col C) matches
+ * the given dispatchId. Used by unfinalizeDispatch to reverse the rows
+ * written at finalize time.
+ *
+ * Uses batchUpdate deleteDimension requests sorted in descending row
+ * order so earlier deletions don't shift the indices of later ones.
+ *
+ * Idempotent: if no rows match, resolves immediately without touching
+ * the sheet.
+ */
+export async function deletePayAttributionRowsForDispatch(
+  dispatchId: string
+): Promise<void> {
+  if (!dispatchId) return;
+
+  // Read all rows to find which sheet rows (1-indexed) hold this
+  // dispatchId. readTab returns rows starting from row 2 (A2:ZZ),
+  // so row 0 in the array corresponds to sheet row 2.
+  const rows = await readTab(TABS.payAttribution);
+  // col C is index 2 (dispatchId)
+  const sheetRowIndices: number[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][2] ?? "") === dispatchId) {
+      sheetRowIndices.push(i + 2); // +2 because readTab skips the header
+    }
+  }
+  if (sheetRowIndices.length === 0) return;
+
+  const sheets = getSheetsClient();
+  const spreadsheetId = env.googleSheetId();
+
+  // Get the sheetId for the Pay Attribution tab
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const sheet = (meta.data.sheets ?? []).find(
+    (s) => s.properties?.title === TABS.payAttribution
+  );
+  if (!sheet?.properties?.sheetId) {
+    throw new Error(
+      `[deletePayAttributionRows] tab "${TABS.payAttribution}" not found in spreadsheet`
+    );
+  }
+  const sheetId = sheet.properties.sheetId;
+
+  // Sort descending so deleting a higher-index row doesn't shift
+  // the indices of lower-index rows we still need to delete.
+  const sorted = [...sheetRowIndices].sort((a, b) => b - a);
+
+  const requests = sorted.map((rowNum) => ({
+    deleteDimension: {
+      range: {
+        sheetId,
+        dimension: "ROWS",
+        // startIndex is 0-based; row 2 in 1-indexed = index 1
+        startIndex: rowNum - 1,
+        endIndex: rowNum,
+      },
+    },
+  }));
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests },
+  });
+
+  // Invalidate the read cache for this tab so subsequent reads reflect
+  // the deletions (the cache key used by readTab is `${tabName}!A2:ZZ`).
+  const { invalidateCacheForTab } = await import("@/lib/google/sheets");
+  invalidateCacheForTab(TABS.payAttribution);
 }

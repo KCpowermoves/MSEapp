@@ -14,6 +14,7 @@ import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { UnitsSection } from "@/components/LocalDraftRows";
 import { JobDriveFiles } from "@/components/admin/JobDriveFiles";
 import { cn, formatCurrency } from "@/lib/utils";
+import { JobCompletionBar } from "@/components/JobCompletionBar";
 import type {
   Job,
   UnitServiced,
@@ -38,6 +39,15 @@ interface Props {
   /** Running estimate of this tech's install pay across the pending
    *  (un-finalized) units on this job. Server-computed in the page. */
   pendingPayEstimate: number;
+  /** Status of the energy audit for this job, or null when no audit
+   *  exists yet. */
+  auditStatus: "Draft" | "Complete" | null;
+  /** Active (non-orphaned) audit item count. */
+  auditItemCount: number;
+  /** True if any dispatch for this job has ever been submitted. */
+  jobFinalized: boolean;
+  /** Audit ID for the current job's audit, or null if none exists. */
+  auditId: string | null;
 }
 
 export function JobDetail({
@@ -47,6 +57,10 @@ export function JobDetail({
   currentUserName,
   isAdmin,
   pendingPayEstimate,
+  auditStatus,
+  auditItemCount,
+  jobFinalized,
+  auditId,
 }: Props) {
   useTodaysCrew(job.jobId, currentUserName);
   // Pending units = today's draft units. Their photo counts feed the
@@ -66,7 +80,7 @@ export function JobDetail({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-32">
       <div className="flex items-start gap-2">
         <a
           href="/jobs"
@@ -162,6 +176,27 @@ export function JobDetail({
         ))}
       </UnitsSection>
 
+      <a
+        href={`/jobs/${encodeURIComponent(job.jobId)}/audit`}
+        className="block rounded-2xl bg-mse-gold/15 border-2 border-mse-gold/40 hover:bg-mse-gold/25 active:scale-[0.98] transition-[background-color,transform] p-5"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-mse-gold/30 flex items-center justify-center text-mse-navy font-bold text-lg shrink-0">
+            ⚡
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-mse-navy">Complete energy audit</div>
+            <div className="text-[11px] text-mse-muted mt-0.5">
+              {auditStatus === null
+                ? "Walkthrough survey — building, walk-ins, therms, water-source, BAS."
+                : auditStatus === "Draft"
+                ? `Draft · ${auditItemCount} item${auditItemCount === 1 ? "" : "s"} logged`
+                : `Complete ✓ · ${auditItemCount} item${auditItemCount === 1 ? "" : "s"}`}
+            </div>
+          </div>
+        </div>
+      </a>
+
       {/* Fallback states — finalized banner or empty prompt — stay
           below the units section since they don't have the running
           earnings figure to anchor at the top. */}
@@ -194,6 +229,13 @@ export function JobDetail({
           folderUrl={job.driveFolderUrl}
         />
       )}
+
+      <JobCompletionBar
+        jobId={job.jobId}
+        jobFinalized={jobFinalized}
+        auditStatus={auditStatus}
+        auditId={auditId}
+      />
     </div>
   );
 }
@@ -265,8 +307,7 @@ function AutoUploadCard({
       </div>
 
       <p className="relative text-[12px] text-white/65 leading-snug mt-4">
-        Auto-closes when you head to your next job, or by 8&nbsp;PM ET at the
-        latest. No submit needed.
+        Tap Job Complete below when you&apos;re finished. Photos still upload as you go.
       </p>
 
       {alsoFinalizedToday && (

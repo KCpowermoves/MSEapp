@@ -49,3 +49,17 @@ export async function nextPayrollAdjustmentId(): Promise<string> {
   const max = await getMaxIdNumber(TABS.payrollAdjustments, "A", prefix);
   return `${prefix}${pad(max + 1, 5)}`;
 }
+
+export async function nextAuditId(): Promise<string> {
+  const year = currentYear();
+  const prefix = `AUD-${year}-`;
+  const max = await getMaxIdNumber(TABS.audits, "A", prefix);
+  return `${prefix}${pad(max + 1)}`;
+}
+
+export async function nextAuditItemId(): Promise<string> {
+  const year = currentYear();
+  const prefix = `AI-${year}-`;
+  const max = await getMaxIdNumber(TABS.auditItems, "A", prefix);
+  return `${prefix}${pad(max + 1, 5)}`;
+}

@@ -21,6 +21,7 @@ import { ageInDays, formatCurrency, todayIsoDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AdminSendReportButton } from "@/components/AdminSendReportButton";
 import { AdminFinalizeButton } from "@/components/AdminFinalizeButton";
+import { StuckDraftsPanel } from "@/components/admin/StuckDraftsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +130,31 @@ export default async function AdminDashboard() {
     submitted: boolean;
   }[] = [];
   const jobsById = new Map(jobs.map((j) => [j.jobId, j]));
+
+  // ── Stuck drafts: dispatches without submittedAt older than 48h ──────────
+  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+  const stuck = dispatches
+    .filter((d) => !d.submittedAt)
+    .filter((d) => {
+      const created = new Date(d.dispatchDate + "T00:00:00Z").getTime();
+      return Number.isFinite(created) && created < cutoff;
+    })
+    .map((d) => {
+      const job = jobsById.get(d.jobId);
+      return {
+        dispatchId: d.dispatchId,
+        jobId: d.jobId,
+        customerName: job?.customerName ?? d.jobId,
+        techNames: d.techsOnSite,
+        dispatchDate: d.dispatchDate,
+        ageDays: Math.floor(
+          (Date.now() - new Date(d.dispatchDate + "T00:00:00Z").getTime()) /
+            (24 * 60 * 60 * 1000)
+        ),
+      };
+    })
+    .sort((a, b) => b.ageDays - a.ageDays);
+
   for (const u of units) {
     const { uploaded, required } = unitPhotoCounts(u);
     if (uploaded === required) continue;
@@ -258,6 +284,9 @@ export default async function AdminDashboard() {
           accent="muted"
         />
       </div>
+
+      {/* Stuck drafts alert */}
+      <StuckDraftsPanel rows={stuck} />
 
       {/* Per-tech breakdown */}
       <section>

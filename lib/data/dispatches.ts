@@ -13,7 +13,10 @@ import {
   unitHasAllRequiredPhotos,
 } from "@/lib/data/units";
 import { listServicesForDispatch } from "@/lib/data/services";
-import { writeAttributions } from "@/lib/data/pay-attribution";
+import {
+  writeAttributions,
+  deletePayAttributionRowsForDispatch,
+} from "@/lib/data/pay-attribution";
 import { nowIso, todayIsoDate } from "@/lib/utils";
 import {
   DAILY_DRIVING_STIPEND,
@@ -86,6 +89,13 @@ export async function getDispatch(
 ): Promise<Dispatch | null> {
   const all = await listAllDispatches();
   return all.find((d) => d.dispatchId === dispatchId) ?? null;
+}
+
+export async function listDispatchesForJob(
+  jobId: string
+): Promise<Dispatch[]> {
+  const all = await listAllDispatches();
+  return all.filter((d) => d.jobId === jobId);
 }
 
 export async function findDraftDispatch(
@@ -354,8 +364,14 @@ export async function setDispatchReportPdf(
  */
 export async function autoFinalizeOpenDraftsForTech(
   techName: string,
-  options?: { exceptJobId?: string | null }
-): Promise<{ finalized: string[]; errors: string[] }> {
+  options?: {
+    exceptJobId?: string | null;
+    /** When set, only finalize drafts on this specific job. */
+    onlyJobId?: string;
+    /** When set, only finalize the single dispatch with this ID. */
+    onlyDispatchId?: string;
+  }
+): Promise<{ finalized: string[]; errors: string[]; finalizedCount?: number }> {
   const today = todayIsoDate();
   const all = await listAllDispatches();
   const candidates = all.filter(
@@ -363,7 +379,9 @@ export async function autoFinalizeOpenDraftsForTech(
       !d.submittedAt &&
       d.dispatchDate === today &&
       d.techsOnSite.includes(techName) &&
-      d.jobId !== options?.exceptJobId
+      d.jobId !== options?.exceptJobId &&
+      (options?.onlyJobId === undefined || d.jobId === options.onlyJobId) &&
+      (options?.onlyDispatchId === undefined || d.dispatchId === options.onlyDispatchId)
   );
 
   const finalized: string[] = [];
@@ -385,7 +403,7 @@ export async function autoFinalizeOpenDraftsForTech(
       errors.push(draft.dispatchId);
     }
   }
-  return { finalized, errors };
+  return { finalized, errors, finalizedCount: finalized.length };
 }
 
 /**
@@ -426,4 +444,29 @@ export async function autoFinalizeAllStaleDrafts(): Promise<{
     }
   }
   return { finalized, errors };
+}
+
+/**
+ * Inverse of submitDispatch (the finalize step) — deletes the Pay
+ * Attribution rows that were written when this dispatch was finalized,
+ * then clears Dispatches.submittedAt so the dispatch becomes a draft
+ * again. Used by /api/jobs/[jobId]/reopen.
+ *
+ * Idempotent: if the dispatch isn't finalized (submittedAt is empty),
+ * or the dispatch doesn't exist, this is a no-op.
+ */
+export async function unfinalizeDispatch(dispatchId: string): Promise<void> {
+  if (!dispatchId) return;
+
+  const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
+  if (!rowIndex) return; // dispatch not found — no-op
+
+  const dispatch = await getDispatch(dispatchId);
+  if (!dispatch?.submittedAt) return; // already unfinalized — idempotent no-op
+
+  // 1. Delete Pay Attribution rows for this dispatch.
+  await deletePayAttributionRowsForDispatch(dispatchId);
+
+  // 2. Clear submittedAt — col J (index 9 in rowToDispatch).
+  await updateCell(`${TABS.dispatches}!J${rowIndex}`, "", "RAW");
 }

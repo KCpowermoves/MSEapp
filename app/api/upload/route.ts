@@ -12,7 +12,60 @@ import {
   jobFolderName,
   uploadImage,
 } from "@/lib/google/drive";
+import {
+  appendAuditItemSchedulePhoto,
+  getAuditItem,
+  setAuditItemField,
+} from "@/lib/data/audit-items";
+import { getAudit, setAuditField } from "@/lib/data/audits";
 import type { PhotoSlot } from "@/lib/types";
+
+const AUDIT_BUILDING_SLOTS = ["front", "fire-plan", "bas"] as const;
+const AUDIT_ITEM_SLOTS = [
+  "model-label",
+  "nameplate",
+  "fans",
+  "temp",
+  "wiring",
+  "location",
+  "schedule",
+  "controls",
+] as const;
+
+const AUDIT_BUILDING_FIELD: Record<
+  (typeof AUDIT_BUILDING_SLOTS)[number],
+  "frontPhotoUrl" | "firePlanPhotoUrl" | "basPhotoUrl"
+> = {
+  front: "frontPhotoUrl",
+  "fire-plan": "firePlanPhotoUrl",
+  bas: "basPhotoUrl",
+};
+
+// "schedule" is special-cased separately (CSV append), so it's
+// deliberately absent from this map. The upload handler checks for
+// "schedule" first and only consults this map for single-cell slots.
+const AUDIT_ITEM_SINGLE_FIELD: Record<
+  Exclude<(typeof AUDIT_ITEM_SLOTS)[number], "schedule">,
+  | "modelLabelPhotoUrl"
+  | "nameplatePhotoUrl"
+  | "fansPhotoUrl"
+  | "tempPhotoUrl"
+  | "wiringPhotoUrl"
+  | "locationPhotoUrl"
+  | "controlsPhotoUrl"
+> = {
+  "model-label": "modelLabelPhotoUrl",
+  nameplate: "nameplatePhotoUrl",
+  fans: "fansPhotoUrl",
+  temp: "tempPhotoUrl",
+  wiring: "wiringPhotoUrl",
+  location: "locationPhotoUrl",
+  controls: "controlsPhotoUrl",
+};
+
+function slugForAuditFilename(slot: string): string {
+  return slot.replace(/[^a-zA-Z0-9_-]+/g, "_");
+}
 
 const PHOTO_SLOTS: PhotoSlot[] = [
   "pre", "post",
@@ -71,6 +124,114 @@ export async function POST(request: Request) {
     // should win over any stray unitId/serviceId on the request,
     // since those fields could be left over from a previous form
     // state and we don't want to silently misroute an upload.
+
+    if (kind === "audit-building") {
+      const auditId = String(formData.get("auditId") ?? "").trim();
+      if (!auditId) {
+        return NextResponse.json(
+          { error: "Missing auditId" },
+          { status: 400 }
+        );
+      }
+      if (!AUDIT_BUILDING_SLOTS.includes(slot as never)) {
+        return NextResponse.json(
+          { error: "Invalid audit-building slot" },
+          { status: 400 }
+        );
+      }
+      const audit = await getAudit(auditId);
+      if (!audit) {
+        return NextResponse.json(
+          { error: "Audit not found" },
+          { status: 404 }
+        );
+      }
+      // Audit photos live in an `Audit/` subfolder per job. Folder
+      // creation is lazy + idempotent (getOrCreateFolder).
+      const auditFolder = await getOrCreateFolder("Audit", rootFolderId);
+      const filename = `${slugForAuditFilename(slot)}_${Date.now()}.jpg`;
+      const uploaded = await uploadImage({
+        folderId: auditFolder.id,
+        filename,
+        mimeType,
+        body: buffer,
+      });
+      try {
+        await setAuditField({
+          auditId,
+          field: AUDIT_BUILDING_FIELD[slot as keyof typeof AUDIT_BUILDING_FIELD],
+          value: uploaded.url,
+        });
+      } catch (e) {
+        console.error(
+          `[upload] audit-building orphan: fileId=${uploaded.id} auditId=${auditId} slot=${slot}`,
+          e
+        );
+        throw e;
+      }
+      revalidatePath(`/jobs/${jobId}/audit`);
+      return NextResponse.json({ url: uploaded.url });
+    }
+
+    if (kind === "audit-item") {
+      const itemId = String(formData.get("itemId") ?? "").trim();
+      if (!itemId) {
+        return NextResponse.json(
+          { error: "Missing itemId" },
+          { status: 400 }
+        );
+      }
+      if (!AUDIT_ITEM_SLOTS.includes(slot as never)) {
+        return NextResponse.json(
+          { error: "Invalid audit-item slot" },
+          { status: 400 }
+        );
+      }
+      const item = await getAuditItem(itemId);
+      if (!item) {
+        return NextResponse.json(
+          { error: "AuditItem not found" },
+          { status: 404 }
+        );
+      }
+      const auditFolder = await getOrCreateFolder("Audit", rootFolderId);
+      const prefix =
+        item.itemType === "Walk-In"
+          ? `WalkIn-${String(item.itemNumber).padStart(3, "0")}`
+          : item.itemType === "Thermostat"
+          ? `Therm-${String(item.itemNumber).padStart(3, "0")}`
+          : `WaterSource-${String(item.itemNumber).padStart(3, "0")}`;
+      const filename = `${prefix}_${slugForAuditFilename(slot)}_${Date.now()}.jpg`;
+      const uploaded = await uploadImage({
+        folderId: auditFolder.id,
+        filename,
+        mimeType,
+        body: buffer,
+      });
+      try {
+        if (slot === "schedule") {
+          // Multi-photo: append the URL to the CSV column.
+          await appendAuditItemSchedulePhoto({ itemId, url: uploaded.url });
+        } else {
+          await setAuditItemField({
+            itemId,
+            field: AUDIT_ITEM_SINGLE_FIELD[
+              slot as keyof typeof AUDIT_ITEM_SINGLE_FIELD
+            ],
+            value: uploaded.url,
+          });
+        }
+      } catch (e) {
+        console.error(
+          `[upload] audit-item orphan: fileId=${uploaded.id} itemId=${itemId} slot=${slot}`,
+          e
+        );
+        throw e;
+      }
+      revalidatePath(`/jobs/${jobId}/audit`);
+      return NextResponse.json({ url: uploaded.url });
+    }
+
     if (kind === "job-cover") {
       // Cover photo for the whole job. One file per job — overwriting
       // is fine since the previous cover is still in Drive history,

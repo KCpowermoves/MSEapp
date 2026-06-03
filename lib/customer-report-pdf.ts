@@ -6,6 +6,7 @@ const PDFDocument: any = require("pdfkit/js/pdfkit.standalone");
 
 import { getDriveClient } from "@/lib/google/auth";
 import { getPayrollLogoBuffer } from "@/lib/payroll-logo";
+import { extractDriveFileId } from "@/lib/utils";
 import type {
   CustomerReport,
   CustomerReportJob,
@@ -106,6 +107,13 @@ async function buildImageMap(
     // *every* unit's first photo before doubling up on any one unit.
     const grid = selectGridPhotos(rj.units, PHOTOS_PER_JOB_CAP);
     for (const p of grid) ids.add(p.fileId);
+    if (rj.audit) {
+      const a = rj.audit;
+      for (const url of [a.frontPhotoUrl, a.firePlanPhotoUrl, a.basPhotoUrl]) {
+        const id = extractDriveFileId(url);
+        if (id) ids.add(id);
+      }
+    }
   }
   const out = new Map<string, ArrayBuffer>();
   await Promise.all(
@@ -465,6 +473,72 @@ function renderJobSection(
           doc.y,
           { width: CONTENT_W, align: "right" }
         );
+      doc.y += 14;
+    }
+  }
+
+  if (rj.audit) {
+    ensureRoom(doc, 80);
+    doc
+      .fillColor(NAVY)
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text(`Energy audit · ${rj.audit.status}`, MARGIN, doc.y);
+    doc.y += 14;
+    doc
+      .fillColor(MUTED)
+      .font("Helvetica")
+      .fontSize(8.5)
+      .text(
+        `Walk-Ins ${rj.audit.walkInCount}  ·  Thermostats ${rj.audit.thermostatCount}  ·  Water-source ${rj.audit.waterSourceCount}`,
+        MARGIN,
+        doc.y,
+        { width: CONTENT_W }
+      );
+    doc.y += 12;
+
+    // Building photos in a row (up to 3 thumbnails).
+    const buildingPhotos = [
+      { label: "Front", url: rj.audit.frontPhotoUrl },
+      { label: "Fire plan", url: rj.audit.firePlanPhotoUrl },
+      { label: "BAS", url: rj.audit.basPhotoUrl },
+    ].filter((p) => p.url);
+    if (buildingPhotos.length > 0) {
+      const cols = 3;
+      const gap = 6;
+      const thumbW = (CONTENT_W - gap * (cols - 1)) / cols;
+      const thumbH = thumbW * 0.72;
+      ensureRoom(doc, thumbH + 18);
+      const startY = doc.y;
+      buildingPhotos.forEach((p, i) => {
+        const x = MARGIN + i * (thumbW + gap);
+        const id = extractDriveFileId(p.url);
+        const img = id ? images.get(id) : undefined;
+        if (img) {
+          try {
+            doc.image(img, x, startY, { fit: [thumbW, thumbH], align: "center", valign: "center" });
+          } catch {}
+        }
+        doc
+          .roundedRect(x, startY, thumbW, thumbH, 3)
+          .lineWidth(0.5)
+          .strokeColor(LIGHT)
+          .stroke();
+        doc
+          .fillColor(MUTED)
+          .font("Helvetica")
+          .fontSize(7)
+          .text(p.label, x, startY + thumbH + 1, { width: thumbW, align: "center" });
+      });
+      doc.y = startY + thumbH + 14;
+    }
+    if (rj.audit.basNotes) {
+      ensureRoom(doc, 28);
+      doc
+        .fillColor(MUTED)
+        .font("Helvetica-Oblique")
+        .fontSize(8)
+        .text(`BAS note: ${rj.audit.basNotes}`, MARGIN, doc.y, { width: CONTENT_W });
       doc.y += 14;
     }
   }

@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getJob, techCanAccessJob } from "@/lib/data/jobs";
 import {
-  autoFinalizeOpenDraftsForTech,
   findDraftDispatch,
   listAllDispatches,
 } from "@/lib/data/dispatches";
@@ -10,6 +9,8 @@ import { listUnitsForJob } from "@/lib/data/units";
 import { listActiveTechNames } from "@/lib/data/techs";
 import { estimatedInstallPayForTech } from "@/lib/pay-rates";
 import { todayIsoDate } from "@/lib/utils";
+import { getAuditForJob } from "@/lib/data/audits";
+import { listAuditItemsForAudit } from "@/lib/data/audit-items";
 import { JobDetail } from "@/components/JobDetail";
 import { OfflineJobDetail } from "@/components/OfflineJobDetail";
 
@@ -39,15 +40,9 @@ export default async function JobDetailPage({
   const canAccess = await techCanAccessJob({ job, techName, isAdmin });
   if (!canAccess) notFound();
 
-  // Tech opened a job — finalize any of their other open drafts from
-  // today on different jobs. Fire-and-forget so this page renders fast.
-  // Idempotent (skips already-submitted dispatches) and the 8pm cron
-  // is the catch-all safety net.
-  if (techName) {
-    autoFinalizeOpenDraftsForTech(techName, { exceptJobId: jobId }).catch(
-      (e) => console.warn("[job-detail] auto-finalize failed:", e)
-    );
-  }
+  // Auto-finalize-on-job-open was removed 2026-06-02. Dispatch
+  // finalize now requires the explicit Job Complete button on the job
+  // page (or admin force-finalize via the Stuck Drafts panel).
 
   const draft = await findDraftDispatch(jobId, todayIsoDate());
   const [allUnits, dispatches, activeTechs] = await Promise.all([
@@ -107,6 +102,15 @@ export default async function JobDetailPage({
       })
     : 0;
 
+  const audit = await getAuditForJob(jobId);
+  const auditItemCount = audit
+    ? (await listAuditItemsForAudit(audit.auditId)).filter((i) => i.status === "Active").length
+    : 0;
+
+  const jobFinalized = dispatches.some(
+    (d) => d.jobId === jobId && Boolean(d.submittedAt)
+  );
+
   return (
     <JobDetail
       job={job}
@@ -117,6 +121,10 @@ export default async function JobDetailPage({
       currentUserName={session.name ?? ""}
       isAdmin={isAdmin}
       pendingPayEstimate={pendingPayEstimate}
+      auditStatus={audit?.status ?? null}
+      auditItemCount={auditItemCount}
+      jobFinalized={jobFinalized}
+      auditId={audit?.auditId ?? null}
     />
   );
 }

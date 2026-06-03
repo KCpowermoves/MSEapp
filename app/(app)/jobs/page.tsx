@@ -2,10 +2,7 @@ import Link from "next/link";
 import { CheckCircle2, Clock, Plus } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listJobsForTech } from "@/lib/data/jobs";
-import {
-  autoFinalizeOpenDraftsForTech,
-  listAllDispatches,
-} from "@/lib/data/dispatches";
+import { listAllDispatches } from "@/lib/data/dispatches";
 import { listAllUnits, unitPhotoCounts } from "@/lib/data/units";
 import {
   payForTechOnDate,
@@ -46,15 +43,9 @@ export default async function JobsHomePage({
   const isAdmin = session.isAdmin === true;
   const today = todayIsoDate();
 
-  // Tech landed on the jobs index — they're no longer working on any
-  // specific job, so any of their open drafts from today should
-  // auto-finalize. Fire-and-forget; don't block the page render. The
-  // 8pm cron sweep is the safety net for anything this misses.
-  if (techName) {
-    autoFinalizeOpenDraftsForTech(techName, { exceptJobId: null }).catch(
-      (e) => console.warn("[jobs] auto-finalize on index failed:", e)
-    );
-  }
+  // Auto-finalize-on-list-load was removed 2026-06-02. Dispatch
+  // finalize now requires the explicit Job Complete button on the job
+  // page (or admin force-finalize via the Stuck Drafts panel).
 
   // Mon-Sun week containing today + the prior Mon-Sun week for the
   // "Last week's invoice" preview tile.
