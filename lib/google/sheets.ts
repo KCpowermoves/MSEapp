@@ -16,6 +16,11 @@ export const TABS = {
   // that ride alongside the Pay Attribution rows.
   payrollPeriods: "Payroll Periods",
   payrollAdjustments: "Payroll Adjustments",
+  // Energy walkthrough audit — one row per job in `audits`, one row
+  // per surveyed asset in `auditItems`. Photos live in an `Audit/`
+  // subfolder inside each job's existing Drive folder.
+  audits: "Audits",
+  auditItems: "Audit Items",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across
