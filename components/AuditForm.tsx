@@ -58,11 +58,15 @@ export function AuditForm({ job, audit: initialAudit, initialItems }: Props) {
   }
 
   async function patchAuditField(field: "basNotes" | "notes", value: string) {
-    await fetch(`/api/audits/${encodeURIComponent(audit.auditId)}`, {
+    const res = await fetch(`/api/audits/${encodeURIComponent(audit.auditId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
     });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? "Patch failed");
+    }
   }
 
   async function markComplete() {
