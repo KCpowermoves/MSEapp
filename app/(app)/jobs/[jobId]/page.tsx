@@ -114,6 +114,10 @@ export default async function JobDetailPage({
     ? (await listAuditItemsForAudit(audit.auditId)).filter((i) => i.status === "Active").length
     : 0;
 
+  const jobFinalized = dispatches.some(
+    (d) => d.jobId === jobId && Boolean(d.submittedAt)
+  );
+
   return (
     <JobDetail
       job={job}
@@ -126,6 +130,8 @@ export default async function JobDetailPage({
       pendingPayEstimate={pendingPayEstimate}
       auditStatus={audit?.status ?? null}
       auditItemCount={auditItemCount}
+      jobFinalized={jobFinalized}
+      auditId={audit?.auditId ?? null}
     />
   );
 }

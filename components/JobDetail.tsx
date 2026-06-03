@@ -14,6 +14,7 @@ import { useTodaysCrew } from "@/hooks/useTodaysCrew";
 import { UnitsSection } from "@/components/LocalDraftRows";
 import { JobDriveFiles } from "@/components/admin/JobDriveFiles";
 import { cn, formatCurrency } from "@/lib/utils";
+import { JobCompletionBar } from "@/components/JobCompletionBar";
 import type {
   Job,
   UnitServiced,
@@ -43,6 +44,10 @@ interface Props {
   auditStatus: "Draft" | "Complete" | null;
   /** Active (non-orphaned) audit item count. */
   auditItemCount: number;
+  /** True if any dispatch for this job has ever been submitted. */
+  jobFinalized: boolean;
+  /** Audit ID for the current job's audit, or null if none exists. */
+  auditId: string | null;
 }
 
 export function JobDetail({
@@ -54,6 +59,8 @@ export function JobDetail({
   pendingPayEstimate,
   auditStatus,
   auditItemCount,
+  jobFinalized,
+  auditId,
 }: Props) {
   useTodaysCrew(job.jobId, currentUserName);
   // Pending units = today's draft units. Their photo counts feed the
@@ -73,7 +80,7 @@ export function JobDetail({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-32">
       <div className="flex items-start gap-2">
         <a
           href="/jobs"
@@ -222,6 +229,13 @@ export function JobDetail({
           folderUrl={job.driveFolderUrl}
         />
       )}
+
+      <JobCompletionBar
+        jobId={job.jobId}
+        jobFinalized={jobFinalized}
+        auditStatus={auditStatus}
+        auditId={auditId}
+      />
     </div>
   );
 }
