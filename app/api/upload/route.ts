@@ -156,11 +156,19 @@ export async function POST(request: Request) {
         mimeType,
         body: buffer,
       });
-      await setAuditField({
-        auditId,
-        field: AUDIT_BUILDING_FIELD[slot as keyof typeof AUDIT_BUILDING_FIELD],
-        value: uploaded.url,
-      });
+      try {
+        await setAuditField({
+          auditId,
+          field: AUDIT_BUILDING_FIELD[slot as keyof typeof AUDIT_BUILDING_FIELD],
+          value: uploaded.url,
+        });
+      } catch (e) {
+        console.error(
+          `[upload] audit-building orphan: fileId=${uploaded.id} auditId=${auditId} slot=${slot}`,
+          e
+        );
+        throw e;
+      }
       revalidatePath(`/jobs/${jobId}/audit`);
       return NextResponse.json({ url: uploaded.url });
     }
@@ -200,17 +208,25 @@ export async function POST(request: Request) {
         mimeType,
         body: buffer,
       });
-      if (slot === "schedule") {
-        // Multi-photo: append the URL to the CSV column.
-        await appendAuditItemSchedulePhoto({ itemId, url: uploaded.url });
-      } else {
-        await setAuditItemField({
-          itemId,
-          field: AUDIT_ITEM_SINGLE_FIELD[
-            slot as keyof typeof AUDIT_ITEM_SINGLE_FIELD
-          ],
-          value: uploaded.url,
-        });
+      try {
+        if (slot === "schedule") {
+          // Multi-photo: append the URL to the CSV column.
+          await appendAuditItemSchedulePhoto({ itemId, url: uploaded.url });
+        } else {
+          await setAuditItemField({
+            itemId,
+            field: AUDIT_ITEM_SINGLE_FIELD[
+              slot as keyof typeof AUDIT_ITEM_SINGLE_FIELD
+            ],
+            value: uploaded.url,
+          });
+        }
+      } catch (e) {
+        console.error(
+          `[upload] audit-item orphan: fileId=${uploaded.id} itemId=${itemId} slot=${slot}`,
+          e
+        );
+        throw e;
       }
       revalidatePath(`/jobs/${jobId}/audit`);
       return NextResponse.json({ url: uploaded.url });
