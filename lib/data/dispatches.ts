@@ -368,6 +368,8 @@ export async function autoFinalizeOpenDraftsForTech(
     exceptJobId?: string | null;
     /** When set, only finalize drafts on this specific job. */
     onlyJobId?: string;
+    /** When set, only finalize the single dispatch with this ID. */
+    onlyDispatchId?: string;
   }
 ): Promise<{ finalized: string[]; errors: string[]; finalizedCount?: number }> {
   const today = todayIsoDate();
@@ -378,7 +380,8 @@ export async function autoFinalizeOpenDraftsForTech(
       d.dispatchDate === today &&
       d.techsOnSite.includes(techName) &&
       d.jobId !== options?.exceptJobId &&
-      (options?.onlyJobId === undefined || d.jobId === options.onlyJobId)
+      (options?.onlyJobId === undefined || d.jobId === options.onlyJobId) &&
+      (options?.onlyDispatchId === undefined || d.dispatchId === options.onlyDispatchId)
   );
 
   const finalized: string[] = [];
