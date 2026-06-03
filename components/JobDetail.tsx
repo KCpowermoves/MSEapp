@@ -38,6 +38,11 @@ interface Props {
   /** Running estimate of this tech's install pay across the pending
    *  (un-finalized) units on this job. Server-computed in the page. */
   pendingPayEstimate: number;
+  /** Status of the energy audit for this job, or null when no audit
+   *  exists yet. */
+  auditStatus: "Draft" | "Complete" | null;
+  /** Active (non-orphaned) audit item count. */
+  auditItemCount: number;
 }
 
 export function JobDetail({
@@ -47,6 +52,8 @@ export function JobDetail({
   currentUserName,
   isAdmin,
   pendingPayEstimate,
+  auditStatus,
+  auditItemCount,
 }: Props) {
   useTodaysCrew(job.jobId, currentUserName);
   // Pending units = today's draft units. Their photo counts feed the
@@ -161,6 +168,27 @@ export function JobDetail({
           <UnitRow key={u.unitId} unit={u} jobId={job.jobId} />
         ))}
       </UnitsSection>
+
+      <a
+        href={`/jobs/${encodeURIComponent(job.jobId)}/audit`}
+        className="block rounded-2xl bg-mse-gold/15 border-2 border-mse-gold/40 hover:bg-mse-gold/25 active:scale-[0.98] transition-[background-color,transform] p-5"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-mse-gold/30 flex items-center justify-center text-mse-navy font-bold text-lg shrink-0">
+            ⚡
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-mse-navy">Complete energy audit</div>
+            <div className="text-[11px] text-mse-muted mt-0.5">
+              {auditStatus === null
+                ? "Walkthrough survey — building, walk-ins, therms, water-source, BAS."
+                : auditStatus === "Draft"
+                ? `Draft · ${auditItemCount} item${auditItemCount === 1 ? "" : "s"} logged`
+                : `Complete ✓ · ${auditItemCount} item${auditItemCount === 1 ? "" : "s"}`}
+            </div>
+          </div>
+        </div>
+      </a>
 
       {/* Fallback states — finalized banner or empty prompt — stay
           below the units section since they don't have the running

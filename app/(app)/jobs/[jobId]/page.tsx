@@ -10,6 +10,8 @@ import { listUnitsForJob } from "@/lib/data/units";
 import { listActiveTechNames } from "@/lib/data/techs";
 import { estimatedInstallPayForTech } from "@/lib/pay-rates";
 import { todayIsoDate } from "@/lib/utils";
+import { getAuditForJob } from "@/lib/data/audits";
+import { listAuditItemsForAudit } from "@/lib/data/audit-items";
 import { JobDetail } from "@/components/JobDetail";
 import { OfflineJobDetail } from "@/components/OfflineJobDetail";
 
@@ -107,6 +109,11 @@ export default async function JobDetailPage({
       })
     : 0;
 
+  const audit = await getAuditForJob(jobId);
+  const auditItemCount = audit
+    ? (await listAuditItemsForAudit(audit.auditId)).filter((i) => i.status === "Active").length
+    : 0;
+
   return (
     <JobDetail
       job={job}
@@ -117,6 +124,8 @@ export default async function JobDetailPage({
       currentUserName={session.name ?? ""}
       isAdmin={isAdmin}
       pendingPayEstimate={pendingPayEstimate}
+      auditStatus={audit?.status ?? null}
+      auditItemCount={auditItemCount}
     />
   );
 }
