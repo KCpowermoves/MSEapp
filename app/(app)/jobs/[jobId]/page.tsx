@@ -5,7 +5,7 @@ import {
   findDraftDispatch,
   listAllDispatches,
 } from "@/lib/data/dispatches";
-import { listUnitsForJob } from "@/lib/data/units";
+import { listUnitsForJob, unitHasAllRequiredPhotos } from "@/lib/data/units";
 import { listActiveTechNames } from "@/lib/data/techs";
 import { estimatedInstallPayForTech } from "@/lib/pay-rates";
 import { todayIsoDate } from "@/lib/utils";
@@ -111,6 +111,21 @@ export default async function JobDetailPage({
     (d) => d.jobId === jobId && Boolean(d.submittedAt)
   );
 
+  // Pre-compute the HVAC service summary so the entry button on
+  // JobDetail can show "N units in progress" / "N units · all
+  // photographed" / "No units yet" inline.
+  const activeUnits = allUnits.filter((u) => !u.deleted);
+  const allPhotographed =
+    activeUnits.length > 0 &&
+    activeUnits.every((u) => unitHasAllRequiredPhotos(u));
+  const hvacUnitSummary: "empty" | "in-progress" | "all-photographed" =
+    activeUnits.length === 0
+      ? "empty"
+      : allPhotographed
+      ? "all-photographed"
+      : "in-progress";
+  const hvacUnitCount = activeUnits.length;
+
   return (
     <JobDetail
       job={job}
@@ -125,6 +140,8 @@ export default async function JobDetailPage({
       auditItemCount={auditItemCount}
       jobFinalized={jobFinalized}
       auditId={audit?.auditId ?? null}
+      hvacUnitSummary={hvacUnitSummary}
+      hvacUnitCount={hvacUnitCount}
     />
   );
 }

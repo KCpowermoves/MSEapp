@@ -48,6 +48,10 @@ interface Props {
   jobFinalized: boolean;
   /** Audit ID for the current job's audit, or null if none exists. */
   auditId: string | null;
+  /** Summary state of active HVAC units on this job. */
+  hvacUnitSummary: "empty" | "in-progress" | "all-photographed";
+  /** Count of active (non-deleted) HVAC units on this job. */
+  hvacUnitCount: number;
 }
 
 export function JobDetail({
@@ -61,6 +65,8 @@ export function JobDetail({
   auditItemCount,
   jobFinalized,
   auditId,
+  hvacUnitSummary,
+  hvacUnitCount,
 }: Props) {
   useTodaysCrew(job.jobId, currentUserName);
   // Pending units = today's draft units. Their photo counts feed the
@@ -160,15 +166,26 @@ export function JobDetail({
         />
       )}
 
-      <div className="grid grid-cols-1 gap-3">
-        <a
-          href={`/jobs/${encodeURIComponent(job.jobId)}/units/new`}
-          className="rounded-2xl bg-mse-navy hover:bg-mse-navy-soft active:scale-[0.98] transition-[background-color,transform] p-5 flex items-center justify-center gap-2 shadow-elevated text-white"
-        >
-          <Wrench className="w-6 h-6" />
-          <span className="font-bold text-lg">Add unit</span>
-        </a>
-      </div>
+      <a
+        href={`/jobs/${encodeURIComponent(job.jobId)}/service`}
+        className="block rounded-2xl bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] transition-[background-color,transform] p-5 shadow-elevated text-white"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center font-bold text-lg shrink-0">
+            <Wrench className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-lg">Service HVAC units</div>
+            <div className="text-[11px] text-white/80 mt-0.5">
+              {hvacUnitSummary === "empty"
+                ? "No units yet — tap to start"
+                : hvacUnitSummary === "all-photographed"
+                ? `${hvacUnitCount} unit${hvacUnitCount === 1 ? "" : "s"} · all photographed`
+                : `${hvacUnitCount} unit${hvacUnitCount === 1 ? "" : "s"} in progress`}
+            </div>
+          </div>
+        </div>
+      </a>
 
       <UnitsSection jobId={job.jobId} hasServerUnits={todaysUnits.length > 0}>
         {todaysUnits.map((u) => (
