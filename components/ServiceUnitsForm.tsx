@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Plus, X } from "lucide-react";
 import { ServiceUnitTypeSection } from "@/components/ServiceUnitTypeSection";
 import { estimatedInstallPayForTech } from "@/lib/pay-rates";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import type {
   Dispatch,
   Job,
@@ -137,6 +137,25 @@ export function ServiceUnitsForm({
 
   return (
     <div className="space-y-6 pb-24">
+      {/* Compliance banner — pulses gently to catch the tech's eye
+          before they start photographing a unit that won't qualify.
+          motion-reduce drops the animation entirely for users with
+          the OS-level reduced-motion preference. Same pattern used
+          on the legacy /units/new form. */}
+      <div
+        role="alert"
+        className={cn(
+          "rounded-xl border border-yellow-400/70 px-4 py-3",
+          "text-sm font-bold text-mse-navy flex items-start gap-2",
+          "animate-soft-blink motion-reduce:animate-none motion-reduce:bg-yellow-200"
+        )}
+      >
+        <AlertTriangle className="w-5 h-5 text-mse-navy shrink-0 mt-0.5" />
+        <span className="leading-snug">
+          HVAC units must be at least two years old to qualify for the program.
+        </span>
+      </div>
+
       <div className="flex items-center gap-2">
         <Link
           href={`/jobs/${encodeURIComponent(job.jobId)}`}
