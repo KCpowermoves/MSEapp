@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Plus, Minus, Loader2, CheckCircle2 } from "lucide-react";
 import { AuditPhotoSlot } from "@/components/AuditPhotoSlot";
 import { useOcrAutoFill } from "@/hooks/useOcrAutoFill";
-import { photoUrlForSlot } from "@/lib/data/units";
+import { photoUrlForSlot } from "@/lib/photo-slots";
 import { slotsForType, flatSlots } from "@/lib/unit-slots";
 import { cn } from "@/lib/utils";
 import type { Job, UnitServiced, UnitType, PhotoSlot } from "@/lib/types";
