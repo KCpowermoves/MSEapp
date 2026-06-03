@@ -124,11 +124,15 @@ export function AuditItemSection({
   }
 
   async function patchItem(itemId: string, patch: Partial<AuditItem>) {
-    await fetch(`/api/audit-items/${encodeURIComponent(itemId)}`, {
+    const res = await fetch(`/api/audit-items/${encodeURIComponent(itemId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? "Patch failed");
+    }
     onItemsChange(items.map((i) => (i.itemId === itemId ? { ...i, ...patch } : i)));
   }
 
