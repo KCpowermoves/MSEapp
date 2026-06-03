@@ -241,3 +241,82 @@ export interface PayrollAdjustment {
   createdAt: string;
   note: string;
 }
+
+// ─── Energy Walkthrough Audit ────────────────────────────────────────
+
+export type AuditStatus = "Draft" | "Complete";
+
+export interface Audit {
+  auditId: string;
+  jobId: string;
+  status: AuditStatus;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  /** Empty string until the tech taps Audit Complete. */
+  completedAt: string;
+  completedBy: string;
+  /** Drive file URL for the front-of-building photo, optional. */
+  frontPhotoUrl: string;
+  /** Optional fire escape / M1 plan photo. */
+  firePlanPhotoUrl: string;
+  /** Optional BAS panel photo — Xavier usually handles BAS himself. */
+  basPhotoUrl: string;
+  basNotes: string;
+  notes: string;
+}
+
+export type AuditItemType = "Walk-In" | "Thermostat" | "Water-Source";
+
+export type WaterSourceSubtype =
+  | "Chiller"
+  | "Cooling Tower"
+  | "Boiler"
+  | "Controls"
+  | "Other";
+
+export type AuditItemStatus = "Active" | "Orphaned";
+
+export interface AuditItem {
+  itemId: string;
+  auditId: string;
+  jobId: string;
+  itemType: AuditItemType;
+  /** Water-source-only subtype. Empty string for walk-ins/thermostats. */
+  itemSubtype: WaterSourceSubtype | "";
+  /** 1-indexed counter within (auditId, itemType). What the tech sees
+   *  as "Walk-In 1", "Walk-In 2". */
+  itemNumber: number;
+  label: string;
+  // Polymorphic photo slots — empty string when not applicable.
+  modelLabelPhotoUrl: string;
+  nameplatePhotoUrl: string;
+  fansPhotoUrl: string;
+  tempPhotoUrl: string;
+  wiringPhotoUrl: string;
+  locationPhotoUrl: string;
+  /** Thermostat schedule: 1..N URLs, comma-separated. */
+  schedulePhotoUrlsCsv: string;
+  controlsPhotoUrl: string;
+  notes: string;
+  loggedBy: string;
+  loggedAt: string;
+  status: AuditItemStatus;
+}
+
+/** Logical photo slot for the audit upload route. Determines which
+ *  column the URL gets written to on the Audits or Audit Items row. */
+export type AuditPhotoSlot =
+  // Audits row (kind=audit-building)
+  | "front"
+  | "fire-plan"
+  | "bas"
+  // Audit Items row (kind=audit-item)
+  | "model-label"
+  | "nameplate"
+  | "fans"
+  | "temp"
+  | "wiring"
+  | "location"
+  | "schedule"
+  | "controls";
