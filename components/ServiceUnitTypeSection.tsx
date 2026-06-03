@@ -40,10 +40,12 @@ export function ServiceUnitTypeSection({
   const todaysUnits = sorted.filter((u) => u.dispatchId === todaysDispatchId);
   const priorUnits = sorted.filter((u) => u.dispatchId !== todaysDispatchId);
   const [busyCount, setBusyCount] = useState(false);
+  const [bumpError, setBumpError] = useState<string | null>(null);
 
   async function bumpCount(direction: "up" | "down") {
     if (busyCount) return;
     setBusyCount(true);
+    setBumpError(null);
     try {
       if (direction === "up") {
         const res = await fetch("/api/units", {
@@ -84,6 +86,8 @@ export function ServiceUnitTypeSection({
         }
         onUnitsChange(units.filter((u) => u.unitId !== last.unitId));
       }
+    } catch (e) {
+      setBumpError(e instanceof Error ? e.message : "Add/remove failed");
     } finally {
       setBusyCount(false);
     }
@@ -147,6 +151,12 @@ export function ServiceUnitTypeSection({
           </button>
         </div>
       </div>
+
+      {bumpError && (
+        <div className="text-[11px] text-mse-red bg-mse-red/5 border border-mse-red/20 rounded px-3 py-2">
+          {bumpError}
+        </div>
+      )}
 
       <div className="space-y-3">
         {priorUnits.map((u) => (
@@ -213,15 +223,23 @@ function EditableCard({
     serial,
     setMake: (v) => {
       setMake(v);
-      onPatch({ make: v }).catch(() => {});
+      onPatch({ make: v }).catch((e) =>
+        console.warn(`[service] patch failed unit=${unit.unitId} field=make:`, e)
+      );
     },
     setModel: (v) => {
       setModel(v);
-      if (v) onPatch({ model: v }).catch(() => {});
+      if (v) {
+        onPatch({ model: v }).catch((e) =>
+          console.warn(`[service] patch failed unit=${unit.unitId} field=model:`, e)
+        );
+      }
     },
     setSerial: (v) => {
       setSerial(v);
-      onPatch({ serial: v }).catch(() => {});
+      onPatch({ serial: v }).catch((e) =>
+        console.warn(`[service] patch failed unit=${unit.unitId} field=serial:`, e)
+      );
     },
   });
 
@@ -253,7 +271,11 @@ function EditableCard({
         value={label}
         onChange={(e) => setLabel(e.target.value)}
         onBlur={() => {
-          if (label !== unit.label) onPatch({ label });
+          if (label !== unit.label) {
+            onPatch({ label }).catch((e) =>
+              console.warn(`[service] patch failed unit=${unit.unitId} field=label:`, e)
+            );
+          }
         }}
         placeholder="Label (optional, e.g. Roof unit east)"
         className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
@@ -282,7 +304,11 @@ function EditableCard({
           value={make}
           onChange={(e) => setMake(e.target.value)}
           onBlur={() => {
-            if (make !== unit.make) onPatch({ make });
+            if (make !== unit.make) {
+              onPatch({ make }).catch((e) =>
+                console.warn(`[service] patch failed unit=${unit.unitId} field=make:`, e)
+              );
+            }
           }}
           placeholder="Make"
           className="px-2 py-1.5 rounded-md border border-mse-light bg-white focus:outline-none focus:border-mse-navy"
@@ -292,7 +318,11 @@ function EditableCard({
           value={model}
           onChange={(e) => setModel(e.target.value)}
           onBlur={() => {
-            if (model && model !== unit.model) onPatch({ model });
+            if (model && model !== unit.model) {
+              onPatch({ model }).catch((e) =>
+                console.warn(`[service] patch failed unit=${unit.unitId} field=model:`, e)
+              );
+            }
           }}
           placeholder="Model (required)"
           className="px-2 py-1.5 rounded-md border border-mse-light bg-white focus:outline-none focus:border-mse-navy"
@@ -302,7 +332,11 @@ function EditableCard({
           value={serial}
           onChange={(e) => setSerial(e.target.value)}
           onBlur={() => {
-            if (serial !== unit.serial) onPatch({ serial });
+            if (serial !== unit.serial) {
+              onPatch({ serial }).catch((e) =>
+                console.warn(`[service] patch failed unit=${unit.unitId} field=serial:`, e)
+              );
+            }
           }}
           placeholder="Serial"
           className="px-2 py-1.5 rounded-md border border-mse-light bg-white focus:outline-none focus:border-mse-navy"
@@ -326,7 +360,11 @@ function EditableCard({
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         onBlur={() => {
-          if (notes !== unit.notes) onPatch({ notes });
+          if (notes !== unit.notes) {
+            onPatch({ notes }).catch((e) =>
+              console.warn(`[service] patch failed unit=${unit.unitId} field=notes:`, e)
+            );
+          }
         }}
         rows={2}
         placeholder="Notes (optional)"
