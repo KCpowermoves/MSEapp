@@ -170,6 +170,7 @@ export async function POST(request: Request) {
         throw e;
       }
       revalidatePath(`/jobs/${jobId}/audit`);
+      revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
     }
 
@@ -229,6 +230,7 @@ export async function POST(request: Request) {
         throw e;
       }
       revalidatePath(`/jobs/${jobId}/audit`);
+      revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
     }
 
@@ -291,6 +293,7 @@ export async function POST(request: Request) {
       });
       await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
       revalidatePath(`/jobs/${jobId}`);
+      revalidatePath(`/jobs/${jobId}/service`);
       revalidatePath("/jobs");
       // After every successful unit photo write, see if the parent
       // dispatch is now fully photographed. If yes, render the PDF.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -221,8 +222,9 @@ export function JobsList({ jobs, statsByJob }: Props) {
             const stats = statsByJob[j.jobId];
             return (
               <li key={j.jobId}>
-                <a
+                <Link
                   href={`/jobs/${encodeURIComponent(j.jobId)}`}
+                  prefetch
                   className="block bg-white rounded-2xl border border-mse-light p-4 shadow-card hover:shadow-elevated active:scale-[0.99] transition-[transform,box-shadow]"
                 >
                   <div className="flex items-start gap-3">
@@ -271,7 +273,7 @@ export function JobsList({ jobs, statsByJob }: Props) {
                       <ChevronRight className="w-5 h-5 text-mse-muted mt-1" />
                     </div>
                   </div>
-                </a>
+                </Link>
               </li>
             );
           })}

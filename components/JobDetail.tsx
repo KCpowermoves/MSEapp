@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowLeft,
   CloudUpload,
@@ -88,13 +89,13 @@ export function JobDetail({
   return (
     <div className="space-y-6 pb-32">
       <div className="flex items-start gap-2">
-        <a
+        <Link
           href="/jobs"
           className="p-2 -ml-2 text-mse-muted hover:text-mse-navy"
           aria-label="Back to jobs"
         >
           <ArrowLeft className="w-5 h-5" />
-        </a>
+        </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-mse-navy truncate">
             {job.customerName}
@@ -129,13 +130,13 @@ export function JobDetail({
             </div>
           )}
         </div>
-        <a
+        <Link
           href={`/jobs/${encodeURIComponent(job.jobId)}/edit`}
           className="p-2 text-mse-muted hover:text-mse-navy"
           aria-label="Edit job"
         >
           <Pencil className="w-4 h-4" />
-        </a>
+        </Link>
         {isAdmin && job.driveFolderUrl && (
           <a
             href={job.driveFolderUrl}
@@ -166,8 +167,9 @@ export function JobDetail({
         />
       )}
 
-      <a
+      <Link
         href={`/jobs/${encodeURIComponent(job.jobId)}/service`}
+        prefetch
         className="block rounded-2xl bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] transition-[background-color,transform] p-5 shadow-elevated text-white"
       >
         <div className="flex items-center gap-3">
@@ -185,7 +187,7 @@ export function JobDetail({
             </div>
           </div>
         </div>
-      </a>
+      </Link>
 
       <UnitsSection jobId={job.jobId} hasServerUnits={todaysUnits.length > 0}>
         {todaysUnits.map((u) => (
@@ -193,8 +195,9 @@ export function JobDetail({
         ))}
       </UnitsSection>
 
-      <a
+      <Link
         href={`/jobs/${encodeURIComponent(job.jobId)}/audit`}
+        prefetch
         className="block rounded-2xl bg-mse-gold/15 border-2 border-mse-gold/40 hover:bg-mse-gold/25 active:scale-[0.98] transition-[background-color,transform] p-5"
       >
         <div className="flex items-center gap-3">
@@ -212,7 +215,7 @@ export function JobDetail({
             </div>
           </div>
         </div>
-      </a>
+      </Link>
 
       {/* Fallback states — finalized banner or empty prompt — stay
           below the units section since they don't have the running
@@ -450,13 +453,13 @@ function UnitRow({
       >
         {requiredFilled}/{requiredCount}
       </div>
-      <a
+      <Link
         href={`/jobs/${encodeURIComponent(jobId)}/units/${encodeURIComponent(unit.unitId)}/edit`}
         className="p-1.5 text-mse-muted hover:text-mse-navy"
         aria-label="Edit unit"
       >
         <Pencil className="w-4 h-4" />
-      </a>
+      </Link>
     </li>
   );
 }

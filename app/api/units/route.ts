@@ -73,6 +73,7 @@ export async function POST(request: Request) {
       loggedBy: session.name,
     });
     revalidatePath(`/jobs/${jobId}`);
+    revalidatePath(`/jobs/${jobId}/service`);
     revalidatePath("/jobs");
     return NextResponse.json({ unit, dispatchId: dispatch.dispatchId });
   } catch (e) {
@@ -120,7 +121,10 @@ export async function PATCH(request: Request) {
   try {
     await updateUnit(patch);
     const u = await getUnit(unitId);
-    if (u?.jobId) revalidatePath(`/jobs/${u.jobId}`);
+    if (u?.jobId) {
+      revalidatePath(`/jobs/${u.jobId}`);
+      revalidatePath(`/jobs/${u.jobId}/service`);
+    }
     revalidatePath("/jobs");
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -161,6 +165,7 @@ export async function DELETE(request: Request) {
   try {
     await softDeleteUnit(unitId);
     revalidatePath(`/jobs/${unit.jobId}`);
+    revalidatePath(`/jobs/${unit.jobId}/service`);
     revalidatePath("/jobs");
     return NextResponse.json({ ok: true });
   } catch (e) {

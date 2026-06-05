@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { getAudit } from "@/lib/data/audits";
 import { createAuditItem } from "@/lib/data/audit-items";
@@ -71,6 +72,11 @@ export async function POST(request: Request) {
       label,
       loggedBy: session.name ?? "",
     });
+    // Bust the cached HTML on the parent job page (audit-item count
+    // tile) and the audit page itself so the next nav sees fresh
+    // data without waiting on the 120s Sheets cache.
+    revalidatePath(`/jobs/${jobId}`);
+    revalidatePath(`/jobs/${jobId}/audit`);
     return NextResponse.json({ item });
   } catch (e) {
     console.error("[audit-items POST] failed:", e);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import {
   getAuditItem,
@@ -58,6 +59,8 @@ export async function PATCH(
         value: typeof raw === "number" ? raw : String(raw),
       });
     }
+    revalidatePath(`/jobs/${item.jobId}`);
+    revalidatePath(`/jobs/${item.jobId}/audit`);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[audit-items PATCH] failed:", e);
@@ -95,6 +98,8 @@ export async function DELETE(
 
   try {
     await setAuditItemStatus({ itemId, status: "Orphaned" });
+    revalidatePath(`/jobs/${item.jobId}`);
+    revalidatePath(`/jobs/${item.jobId}/audit`);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[audit-items DELETE] failed:", e);

@@ -34,7 +34,12 @@ interface CacheEntry {
   inflight?: Promise<string[][]>;
 }
 const readCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 30_000;
+// Bumped from 30s → 120s 2026-06-03. Writes go through `updateCell` /
+// `appendRow` which already call `invalidateCacheForTab`, so a longer
+// TTL doesn't risk staleness on data the app itself just wrote. The
+// 30s window was burning a fresh full read every couple of page
+// navigations even when nothing had changed.
+const CACHE_TTL_MS = 120_000;
 
 function tabFromRange(range: string): string | null {
   const m = range.match(/^['"]?([^'!"]+)['"]?!/);
