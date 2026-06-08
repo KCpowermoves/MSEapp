@@ -179,6 +179,11 @@ export interface SessionData {
   name: string;
   loggedInAt: number;
   isAdmin?: boolean;
+  /** When set, the cookie's identity (techId/name/isAdmin) is the
+   *  impersonated tech and these fields carry the real admin who
+   *  initiated impersonation. Cleared by /api/admin/impersonate/exit. */
+  impersonatorTechId?: string;
+  impersonatorName?: string;
 }
 
 // ─── Payroll ──────────────────────────────────────────────────────────

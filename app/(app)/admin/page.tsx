@@ -250,17 +250,29 @@ export default async function AdminDashboard() {
             Read-only view of the last 7 days. Refresh after submissions.
           </p>
         </div>
-        <Link
-          href="/admin/projects/new"
-          className={cn(
-            "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold",
-            "bg-mse-navy text-white hover:bg-mse-navy-soft shadow-card",
-            "active:scale-95 transition-[background-color,transform]"
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          New project
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/admin/techs"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold",
+              "bg-mse-gold/15 text-mse-navy border border-mse-gold/40 hover:bg-mse-gold/25",
+              "active:scale-95 transition-[background-color,transform]"
+            )}
+          >
+            👁 View as Tech
+          </Link>
+          <Link
+            href="/admin/projects/new"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold",
+              "bg-mse-navy text-white hover:bg-mse-navy-soft shadow-card",
+              "active:scale-95 transition-[background-color,transform]"
+            )}
+          >
+            <Plus className="w-4 h-4" />
+            New project
+          </Link>
+        </div>
       </div>
 
       {/* Top stats */}
