@@ -5,15 +5,20 @@ import Image from "next/image";
 import { DollarSign, LayoutDashboard, LogOut } from "lucide-react";
 import { PendingBadge } from "@/components/PendingBadge";
 import { LocationConsent } from "@/components/LocationConsent";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 
 export function AppShell({
   children,
   techName,
   isAdmin = false,
+  impersonatedName,
 }: {
   children: React.ReactNode;
   techName: string;
   isAdmin?: boolean;
+  /** When set, the current session is impersonating this tech name.
+   *  Triggers the persistent yellow banner at the top. */
+  impersonatedName?: string;
 }) {
   const logout = async () => {
     try {
@@ -47,6 +52,9 @@ export function AppShell({
   };
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      {impersonatedName && (
+        <ImpersonationBanner impersonatedName={impersonatedName} />
+      )}
       <header className="bg-mse-navy text-white sticky top-0 z-10 shadow-elevated">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/jobs" className="flex items-center gap-2">

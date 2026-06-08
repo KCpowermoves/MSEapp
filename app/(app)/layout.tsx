@@ -14,7 +14,13 @@ export default async function AppLayout({
   }
   return (
     <Providers>
-      <AppShell techName={session.name} isAdmin={session.isAdmin === true}>
+      <AppShell
+        techName={session.name}
+        isAdmin={session.isAdmin === true}
+        impersonatedName={
+          session.impersonatorTechId ? session.name : undefined
+        }
+      >
         {children}
       </AppShell>
     </Providers>
