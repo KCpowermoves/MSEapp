@@ -212,6 +212,23 @@ const TABS = [
     ],
     frozenRows: 1,
   },
+  {
+    name: "Impersonation Log",
+    headers: [
+      "Log ID",
+      "Timestamp",
+      "Event Type",
+      "Admin Tech ID",
+      "Admin Name",
+      "Target Tech ID",
+      "Target Name",
+      "Notes",
+    ],
+    validations: [
+      { col: "C", values: ["Start", "Exit"] },
+    ],
+    frozenRows: 1,
+  },
 ];
 
 const PAY_RATES_DATA = [
