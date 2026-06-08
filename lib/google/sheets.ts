@@ -21,6 +21,8 @@ export const TABS = {
   // subfolder inside each job's existing Drive folder.
   audits: "Audits",
   auditItems: "Audit Items",
+  // Append-only audit trail of admin "View as Joe W" sessions.
+  impersonationLog: "Impersonation Log",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across

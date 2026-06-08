@@ -63,3 +63,10 @@ export async function nextAuditItemId(): Promise<string> {
   const max = await getMaxIdNumber(TABS.auditItems, "A", prefix);
   return `${prefix}${pad(max + 1, 5)}`;
 }
+
+export async function nextImpersonationLogId(): Promise<string> {
+  const year = currentYear();
+  const prefix = `IMP-${year}-`;
+  const max = await getMaxIdNumber(TABS.impersonationLog, "A", prefix);
+  return `${prefix}${pad(max + 1, 5)}`;
+}
