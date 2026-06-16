@@ -36,12 +36,15 @@ interface CacheEntry {
   inflight?: Promise<string[][]>;
 }
 const readCache = new Map<string, CacheEntry>();
-// Bumped from 30s → 120s 2026-06-03. Writes go through `updateCell` /
-// `appendRow` which already call `invalidateCacheForTab`, so a longer
-// TTL doesn't risk staleness on data the app itself just wrote. The
-// 30s window was burning a fresh full read every couple of page
-// navigations even when nothing had changed.
-const CACHE_TTL_MS = 120_000;
+// Rolled back to 30s 2026-06-08 after a tech report of photos "not
+// loading" and "slots clearing when I open the job today." Diagnosis:
+// `invalidateCacheForTab` only clears the LOCAL Vercel serverless
+// instance's cache. When request A handles a photo upload, instance
+// A's cache is fresh; instances B/C/D keep serving stale reads from
+// their own caches until each independently expires. The 30s window
+// limits how stale that can get. A proper fix needs a distributed
+// cache (Vercel KV or similar) — until then, keep TTL short.
+const CACHE_TTL_MS = 30_000;
 
 function tabFromRange(range: string): string | null {
   const m = range.match(/^['"]?([^'!"]+)['"]?!/);
