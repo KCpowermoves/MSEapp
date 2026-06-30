@@ -229,6 +229,37 @@ const TABS = [
     ],
     frozenRows: 1,
   },
+  {
+    name: "Engineering Projects",
+    headers: [
+      "Project ID",
+      "Created At",
+      "Created By",
+      "Updated At",
+      "Status",
+      "Customer Name",
+      "Site Address",
+      "Utility",
+      "Project Type",
+      "Project Subtype",
+      "Square Footage",
+      "Location",
+      "Annual kWh",
+      "Engineering Fee Override",
+      "Sensor Cost Override",
+      "Monthly Bills JSON",
+      "HVAC Units JSON",
+      "Walk-in Units JSON",
+      "Notes",
+    ],
+    validations: [
+      { col: "E", values: ["Draft", "Final", "Deleted"] },
+      { col: "H", values: ["BGE", "PEPCO", "Delmarva", "SMECO"] },
+      { col: "I", values: ["Small", "Medium", "Large"] },
+      { col: "L", values: ["BWI", "Andrews"] },
+    ],
+    frozenRows: 1,
+  },
 ];
 
 const PAY_RATES_DATA = [
