@@ -1,0 +1,336 @@
+Mango Grove
+
+8865 Standford Blvd, Unit 107 Columbia Maryland 21045
+
+                    BGE
+         Small Building Tune-up
+       Preliminary Energy Study
+
+                            06/29/26
+
+                   MD Smart Energy
+
+                      328 North Eutaw St Flr 3
+                       Baltimore, MD 21201
+                   Lead Engineer: Xavier Suchar
+                  Xavier@MDSmartEnergy.com
+                                  Table of Contents
+
+I. Executive Summary                                                                                                              1
+
+Overview...............................................................................................................           1
+
+Energy Conservation Measures Savings Summary...................................................                                   1
+
+ECMs Savings Summary (After Customer Rebate)....................................................                                  1
+
+ECM Summary.......................................................................................................                2
+
+II. Energy Data Analysis                                                                                                          3
+
+Historical Usage....................................................................................................              3
+
+III. Facility Overview                                                                                                            4
+
+Building Description..............................................................................................                4
+
+Heating, Ventilation, and Air Conditioning (HVAC)..................................................                               5
+
+Walk-in Refrigeration Units................................................................................                       5
+
+IV. Energy Conservation Measures                                                                                                  5
+
+ECM-1: Optimize HVAC Schedule...........................................................................                          6
+
+ECM-2: Replace Refrigeration Evaporator Temperature Sensor Element                                           ...................  7
+& Optimize Set Point (Food Storage)
+I. Executive Summary
+
+     Overview
+
+     MD Smart Energy thanks the Mango Grove management for the opportunity to provide
+     energy auditing solutions to your building. MD Smart Energy has performed an ASHRAE
+     level one equivalent energy audit as part of the energy savings incentive program.
+
+     The energy conservation measures (ECMs) developed from the audit will be used to
+     develop an implementation action plan for the rebate program. During this energy audit,
+     the MD Smart Energy team will walk through the facility, interview operations staff,
+     inspect existing building systems, and review utility invoices. Using the information
+     gathered from the audit, MD Smart Energy will evaluate the existing building systems and
+     identify several ECMs that will provide improved operational efficiency and result in a
+     quick return on investment. Particular attention will be focused on low cost and
+     operational driven savings as core strategies
+
+A total of two ECMs were identified
+
+The ECMs account for a total estimated cost of $ 5,866.73
+
+An annual electrical savings of      13,968 kWh/annually
+
+With an implementation of all ECMs would result in an annual estimated electrical consumption savings of
+
+39%
+
+The table below provides a combined summary of the approximate project cost, annual savings, and simple
+paybacks for the recommended ECM. MD Smart Energy will meet with Mango Grove management and BGE
+
+                representatives to review the ECMs and develop an implementation action plan.
+
+                   Energy Conservation Measures Savings Summary
+
+   Estimated cost  Electrical Savings Gas Savings          Energy Cost Savings Payback
+
+$    5,866.73                        13,968  620.56 $            3,146.34                      1.86
+
+                   ECM Savings Summary (After Customer Rebate)
+
+   Estimated Cost  Electrical Savings Gas Savings          Energy Cost Savings Payback
+
+$    1,955.58                        13,968  620.56 $            3,146.34                      1.86
+
+                                                                                                          1
+                                ECM Summary
+
+                                                      Electrical               Energy cost
+                                                                                 savings
+     Energy conservation                              Savings Gas Savings        ($/year)   Payback
+                                                                                            (years)
+No.  measure                    Estimated cost        (kWh/yr) (therms/yr)     $ 2,926.12
+                                                                                              1.35
+     Optimize HVAC                                                                 $220
+                                                                                              3.41
+1    Schedule                $  3,943.38 12,654                      621
+
+     Replace Refrigeration
+
+     Evaporator Temperature
+
+     Sensor Element and
+
+     Optimize Set Point
+
+2 (Food Storage) $              750.00                1,315          0
+
+     Project implementation total                                 $            4,693.38
+     Preliminary energy study and calculation fee
+                                                                  $            1,173.35
+
+                                Est. Cost $           Electric                       Electrical Simple
+                                                      Savings     Gas Savings Energy Cost Payback
+                                                      (kWh/yr)    (therms/yr) Savings ($/yr) (years)
+
+     Total Project
+
+     Summary                 $  5,866.73 13,968                      621       3,146        1.86
+
+     Total Project Summary
+
+     (after rebate)          $  1,955.58 13,968                      621       3,146        0.62
+
+     Baseline kwh               Adjusted KWH          Percent decrease
+        35,496                      21,528                   39%
+
+     Total project incentive                       $                 3,911.15
+
+                                                                                                        2
+II. Energy Data Analysis
+
+     Overview
+     Mango Grove is a one story restaurant. The restaurant is occupied every day. It has two walk-in coolers.
+
+Electrical Historical Consumption
+Electricity is provided by BGE. The building contains a single electric meter under BGE. The most recent annual
+electric consumption is 35496 kWh (Jun 2025 to May 2026) with a blended electric rate of $0.17/kWh
+
+Month           Energy Usage (kWh) HDD         CDD         TDD
+       Jun-25
+        Jul-25  7584                    2.2         630.7                                                         633
+      Aug-25
+      Sep-25    10793                   0.0         784.8                                                         785
+      Oct-25
+      Nov-25    8801                    0.9         548.1                                                         549
+      Dec-25
+       Jan-26   6293                    1.1         448.0                                                         449
+      Feb-26
+     Mar-26     5751                    73.7        157.4                                                         231
+      Apr-26
+                4601                    262.6       35.7                                                          298
+     May-26
+  TOTALS        4790                    628.7       0.7                                                           629
+
+                4499                    749.3       1.2                                                           751
+
+                3553                    600.6       1.0                                                           602
+
+                3485                    266.3       106.4                                                         373
+
+                5362                    84.7        214.5                                                         299
+
+                5479                    28.5        315.0                                                         344
+
+                70,991.00 2,698.60                  3,243.50 5,942.10
+
+                Historical Consumption Data
+
+12000                                                                                                             1000
+10000                                                                                                             800
+                                                                                                                  600
+ 8000                                                                                                             400
+ 6000                                                                                                             200
+ 4000                                                                                                             0
+ 2000
+
+      0
+         Jun-25 Jul-25 Aug-25 Sep-25 Oct-25 Nov-25 Dec-25 Jan-26 Feb-26 Mar-26 Apr-26 May-26
+Energy Use (kWh)
+                                                                                                       Degree Days
+
+                Energy Usage (kWh)      CDD    HDD  TDD
+
+                                                                                                                        3
+III.  Facility Overview
+
+Building Description
+
+                                              Satellite view of building
+
+Mango Grove is a 1-story 4396 square feet restaurant located at 8865 Standford Blvd, Unit 107
+Columbia Maryland 21045
+ The restaurant is part of a shopping center and is occupied every day. It has two walk-in
+ coolers. The energy study included a walk-through of the facility during weekday
+ operation hours and a review of the HVAC equipment and controls. An interview was
+ conducted with the building owner which provided additional insight into how the
+ building operates. The purpose of the walk-through and interview was to gain an
+ understanding of how the system and equipment operate during normal hours and to
+ identify energy conservation measures that could be implemented on the existing
+ equipment.
+
+                                                                                                                                   4
+Heating, Ventilation, and Air Conditioning (HVAC)
+
+Below is an inventory of the installed HVAC equipment including unit specific
+
+information such as equipment capacities and the areas served.
+
+                                            Table 1: AHUs
+
+Unit Tag Serves (Bldg. Map)   Controls            Ton           QTY                          OU-Model
+                                                                                       48TCED24ACA5A0B0A0
+Unit 1                        P                   20.0          1.0
+
+The building is controlled by 1 RTU, which controls the entire store. The RTU is 20 tons and uses gas
+heat from a central furnace for heating.
+
+Walk in refrigeration units
+
+Quantity of walk-in coolers                 2
+
+Quantity of walk-in freezers                0
+
+                              Table 2: Freezers and Coolers
+
+ Unit Tag  Evaporator Model No. Tonnage           MBH Fan Motor HP                     No. of Fans     AWEF
+Cooler 1                                                                                        2.00       5.61
+Cooler 2   LET075BK                         0.63        7.50         0.07                       2.00       5.61
+
+           TPLP209MAS1DR6                   0.75        9.00         0.07
+
+IV. Energy conservation measures
+
+MD Smart Energy has identified two (2) ECMs. The estimated cost of these projects were
+developed using a variety of sources including local contractors and vendors and our
+experience of similar facilities. The estimated costs are not guaranteed by MD Smart
+Energy and will need to be confirmed prior to ECM implementation.
+
+Each ECM's energy savings are a result of preliminary calculations and in most cases are
+
+conservative. Investigation will be required to update calculations to reflect actual
+
+existing and proposed operation conditions
+
+The estimated energy savings were developed using a historical rate estimated below.
+
+           Cost of electricity using a historical rate of                      $                       0.17 / kWh
+                                                                                                       1.30 / therm
+           Cost of gas using a historical rate of                              $
+
+The following ECM descriptions include an overview of potential savings,
+estimated project cost and energy savings, and a preliminary project
+implementation work scope.
+
+                                                                                                                     5
+ECM-1: Optimize HVAC Schedule
+
+Existing Conditions
+ AHUs are currently controlled by 1 programmable thermostat and are running 24/7.
+ Implementing runtime schedules will reduce the total number of runtime hours of the
+ units.
+ It is recommended that the units be set back during the week when no one is using the
+ common space and no occupancy is observed. Recommend adjusting all schedules and
+ unoccupied set points to 55 degrees for heating and 85 degrees for cooling to reduce
+ HVAC operation at night
+
+Proposed modifications
+
+1. Set fans to cycle on only when heating and cooling
+2. Set unoccupied heating setpoints to 55 degrees and unoccupied cooling setpoints to 85 degrees
+3. Optimize HVAC scheduling according to schedule shown below
+
+Equipment included:
+Unit 1
+
+Optimized HVAC Schedules:
+
+All Units      Sun      Mon        Tue           Wed        Thu                Fri                    Sat
+  Start    10:00 AM  10:00 AM  10:00 AM       10:00 AM  10:00 AM           10:00 AM               10:00 AM
+  Stop     10:00 PM  10:00 PM  10:00 PM       10:00 PM  10:00 PM           11:00 PM               11:00 PM
+
+Using TMY3 data generated from BinMaker Pro Software, a heating and cooling load
+profile was developed for units. The bin hours assume that the units will operate
+according to the schedule shown above.
+
+   Estimated Cost               Electrical    Gas savings(therms/year)     Cost savings($/year)
+                           Savings(kWh/year)
+$          3,943.38                           620.56                    $                         620.56
+                               12,653.59
+
+                                                                                                                                 6
+
+ECM-2: Replace Refrigeration Evaporator Temperature Sensor Element & Optimize
+                                   Set Point (Food Storage)
+ ECM-2: Replace Refrigeration Evaporator Temperature Sensor Element & Optimize
+
+                                     Set Point (Food Storage)
+
+ExUissitninggTCMoYn3didtaiotansgenerated from BinMaker Pro Software, a heating and cooling load
+Thperorfeilferiwgearsatdeedvefoloopdedstfoorraguenictos.oTlehrecboinnthaoinusras amsseutaml etetmhaptetrhateuurneistesnwsoilrl oepleemraetnet located
+naecacrotrhdeinevgatpootrhaetoscrhceodilualnedshisouwsnedabtooveen. ergize and deenergize its respective evaporator
+to control the cooler's temperature set point. There is a disadvantage to controlling air
+temperature with refrigeration with refrigerated stored cases. As the air temperature
+fluctuates, the refrigerator unit most consistently cycle the compressed compressors to
+maintain the air temperature. A more stable control method would use a temperature
+sense of sensing element that mimics the temperature of the food product as compared to
+an ever changing air temperature.
+
+Proposed Modifications
+1. Replace evaporator temperature sensor with micro assistance wax cube element
+2. Increased temperature set point by three degrees Fahrenheit
+3. Control food storage temperature based on the actual food product temperature
+
+         Equipment included         Qty
+Walk in coolers (+ three degrees)           2
+Walk in freezers (+ three degrees)          0
+
+Basis for Savings
+Electric energy savings will be realized by the cooler evaporator only running while cooling
+is required to maintain food product temperature. This will result in a reduction of total
+compressor run hours. Energy calculations were developed using estimate reduction and
+compressor load by 15%.
+
+Saving summary           Estimated             Gas savings(therms/year)           Cost savings($/year)
+                     savings(kWh/year)                       0                          $750.00
+     Estimated cost
+        $750.00           1,314.80
+
+                                                                                                                                                       7
+

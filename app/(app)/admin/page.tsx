@@ -252,6 +252,16 @@ export default async function AdminDashboard() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Link
+            href="/admin/engineering"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold",
+              "bg-mse-gold/15 text-mse-navy border border-mse-gold/40 hover:bg-mse-gold/25",
+              "active:scale-95 transition-[background-color,transform]"
+            )}
+          >
+            🧮 Engineering
+          </Link>
+          <Link
             href="/admin/techs"
             className={cn(
               "inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold",

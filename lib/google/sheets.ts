@@ -23,6 +23,8 @@ export const TABS = {
   auditItems: "Audit Items",
   // Append-only audit trail of admin "View as Joe W" sessions.
   impersonationLog: "Impersonation Log",
+  // Engineering preliminary energy audits / calculator projects.
+  engineeringProjects: "Engineering Projects",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across

@@ -70,3 +70,10 @@ export async function nextImpersonationLogId(): Promise<string> {
   const max = await getMaxIdNumber(TABS.impersonationLog, "A", prefix);
   return `${prefix}${pad(max + 1, 5)}`;
 }
+
+export async function nextEngineeringProjectId(): Promise<string> {
+  const year = currentYear();
+  const prefix = `ENG-${year}-`;
+  const max = await getMaxIdNumber(TABS.engineeringProjects, "A", prefix);
+  return `${prefix}${pad(max + 1)}`;
+}
