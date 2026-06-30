@@ -37,3 +37,11 @@ next-env.d.ts
 
 # e2e test artifacts
 /e2e-screenshots
+
+# engineering calculator: source Excel workbook stays local-only since
+# it may carry real customer numbers. Inspector dumps stay local by
+# default too — promote individually once sanitized.
+/engineering/*.xlsx
+/engineering/*.xlsm
+/engineering/*.dump.md
+/engineering/*.dump.json
