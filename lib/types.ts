@@ -325,3 +325,88 @@ export type AuditPhotoSlot =
   | "location"
   | "schedule"
   | "controls";
+
+// ─── Engineering Preliminary Calculator ──────────────────────────────
+
+export type EngineeringProjectStatus = "Draft" | "Final" | "Deleted";
+export type EngineeringUtility = "BGE" | "PEPCO" | "Delmarva" | "SMECO";
+export type EngineeringProjectType = "Small" | "Medium" | "Large";
+export type EngineeringLocation = "BWI" | "Andrews";
+
+export interface MonthlyBill {
+  /** ISO date string, e.g. "2024-01-01" */
+  startDate: string;
+  endDate: string;
+  /** kWh usage for the billing period */
+  usage: number;
+  /** Heating degree days */
+  hdd: number;
+  /** Cooling degree days */
+  cdd: number;
+  /** Demand kW (optional) */
+  demandKw?: number;
+  /** Demand cost ($) (optional) */
+  demandCost?: number;
+}
+
+export interface HvacUnitInput {
+  tag: string;
+  serves: string;
+  /** Whether the unit has a thermostat ("Yes"/"No"/free text) */
+  tstat: string;
+  /** Cooling tonnage */
+  tons: number;
+  /** Outdoor-unit model number */
+  ouModel: string;
+  qty: number;
+  seer: number;
+  supplyFanHp: number;
+  /** "Yes" / "No" */
+  heatPump: string;
+  /** Auxiliary electric heating in kW (optional) */
+  electricHeatKw?: number;
+  controls: string;
+  proposedSchedule: string;
+  notes: string;
+}
+
+export type WalkInKind = "Cooler" | "Freezer";
+
+export interface WalkInUnitInput {
+  kind: WalkInKind;
+  tag: string;
+  condenserModel: string;
+  serial: string;
+  evaporatorModel: string;
+  tonnage: number;
+  mbh: number;
+  watts: number;
+  /** Annual Walk-in Energy Factor */
+  awef: number;
+  fanMotorHp: number;
+  numFans: number;
+}
+
+export interface EngineeringProject {
+  projectId: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  status: EngineeringProjectStatus;
+  customerName: string;
+  siteAddress: string;
+  utility: EngineeringUtility;
+  projectType: EngineeringProjectType;
+  projectSubtype: string;
+  squareFootage: number;
+  location: EngineeringLocation;
+  annualKwh: number;
+  /** Engineer can override the calculated engineering fee */
+  engineeringFeeOverride: number | null;
+  /** Engineer can override the calculated sensor cost */
+  sensorCostOverride: number | null;
+  monthlyBills: MonthlyBill[];
+  hvacUnits: HvacUnitInput[];
+  walkInUnits: WalkInUnitInput[];
+  notes: string;
+}
