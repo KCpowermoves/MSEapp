@@ -17,6 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { JobLinkPicker } from "@/components/engineering/JobLinkPicker";
 import type {
   EngineeringLocation,
   EngineeringProject,
@@ -238,6 +239,12 @@ export function EngineeringProjectForm({ project }: Props) {
   return (
     <>
       <div className="space-y-6">
+        {/* ── Linked job ── */}
+        <JobLinkPicker
+          projectId={project.projectId}
+          linkedJobId={project.linkedJobId}
+        />
+
         {/* ── Test tools banner ── */}
         <div className="rounded-2xl border-2 border-dashed border-mse-gold/50 bg-mse-gold/5 p-4 flex items-start gap-3">
           <FlaskConical className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
