@@ -267,7 +267,9 @@ export function EngineeringProjectForm({ project }: Props) {
         ...prev,
         {
           kind: result.unit.kind,
-          tag: result.unit.tag,
+          tag: result.unit.tag
+            ? `(OCR) ${result.unit.tag}`
+            : "(OCR) new",
           condenserModel: result.unit.condenserModel,
           serial: result.unit.serial,
           evaporatorModel: result.unit.evaporatorModel,
@@ -281,6 +283,24 @@ export function EngineeringProjectForm({ project }: Props) {
       ]);
     }
   }
+
+  function isHvacUnverified(u: HvacUnitInput): boolean {
+    return u.notes.trimStart().startsWith("(OCR");
+  }
+  function clearHvacUnverified(idx: number) {
+    setHvacUnits((prev) =>
+      prev.map((x, j) =>
+        j === idx
+          ? {
+              ...x,
+              notes: x.notes.replace(/^\s*\(OCR[^)]*\)\s*/i, ""),
+            }
+          : x
+      )
+    );
+  }
+  // Walk-in unverified check happens inline in WalkInGroup since it
+  // operates on the filtered items list, not absolute indices.
 
   return (
     <>
@@ -620,11 +640,26 @@ export function EngineeringProjectForm({ project }: Props) {
             {hvacUnits.map((u, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-mse-light bg-white p-3 space-y-2"
+                className={cn(
+                  "rounded-xl border bg-white p-3 space-y-2",
+                  isHvacUnverified(u)
+                    ? "border-yellow-400 border-l-4"
+                    : "border-mse-light"
+                )}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold inline-flex items-center gap-1.5">
                     HVAC unit {i + 1}
+                    {isHvacUnverified(u) && (
+                      <button
+                        type="button"
+                        onClick={() => clearHvacUnverified(i)}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-200 text-yellow-900 text-[9px] font-bold hover:bg-yellow-300"
+                        title="Mark as verified — clears the (OCR) prefix from notes"
+                      >
+                        Unverified
+                      </button>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -1031,14 +1066,42 @@ function WalkInGroup({
       <div className="text-[11px] uppercase tracking-wider font-bold text-mse-muted">
         {kind}s ({items.length})
       </div>
-      {items.map((u, i) => (
+      {items.map((u, i) => {
+        const unverified = u.tag.trimStart().startsWith("(OCR)");
+        return (
         <div
           key={`${kind}-${i}`}
-          className="rounded-xl border border-mse-light bg-white p-3 space-y-2"
+          className={cn(
+            "rounded-xl border bg-white p-3 space-y-2",
+            unverified
+              ? "border-yellow-400 border-l-4"
+              : "border-mse-light"
+          )}
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold inline-flex items-center gap-1.5">
               {kind} {i + 1}
+              {unverified && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange(
+                      items.map((x, j) =>
+                        j === i
+                          ? {
+                              ...x,
+                              tag: x.tag.replace(/^\s*\(OCR\)\s*/i, ""),
+                            }
+                          : x
+                      )
+                    )
+                  }
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-200 text-yellow-900 text-[9px] font-bold hover:bg-yellow-300"
+                  title="Mark as verified — clears the (OCR) prefix from the tag"
+                >
+                  Unverified
+                </button>
+              )}
             </div>
             <button
               type="button"
@@ -1205,7 +1268,8 @@ function WalkInGroup({
             </SmallField>
           </div>
         </div>
-      ))}
+        );
+      })}
       <button
         type="button"
         onClick={() => onChange([...items, blank()])}
