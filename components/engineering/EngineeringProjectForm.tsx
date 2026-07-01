@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { JobLinkPicker } from "@/components/engineering/JobLinkPicker";
+import {
+  DocumentsSection,
+  type OcrResult,
+} from "@/components/engineering/DocumentsSection";
 import type {
   EngineeringLocation,
   EngineeringProject,
@@ -236,6 +240,48 @@ export function EngineeringProjectForm({ project }: Props) {
     setSensorCostOverride(null);
   }
 
+  function applyOcr(result: OcrResult) {
+    if (result.kind === "utility-bill") {
+      setMonthlyBills((prev) => [...prev, ...result.months]);
+    } else if (result.kind === "hvac-nameplate") {
+      setHvacUnits((prev) => [
+        ...prev,
+        {
+          tag: result.unit.tag,
+          serves: "",
+          tstat: "",
+          tons: result.unit.tons,
+          ouModel: result.unit.ouModel,
+          qty: 1,
+          seer: result.unit.seer,
+          supplyFanHp: result.unit.supplyFanHp,
+          heatPump: result.unit.heatPump,
+          electricHeatKw: result.unit.electricHeatKw,
+          controls: result.unit.controls,
+          proposedSchedule: "",
+          notes: `(OCR — verify) ${result.unit.notes}`.trim(),
+        },
+      ]);
+    } else if (result.kind === "walkin-nameplate") {
+      setWalkInUnits((prev) => [
+        ...prev,
+        {
+          kind: result.unit.kind,
+          tag: result.unit.tag,
+          condenserModel: result.unit.condenserModel,
+          serial: result.unit.serial,
+          evaporatorModel: result.unit.evaporatorModel,
+          tonnage: result.unit.tonnage,
+          mbh: result.unit.mbh,
+          watts: result.unit.watts,
+          awef: result.unit.awef,
+          fanMotorHp: result.unit.fanMotorHp,
+          numFans: result.unit.numFans,
+        },
+      ]);
+    }
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -243,6 +289,13 @@ export function EngineeringProjectForm({ project }: Props) {
         <JobLinkPicker
           projectId={project.projectId}
           linkedJobId={project.linkedJobId}
+        />
+
+        {/* ── Documents ── */}
+        <DocumentsSection
+          projectId={project.projectId}
+          documents={project.documents}
+          onExtracted={applyOcr}
         />
 
         {/* ── Test tools banner ── */}
