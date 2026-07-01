@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  FlaskConical,
   Loader2,
   Minus,
   Plus,
@@ -156,9 +157,107 @@ export function EngineeringProjectForm({ project }: Props) {
     }
   }
 
+  function loadExampleData() {
+    // Mango Grove — real values pulled from the actual preliminary
+    // report PDF Kevin dropped in engineering/. Handy for smoke-testing
+    // the full form + download flow end-to-end without typing.
+    setCustomerName("Mango Grove (test)");
+    setSiteAddress("8865 Standford Blvd, Unit 107 Columbia MD 21045");
+    setUtility("BGE");
+    setProjectType("Small");
+    setProjectSubtype("Building Tune-up");
+    setSquareFootage(4396);
+    setLocation("BWI");
+    setNotes(
+      "Example data loaded from Mango Grove preliminary report. " +
+        "Values are illustrative — clear this project before shipping to a real customer."
+    );
+    setMonthlyBills([
+      { startDate: "2025-06-01", endDate: "2025-06-30", usage: 7584, hdd: 2.2, cdd: 630.7 },
+      { startDate: "2025-07-01", endDate: "2025-07-31", usage: 10793, hdd: 0, cdd: 784.8 },
+      { startDate: "2025-08-01", endDate: "2025-08-31", usage: 8801, hdd: 0.9, cdd: 548.1 },
+      { startDate: "2025-09-01", endDate: "2025-09-30", usage: 6293, hdd: 1.1, cdd: 448.0 },
+      { startDate: "2025-10-01", endDate: "2025-10-31", usage: 5751, hdd: 73.7, cdd: 157.4 },
+      { startDate: "2025-11-01", endDate: "2025-11-30", usage: 4601, hdd: 262.6, cdd: 35.7 },
+      { startDate: "2025-12-01", endDate: "2025-12-31", usage: 4790, hdd: 628.7, cdd: 0.7 },
+      { startDate: "2026-01-01", endDate: "2026-01-31", usage: 4499, hdd: 749.3, cdd: 1.2 },
+      { startDate: "2026-02-01", endDate: "2026-02-28", usage: 3553, hdd: 600.6, cdd: 1.0 },
+      { startDate: "2026-03-01", endDate: "2026-03-31", usage: 3485, hdd: 266.3, cdd: 106.4 },
+      { startDate: "2026-04-01", endDate: "2026-04-30", usage: 5362, hdd: 84.7, cdd: 214.5 },
+      { startDate: "2026-05-01", endDate: "2026-05-31", usage: 5479, hdd: 28.5, cdd: 315.0 },
+    ]);
+    setHvacUnits([
+      {
+        tag: "Unit 1",
+        serves: "Entire store",
+        tstat: "P",
+        tons: 20,
+        ouModel: "48TCED24ACA5A0B0A0",
+        qty: 1,
+        seer: 13,
+        supplyFanHp: 2,
+        heatPump: "No",
+        electricHeatKw: 0,
+        controls: "Programmable thermostat",
+        proposedSchedule: "10am–10pm Mon–Sun (11pm Fri–Sat)",
+        notes: "Carrier RTU, gas heat from central furnace",
+      },
+    ]);
+    setWalkInUnits([
+      {
+        kind: "Cooler",
+        tag: "Cooler 1",
+        condenserModel: "",
+        serial: "",
+        evaporatorModel: "LET075BK",
+        tonnage: 0.63,
+        mbh: 7.5,
+        watts: 0.07,
+        awef: 5.61,
+        fanMotorHp: 0.07,
+        numFans: 2,
+      },
+      {
+        kind: "Cooler",
+        tag: "Cooler 2",
+        condenserModel: "",
+        serial: "",
+        evaporatorModel: "TPLP209MAS1DR6",
+        tonnage: 0.75,
+        mbh: 9,
+        watts: 0.07,
+        awef: 5.61,
+        fanMotorHp: 0.07,
+        numFans: 2,
+      },
+    ]);
+    setEngineeringFeeOverride(null);
+    setSensorCostOverride(null);
+  }
+
   return (
     <>
       <div className="space-y-6">
+        {/* ── Test tools banner ── */}
+        <div className="rounded-2xl border-2 border-dashed border-mse-gold/50 bg-mse-gold/5 p-4 flex items-start gap-3">
+          <FlaskConical className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-mse-navy text-sm">Testing tools</div>
+            <div className="text-[11px] text-mse-muted mt-0.5">
+              Load a full set of Mango Grove example data to test the download
+              + calculator flow end-to-end. Overwrites everything on this form.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={loadExampleData}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-mse-gold text-mse-navy hover:bg-mse-gold/90 active:scale-95"
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            Load example data
+          </button>
+        </div>
+
         {/* ── Project info ── */}
         <Section
           icon={<Building2 className="w-4 h-4 text-mse-gold" />}
