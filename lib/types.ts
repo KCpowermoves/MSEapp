@@ -387,6 +387,28 @@ export interface WalkInUnitInput {
   numFans: number;
 }
 
+export type EngineeringDocumentKind =
+  | "utility-bill"
+  | "hvac-nameplate"
+  | "walkin-nameplate"
+  | "other";
+
+export interface EngineeringDocument {
+  fileId: string;
+  url: string;
+  name: string;
+  kind: EngineeringDocumentKind;
+  uploadedAt: string;
+  uploadedBy: string;
+  /** "pending" while queued, "ok" after OCR done, "failed" after error,
+   *  "skip" for `other` type where OCR is not run. */
+  ocrStatus: "pending" | "ok" | "failed" | "skip";
+  ocrError?: string;
+  /** Any short summary of what OCR extracted, for display in the docs
+   *  list (e.g. "12 months added" or "Carrier RTU 20T"). */
+  ocrSummary?: string;
+}
+
 export interface EngineeringProject {
   projectId: string;
   createdAt: string;
@@ -409,4 +431,14 @@ export interface EngineeringProject {
   hvacUnits: HvacUnitInput[];
   walkInUnits: WalkInUnitInput[];
   notes: string;
+  /** Drive folder for uploaded documents. Created lazily on first
+   *  upload. */
+  driveFolderId: string;
+  driveFolderUrl: string;
+  /** Optional link to an existing MSE Field Job (Jobs sheet). When
+   *  set, the project can auto-pull customer + address + HVAC units
+   *  from that job's Units Serviced. */
+  linkedJobId: string;
+  /** Uploaded documents (utility bills, nameplates, other files). */
+  documents: EngineeringDocument[];
 }

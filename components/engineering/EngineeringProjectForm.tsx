@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  FlaskConical,
   Loader2,
   Minus,
   Plus,
@@ -16,6 +17,11 @@ import {
   Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { JobLinkPicker } from "@/components/engineering/JobLinkPicker";
+import {
+  DocumentsSection,
+  type OcrResult,
+} from "@/components/engineering/DocumentsSection";
 import type {
   EngineeringLocation,
   EngineeringProject,
@@ -156,9 +162,182 @@ export function EngineeringProjectForm({ project }: Props) {
     }
   }
 
+  function loadExampleData() {
+    // Mango Grove — real values pulled from the actual preliminary
+    // report PDF Kevin dropped in engineering/. Handy for smoke-testing
+    // the full form + download flow end-to-end without typing.
+    setCustomerName("Mango Grove (test)");
+    setSiteAddress("8865 Standford Blvd, Unit 107 Columbia MD 21045");
+    setUtility("BGE");
+    setProjectType("Small");
+    setProjectSubtype("Building Tune-up");
+    setSquareFootage(4396);
+    setLocation("BWI");
+    setNotes(
+      "Example data loaded from Mango Grove preliminary report. " +
+        "Values are illustrative — clear this project before shipping to a real customer."
+    );
+    setMonthlyBills([
+      { startDate: "2025-06-01", endDate: "2025-06-30", usage: 7584, hdd: 2.2, cdd: 630.7 },
+      { startDate: "2025-07-01", endDate: "2025-07-31", usage: 10793, hdd: 0, cdd: 784.8 },
+      { startDate: "2025-08-01", endDate: "2025-08-31", usage: 8801, hdd: 0.9, cdd: 548.1 },
+      { startDate: "2025-09-01", endDate: "2025-09-30", usage: 6293, hdd: 1.1, cdd: 448.0 },
+      { startDate: "2025-10-01", endDate: "2025-10-31", usage: 5751, hdd: 73.7, cdd: 157.4 },
+      { startDate: "2025-11-01", endDate: "2025-11-30", usage: 4601, hdd: 262.6, cdd: 35.7 },
+      { startDate: "2025-12-01", endDate: "2025-12-31", usage: 4790, hdd: 628.7, cdd: 0.7 },
+      { startDate: "2026-01-01", endDate: "2026-01-31", usage: 4499, hdd: 749.3, cdd: 1.2 },
+      { startDate: "2026-02-01", endDate: "2026-02-28", usage: 3553, hdd: 600.6, cdd: 1.0 },
+      { startDate: "2026-03-01", endDate: "2026-03-31", usage: 3485, hdd: 266.3, cdd: 106.4 },
+      { startDate: "2026-04-01", endDate: "2026-04-30", usage: 5362, hdd: 84.7, cdd: 214.5 },
+      { startDate: "2026-05-01", endDate: "2026-05-31", usage: 5479, hdd: 28.5, cdd: 315.0 },
+    ]);
+    setHvacUnits([
+      {
+        tag: "Unit 1",
+        serves: "Entire store",
+        tstat: "P",
+        tons: 20,
+        ouModel: "48TCED24ACA5A0B0A0",
+        qty: 1,
+        seer: 13,
+        supplyFanHp: 2,
+        heatPump: "No",
+        electricHeatKw: 0,
+        controls: "Programmable thermostat",
+        proposedSchedule: "10am–10pm Mon–Sun (11pm Fri–Sat)",
+        notes: "Carrier RTU, gas heat from central furnace",
+      },
+    ]);
+    setWalkInUnits([
+      {
+        kind: "Cooler",
+        tag: "Cooler 1",
+        condenserModel: "",
+        serial: "",
+        evaporatorModel: "LET075BK",
+        tonnage: 0.63,
+        mbh: 7.5,
+        watts: 0.07,
+        awef: 5.61,
+        fanMotorHp: 0.07,
+        numFans: 2,
+      },
+      {
+        kind: "Cooler",
+        tag: "Cooler 2",
+        condenserModel: "",
+        serial: "",
+        evaporatorModel: "TPLP209MAS1DR6",
+        tonnage: 0.75,
+        mbh: 9,
+        watts: 0.07,
+        awef: 5.61,
+        fanMotorHp: 0.07,
+        numFans: 2,
+      },
+    ]);
+    setEngineeringFeeOverride(null);
+    setSensorCostOverride(null);
+  }
+
+  function applyOcr(result: OcrResult) {
+    if (result.kind === "utility-bill") {
+      setMonthlyBills((prev) => [...prev, ...result.months]);
+    } else if (result.kind === "hvac-nameplate") {
+      setHvacUnits((prev) => [
+        ...prev,
+        {
+          tag: result.unit.tag,
+          serves: "",
+          tstat: "",
+          tons: result.unit.tons,
+          ouModel: result.unit.ouModel,
+          qty: 1,
+          seer: result.unit.seer,
+          supplyFanHp: result.unit.supplyFanHp,
+          heatPump: result.unit.heatPump,
+          electricHeatKw: result.unit.electricHeatKw,
+          controls: result.unit.controls,
+          proposedSchedule: "",
+          notes: `(OCR — verify) ${result.unit.notes}`.trim(),
+        },
+      ]);
+    } else if (result.kind === "walkin-nameplate") {
+      setWalkInUnits((prev) => [
+        ...prev,
+        {
+          kind: result.unit.kind,
+          tag: result.unit.tag
+            ? `(OCR) ${result.unit.tag}`
+            : "(OCR) new",
+          condenserModel: result.unit.condenserModel,
+          serial: result.unit.serial,
+          evaporatorModel: result.unit.evaporatorModel,
+          tonnage: result.unit.tonnage,
+          mbh: result.unit.mbh,
+          watts: result.unit.watts,
+          awef: result.unit.awef,
+          fanMotorHp: result.unit.fanMotorHp,
+          numFans: result.unit.numFans,
+        },
+      ]);
+    }
+  }
+
+  function isHvacUnverified(u: HvacUnitInput): boolean {
+    return u.notes.trimStart().startsWith("(OCR");
+  }
+  function clearHvacUnverified(idx: number) {
+    setHvacUnits((prev) =>
+      prev.map((x, j) =>
+        j === idx
+          ? {
+              ...x,
+              notes: x.notes.replace(/^\s*\(OCR[^)]*\)\s*/i, ""),
+            }
+          : x
+      )
+    );
+  }
+  // Walk-in unverified check happens inline in WalkInGroup since it
+  // operates on the filtered items list, not absolute indices.
+
   return (
     <>
       <div className="space-y-6">
+        {/* ── Linked job ── */}
+        <JobLinkPicker
+          projectId={project.projectId}
+          linkedJobId={project.linkedJobId}
+        />
+
+        {/* ── Documents ── */}
+        <DocumentsSection
+          projectId={project.projectId}
+          documents={project.documents}
+          onExtracted={applyOcr}
+        />
+
+        {/* ── Test tools banner ── */}
+        <div className="rounded-2xl border-2 border-dashed border-mse-gold/50 bg-mse-gold/5 p-4 flex items-start gap-3">
+          <FlaskConical className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-mse-navy text-sm">Testing tools</div>
+            <div className="text-[11px] text-mse-muted mt-0.5">
+              Load a full set of Mango Grove example data to test the download
+              + calculator flow end-to-end. Overwrites everything on this form.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={loadExampleData}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-mse-gold text-mse-navy hover:bg-mse-gold/90 active:scale-95"
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            Load example data
+          </button>
+        </div>
+
         {/* ── Project info ── */}
         <Section
           icon={<Building2 className="w-4 h-4 text-mse-gold" />}
@@ -461,11 +640,26 @@ export function EngineeringProjectForm({ project }: Props) {
             {hvacUnits.map((u, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-mse-light bg-white p-3 space-y-2"
+                className={cn(
+                  "rounded-xl border bg-white p-3 space-y-2",
+                  isHvacUnverified(u)
+                    ? "border-yellow-400 border-l-4"
+                    : "border-mse-light"
+                )}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold inline-flex items-center gap-1.5">
                     HVAC unit {i + 1}
+                    {isHvacUnverified(u) && (
+                      <button
+                        type="button"
+                        onClick={() => clearHvacUnverified(i)}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-200 text-yellow-900 text-[9px] font-bold hover:bg-yellow-300"
+                        title="Mark as verified — clears the (OCR) prefix from notes"
+                      >
+                        Unverified
+                      </button>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -872,14 +1066,42 @@ function WalkInGroup({
       <div className="text-[11px] uppercase tracking-wider font-bold text-mse-muted">
         {kind}s ({items.length})
       </div>
-      {items.map((u, i) => (
+      {items.map((u, i) => {
+        const unverified = u.tag.trimStart().startsWith("(OCR)");
+        return (
         <div
           key={`${kind}-${i}`}
-          className="rounded-xl border border-mse-light bg-white p-3 space-y-2"
+          className={cn(
+            "rounded-xl border bg-white p-3 space-y-2",
+            unverified
+              ? "border-yellow-400 border-l-4"
+              : "border-mse-light"
+          )}
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-mse-gold inline-flex items-center gap-1.5">
               {kind} {i + 1}
+              {unverified && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange(
+                      items.map((x, j) =>
+                        j === i
+                          ? {
+                              ...x,
+                              tag: x.tag.replace(/^\s*\(OCR\)\s*/i, ""),
+                            }
+                          : x
+                      )
+                    )
+                  }
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-200 text-yellow-900 text-[9px] font-bold hover:bg-yellow-300"
+                  title="Mark as verified — clears the (OCR) prefix from the tag"
+                >
+                  Unverified
+                </button>
+              )}
             </div>
             <button
               type="button"
@@ -1046,7 +1268,8 @@ function WalkInGroup({
             </SmallField>
           </div>
         </div>
-      ))}
+        );
+      })}
       <button
         type="button"
         onClick={() => onChange([...items, blank()])}
