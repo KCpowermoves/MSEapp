@@ -251,6 +251,10 @@ const TABS = [
       "HVAC Units JSON",
       "Walk-in Units JSON",
       "Notes",
+      "Drive Folder ID",
+      "Drive Folder URL",
+      "Linked Job ID",
+      "Documents JSON",
     ],
     validations: [
       { col: "E", values: ["Draft", "Final", "Deleted"] },

@@ -9,6 +9,7 @@ import {
 import { nextEngineeringProjectId } from "@/lib/id-generators";
 import { nowIso } from "@/lib/utils";
 import type {
+  EngineeringDocument,
   EngineeringLocation,
   EngineeringProject,
   EngineeringProjectStatus,
@@ -62,6 +63,10 @@ function rowToProject(row: string[]): EngineeringProject {
     hvacUnits: parseJsonArray<HvacUnitInput>(String(row[16] ?? "")),
     walkInUnits: parseJsonArray<WalkInUnitInput>(String(row[17] ?? "")),
     notes: String(row[18] ?? ""),
+    driveFolderId: String(row[19] ?? ""),
+    driveFolderUrl: String(row[20] ?? ""),
+    linkedJobId: String(row[21] ?? ""),
+    documents: parseJsonArray<EngineeringDocument>(String(row[22] ?? "")),
   };
 }
 
@@ -117,6 +122,10 @@ export async function createEngineeringProject(opts: {
     "[]", // hvac units
     "[]", // walk-in units
     "", // notes
+    "", // drive folder id
+    "", // drive folder url
+    "", // linked job id
+    "[]", // documents
   ]);
   return {
     projectId,
@@ -138,6 +147,10 @@ export async function createEngineeringProject(opts: {
     hvacUnits: [],
     walkInUnits: [],
     notes: "",
+    driveFolderId: "",
+    driveFolderUrl: "",
+    linkedJobId: "",
+    documents: [],
   };
 }
 
@@ -158,6 +171,10 @@ const PROJECT_COLS = {
   hvacUnits: "Q",
   walkInUnits: "R",
   notes: "S",
+  driveFolderId: "T",
+  driveFolderUrl: "U",
+  linkedJobId: "V",
+  documents: "W",
 } as const;
 
 export async function updateEngineeringProject(opts: {
@@ -177,6 +194,10 @@ export async function updateEngineeringProject(opts: {
   walkInUnits?: WalkInUnitInput[];
   status?: EngineeringProjectStatus;
   notes?: string;
+  driveFolderId?: string;
+  driveFolderUrl?: string;
+  linkedJobId?: string;
+  documents?: EngineeringDocument[];
 }): Promise<void> {
   const rowIndex = await findRowIndex(
     TABS.engineeringProjects,
@@ -229,6 +250,14 @@ export async function updateEngineeringProject(opts: {
   if (opts.walkInUnits !== undefined)
     setCell(PROJECT_COLS.walkInUnits, JSON.stringify(opts.walkInUnits));
   if (opts.notes !== undefined) setCell(PROJECT_COLS.notes, opts.notes);
+  if (opts.driveFolderId !== undefined)
+    setCell(PROJECT_COLS.driveFolderId, opts.driveFolderId);
+  if (opts.driveFolderUrl !== undefined)
+    setCell(PROJECT_COLS.driveFolderUrl, opts.driveFolderUrl);
+  if (opts.linkedJobId !== undefined)
+    setCell(PROJECT_COLS.linkedJobId, opts.linkedJobId);
+  if (opts.documents !== undefined)
+    setCell(PROJECT_COLS.documents, JSON.stringify(opts.documents));
   await Promise.all(updates);
 }
 
