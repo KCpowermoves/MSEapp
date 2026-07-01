@@ -417,7 +417,7 @@ export function EngineeringProjectForm({ project }: Props) {
             </Field>
             <Field
               label="Location"
-              hint="TMY3 weather data. v1 supports BWI only."
+              hint="TMY3 weather data. Picks BWI (Baltimore) vs Andrews AFB template on download."
             >
               <select
                 value={location}
@@ -427,9 +427,7 @@ export function EngineeringProjectForm({ project }: Props) {
                 className={baseInput}
               >
                 <option value="BWI">BWI</option>
-                <option value="Andrews" disabled>
-                  Andrews (coming soon)
-                </option>
+                <option value="Andrews">Andrews AFB</option>
               </select>
             </Field>
             <Field label="Status">

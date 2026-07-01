@@ -4,15 +4,22 @@ import ExcelJS from "exceljs";
 import { CELL_MAP } from "@/lib/engineering/cell-map";
 import type { EngineeringProject } from "@/lib/types";
 
+/** Which template file to load per location. Both templates are
+ *  structurally identical (same 14 sheets, same cell layout, same
+ *  formula engine) — only the TMY3 weather data differs. Adding a
+ *  new location is a one-line addition here + drop the file. */
+const TEMPLATE_BY_LOCATION = {
+  BWI: "template-BWI.xlsx",
+  Andrews: "template-Andrews.xlsx",
+} as const;
+
 /**
- * Fill the BWI calculator template with this project's inputs and
- * return the populated workbook as a Buffer. When the engineer opens
- * the .xlsx in Excel, all formulas recalculate against the new
- * inputs.
+ * Fill the calculator template with this project's inputs and return
+ * the populated workbook as a Buffer. When the engineer opens the
+ * .xlsx in Excel, all formulas recalculate against the new inputs.
  *
- * The template path defaults to `engineering/template-BWI.xlsx`
- * relative to the repo root. v1 only supports BWI; when Andrews TMY3
- * data lands, this function will branch on `project.location`.
+ * The template is picked by `project.location` — BWI weather station
+ * for the standard Baltimore/MD template, Andrews AFB for the base.
  */
 export async function fillCalculatorTemplate(
   project: EngineeringProject,
@@ -20,7 +27,11 @@ export async function fillCalculatorTemplate(
 ): Promise<Buffer> {
   const templatePath =
     opts.templatePath ??
-    path.join(process.cwd(), "engineering", "template-BWI.xlsx");
+    path.join(
+      process.cwd(),
+      "engineering",
+      TEMPLATE_BY_LOCATION[project.location] ?? TEMPLATE_BY_LOCATION.BWI
+    );
 
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(templatePath);

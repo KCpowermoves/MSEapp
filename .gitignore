@@ -46,5 +46,6 @@ next-env.d.ts
 /engineering/*.dump.md
 /engineering/*.dump.json
 
-# EXCEPTION: the runtime template ships with the deploy.
+# EXCEPTION: the runtime templates ship with the deploy.
 !/engineering/template-BWI.xlsx
+!/engineering/template-Andrews.xlsx

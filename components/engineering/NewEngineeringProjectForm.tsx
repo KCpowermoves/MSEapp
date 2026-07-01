@@ -88,35 +88,24 @@ export function NewEngineeringProjectForm() {
 
       <Field
         label="TMY3 weather location"
-        hint="Drives the bin-method calculations. v1 ships BWI only; Andrews coming soon."
+        hint="Drives the bin-method calculations. BWI = Baltimore area; Andrews = Andrews AFB / Prince George's County."
       >
         <div className="grid grid-cols-2 gap-1.5">
-          {(["BWI", "Andrews"] as EngineeringLocation[]).map((loc) => {
-            const disabled = loc === "Andrews";
-            return (
-              <button
-                key={loc}
-                type="button"
-                onClick={() => !disabled && setLocation(loc)}
-                disabled={disabled}
-                className={cn(
-                  "px-2 py-2 rounded-lg text-sm font-bold border-2",
-                  disabled
-                    ? "bg-mse-light text-mse-muted/50 border-mse-light cursor-not-allowed"
-                    : location === loc
-                    ? "bg-mse-navy border-mse-navy text-white"
-                    : "bg-white border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30"
-                )}
-              >
-                {loc}
-                {disabled && (
-                  <span className="block text-[9px] font-normal mt-0.5">
-                    coming soon
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {(["BWI", "Andrews"] as EngineeringLocation[]).map((loc) => (
+            <button
+              key={loc}
+              type="button"
+              onClick={() => setLocation(loc)}
+              className={cn(
+                "px-2 py-2 rounded-lg text-sm font-bold border-2",
+                location === loc
+                  ? "bg-mse-navy border-mse-navy text-white"
+                  : "bg-white border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30"
+              )}
+            >
+              {loc}
+            </button>
+          ))}
         </div>
       </Field>
 
