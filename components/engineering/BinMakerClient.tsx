@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Download, RefreshCw } from "lucide-react";
+import { Loader2, Download, RefreshCw, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Station {
@@ -40,15 +40,97 @@ interface BinResult {
   annualHighF: number;
   annualLowF: number;
   totalHours: number;
+  operatingHours: number;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const SCHEDULE_LENGTH = 168;
+
+type ScheduleMask = boolean[];
+
+interface Preset {
+  key: string;
+  label: string;
+  hint: string;
+  build: () => ScheduleMask;
+}
+
+/** Common operating schedules used in HVAC bin-method load calcs. */
+const PRESETS: Preset[] = [
+  {
+    key: "24-7",
+    label: "24 / 7",
+    hint: "168 hrs/wk — continuous operation",
+    build: () => new Array(SCHEDULE_LENGTH).fill(true),
+  },
+  {
+    key: "office",
+    label: "Office M-F 8-6",
+    hint: "50 hrs/wk — standard business hours",
+    build: () => paintHours(blank(), [1, 2, 3, 4, 5], 8, 18),
+  },
+  {
+    key: "extended",
+    label: "Extended M-F 6-8",
+    hint: "70 hrs/wk — early open, late close",
+    build: () => paintHours(blank(), [1, 2, 3, 4, 5], 6, 20),
+  },
+  {
+    key: "retail",
+    label: "Retail M-Sat 8-9, Sun 10-6",
+    hint: "86 hrs/wk — 7-day retail schedule",
+    build: () => {
+      let m = paintHours(blank(), [1, 2, 3, 4, 5, 6], 8, 21);
+      m = paintHours(m, [0], 10, 18);
+      return m;
+    },
+  },
+];
+
+function blank(): ScheduleMask {
+  return new Array(SCHEDULE_LENGTH).fill(false);
+}
+
+function paintHours(
+  base: ScheduleMask,
+  days: number[],
+  startHour: number,
+  endHour: number
+): ScheduleMask {
+  const out = base.slice();
+  for (const d of days) {
+    for (let h = startHour; h < endHour; h++) {
+      out[d * 24 + h] = true;
+    }
+  }
+  return out;
+}
+
+function encodeSchedule(mask: ScheduleMask): string {
+  return mask.map((b) => (b ? "1" : "0")).join("");
+}
+
+function countTrue(mask: ScheduleMask): number {
+  let n = 0;
+  for (const b of mask) if (b) n++;
+  return n;
+}
+
+function matchesPreset(mask: ScheduleMask): string | null {
+  const enc = encodeSchedule(mask);
+  for (const p of PRESETS) {
+    if (encodeSchedule(p.build()) === enc) return p.key;
+  }
+  return null;
+}
 
 export function BinMakerClient({ stations }: { stations: Station[] }) {
   const [stationUsaf, setStationUsaf] = useState<string>(stations[0]?.usaf ?? "724060");
   const [binWidth, setBinWidth] = useState<number>(5);
   const [hddBase, setHddBase] = useState<number>(65);
   const [cddBase, setCddBase] = useState<number>(65);
+  const [schedule, setSchedule] = useState<ScheduleMask>(() => PRESETS[0].build());
   const [data, setData] = useState<BinResult | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,8 +139,10 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
     () => stations.find((s) => s.usaf === stationUsaf),
     [stations, stationUsaf]
   );
+  const activePreset = useMemo(() => matchesPreset(schedule), [schedule]);
+  const weeklyHours = useMemo(() => countTrue(schedule), [schedule]);
 
-  async function loadData() {
+  async function loadData(mask: ScheduleMask = schedule) {
     setBusy(true);
     setError(null);
     try {
@@ -67,6 +151,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
         binWidth: String(binWidth),
         hddBase: String(hddBase),
         cddBase: String(cddBase),
+        schedule: encodeSchedule(mask),
       });
       const res = await fetch(`/api/admin/engineering/bin-maker?${qs.toString()}`);
       const body = (await res.json().catch(() => ({}))) as
@@ -86,9 +171,25 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
   // Auto-load on first mount so the page never sits blank.
   useEffect(() => {
     void loadData();
-    // Only on first mount — subsequent recomputes are user-driven.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function toggleSlot(day: number, hour: number) {
+    const idx = day * 24 + hour;
+    const next = schedule.slice();
+    next[idx] = !next[idx];
+    setSchedule(next);
+  }
+
+  function selectPreset(preset: Preset) {
+    const mask = preset.build();
+    setSchedule(mask);
+    void loadData(mask);
+  }
+
+  function clearSchedule() {
+    setSchedule(blank());
+  }
 
   function exportCsv() {
     if (!data) return;
@@ -97,10 +198,13 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
     lines.push(`USAF: ${data.station.usaf}`);
     lines.push(`Lat: ${data.station.latitude}, Lon: ${data.station.longitude}, Elev: ${data.station.elevation} m`);
     lines.push(`Bin width: ${data.binWidthF} °F`);
+    lines.push(`Operating hours: ${data.operatingHours} / ${data.totalHours} (${weeklyHours} hrs/wk)`);
     lines.push("");
-    lines.push("Min F,Max F,Mid F,Hours,% of year");
+    lines.push("Min F,Max F,Mid F,Hours,% of operating hours");
     for (const b of data.bins) {
-      const pct = (b.hours / data.totalHours) * 100;
+      const pct = data.operatingHours > 0
+        ? (b.hours / data.operatingHours) * 100
+        : 0;
       lines.push(
         `${b.minF},${b.maxF},${b.midF.toFixed(1)},${b.hours},${pct.toFixed(2)}`
       );
@@ -181,10 +285,96 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
           </Field>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* ── Operating schedule picker ────────────────────────────── */}
+        <div>
+          <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-2 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            Operating schedule — {weeklyHours} hrs/wk
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => selectPreset(p)}
+                title={p.hint}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold border-2",
+                  "active:scale-95 transition-[background-color,border-color,color]",
+                  activePreset === p.key
+                    ? "bg-mse-navy border-mse-navy text-white"
+                    : "bg-white border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={clearSchedule}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border-2 border-mse-light text-mse-muted hover:text-mse-red hover:border-mse-red/30 active:scale-95"
+            >
+              Clear
+            </button>
+            {!activePreset && (
+              <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-mse-gold/15 text-mse-navy border-2 border-mse-gold/30">
+                Custom
+              </span>
+            )}
+          </div>
+
+          {/* 7×24 grid */}
+          <div className="mt-3 overflow-x-auto">
+            <div className="inline-block min-w-full">
+              <div className="grid grid-cols-[auto_repeat(24,minmax(1.35rem,1fr))] gap-[2px] text-[10px] font-mono">
+                <div />
+                {Array.from({ length: 24 }, (_, h) => (
+                  <div
+                    key={h}
+                    className={cn(
+                      "text-center text-mse-muted select-none",
+                      h % 6 === 0 ? "font-bold text-mse-navy" : ""
+                    )}
+                  >
+                    {h}
+                  </div>
+                ))}
+                {DAY_LABELS.map((label, d) => (
+                  <div key={label} className="contents">
+                    <div className="pr-2 text-right font-bold text-mse-navy self-center select-none">
+                      {label}
+                    </div>
+                    {Array.from({ length: 24 }, (_, h) => {
+                      const on = schedule[d * 24 + h];
+                      return (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => toggleSlot(d, h)}
+                          className={cn(
+                            "h-5 rounded-sm transition-colors",
+                            on
+                              ? "bg-mse-navy hover:bg-mse-navy-soft"
+                              : "bg-mse-light hover:bg-mse-gold/30"
+                          )}
+                          aria-label={`${label} ${h}:00 ${on ? "on" : "off"}`}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-[11px] text-mse-muted mt-2">
+              Click any cell to toggle. Presets snap the grid; edits switch you to Custom.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => loadData()}
             disabled={busy}
             className={cn(
               "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold shadow-card",
@@ -237,7 +427,10 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
             <StatCard label="Annual avg" value={`${data.annualAvgF.toFixed(1)} °F`} />
             <StatCard label="Annual low" value={`${data.annualLowF.toFixed(0)} °F`} />
             <StatCard label="Annual high" value={`${data.annualHighF.toFixed(0)} °F`} />
-            <StatCard label="Total hours" value={String(data.totalHours)} />
+            <StatCard
+              label="Operating hours"
+              value={`${data.operatingHours.toLocaleString()} / ${data.totalHours.toLocaleString()}`}
+            />
             <StatCard
               label={`HDD (base ${data.hddBaseF} °F)`}
               value={Math.round(data.hddAnnual).toLocaleString()}
@@ -266,7 +459,9 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                   Temperature bins ({data.binWidthF} °F width)
                 </div>
                 <div className="text-xs text-mse-muted">
-                  Hours per year in each bin, oldest bin first (coldest)
+                  {data.operatingHours === data.totalHours
+                    ? "Hours per year in each bin, coldest first"
+                    : `Hours within operating schedule (${data.operatingHours.toLocaleString()} hrs) in each bin, coldest first`}
                 </div>
               </div>
             </div>
@@ -277,13 +472,16 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                     <th className="px-3 py-2 font-semibold">Range (°F)</th>
                     <th className="px-3 py-2 font-semibold">Midpoint</th>
                     <th className="px-3 py-2 font-semibold text-right">Hours</th>
-                    <th className="px-3 py-2 font-semibold text-right">% of year</th>
+                    <th className="px-3 py-2 font-semibold text-right">
+                      {data.operatingHours === data.totalHours ? "% of year" : "% of op hrs"}
+                    </th>
                     <th className="px-3 py-2 font-semibold w-1/3">Distribution</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.bins.map((b) => {
-                    const pct = (b.hours / data.totalHours) * 100;
+                    const denom = data.operatingHours || 1;
+                    const pct = (b.hours / denom) * 100;
                     const barPct = maxHours > 0 ? (b.hours / maxHours) * 100 : 0;
                     const tone = binTone(b.midF, data.hddBaseF, data.cddBaseF);
                     return (
@@ -322,6 +520,8 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
               <div className="font-bold text-mse-navy">Monthly HDD / CDD</div>
               <div className="text-xs text-mse-muted">
                 Based on HDD base {data.hddBaseF} °F, CDD base {data.cddBaseF} °F
+                {data.operatingHours < data.totalHours &&
+                  " · filtered to operating schedule"}
               </div>
             </div>
             <div className="overflow-x-auto">

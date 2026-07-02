@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/payroll/auth";
-import { computeBinData } from "@/lib/engineering/bin-maker";
+import { computeBinData, decodeSchedule } from "@/lib/engineering/bin-maker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +26,9 @@ export async function GET(req: NextRequest) {
   const binWidthF = clampNum(url.searchParams.get("binWidth"), 5, 1, 20);
   const hddBaseF = clampNum(url.searchParams.get("hddBase"), 65, 40, 80);
   const cddBaseF = clampNum(url.searchParams.get("cddBase"), 65, 40, 90);
+  // 168-char binary string: one slot per hour of the week (Sun 00 ..
+  // Sat 23). Missing/invalid → 24/7 default.
+  const schedule = decodeSchedule(url.searchParams.get("schedule"));
 
   try {
     const data = await computeBinData({
@@ -33,10 +36,12 @@ export async function GET(req: NextRequest) {
       binWidthF,
       hddBaseF,
       cddBaseF,
+      schedule,
     });
+    // Schedule param is part of the URL, so the edge cache keys off it
+    // naturally — different schedules → different cached responses.
     return NextResponse.json(data, {
       headers: {
-        // TMY3 data is frozen; safe to cache at the edge.
         "Cache-Control": "public, max-age=3600, s-maxage=86400",
       },
     });
