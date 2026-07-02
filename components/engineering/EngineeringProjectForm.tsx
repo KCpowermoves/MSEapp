@@ -163,19 +163,21 @@ export function EngineeringProjectForm({ project }: Props) {
   }
 
   function loadExampleData() {
-    // Mango Grove — real values pulled from the actual preliminary
-    // report PDF Kevin dropped in engineering/. Handy for smoke-testing
-    // the full form + download flow end-to-end without typing.
-    setCustomerName("Mango Grove (test)");
-    setSiteAddress("8865 Standford Blvd, Unit 107 Columbia MD 21045");
+    // Obviously fake placeholder values so it's clear this is a test
+    // project. The numeric data (utility bills, HVAC specs, walk-in
+    // specs) is realistic for a small restaurant so the calculator
+    // still produces sensible outputs — just the customer / address
+    // are anonymized.
+    setCustomerName("Acme Test Building");
+    setSiteAddress("123 Example Ave, Testville MD 20000");
     setUtility("BGE");
     setProjectType("Small");
     setProjectSubtype("Building Tune-up");
     setSquareFootage(4396);
     setLocation("BWI");
     setNotes(
-      "Example data loaded from Mango Grove preliminary report. " +
-        "Values are illustrative — clear this project before shipping to a real customer."
+      "Example / test data — clear this project before shipping to a real customer. " +
+        "Utility bill numbers and equipment specs are realistic but fictional."
     );
     setMonthlyBills([
       { startDate: "2025-06-01", endDate: "2025-06-30", usage: 7584, hdd: 2.2, cdd: 630.7 },
