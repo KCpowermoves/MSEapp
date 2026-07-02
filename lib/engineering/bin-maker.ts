@@ -117,11 +117,63 @@ export interface BinResult {
   annualHighF: number;
   annualLowF: number;
   totalHours: number;
+  /** Hours in the year that fall inside the operating schedule.
+   *  Always ≤ totalHours (8760) — equal to it for 24/7. */
+  operatingHours: number;
 }
 
 interface ParsedEpw {
   meta: StationMeta;
   tempsF: number[];
+}
+
+/** A weekly operating schedule is a 168-slot boolean array indexed by
+ *  `dayOfWeek * 24 + hourOfDay`. dayOfWeek is 0=Sun..6=Sat, hourOfDay
+ *  is 0..23. TMY3 is a composite typical year with no real calendar,
+ *  so we adopt the convention: hour_of_year 0 = Sunday 00:00, cycling
+ *  chronologically through hour_of_year 8759 = Saturday 23:00 (with
+ *  the natural wrap since 8760/168 = ~52.14 weeks). This matches the
+ *  approach used by DOE-2 and eQuest-style bin tools. */
+export type ScheduleMask = boolean[];
+
+export const SCHEDULE_LENGTH = 168;
+
+/** All-hours default. */
+export function scheduleAllHours(): ScheduleMask {
+  return new Array(SCHEDULE_LENGTH).fill(true);
+}
+
+/** Build a schedule that's ON for the given hour range on the given
+ *  days. `days` = subset of 0..6 (Sun..Sat). `startHour`/`endHour` are
+ *  half-open — startHour ≤ h < endHour. Wrap-around (endHour < startHour)
+ *  is not supported; split into two calls if you need overnight. */
+export function scheduleFromHours(
+  days: number[],
+  startHour: number,
+  endHour: number,
+  base: ScheduleMask = new Array(SCHEDULE_LENGTH).fill(false)
+): ScheduleMask {
+  const out = base.slice();
+  for (const d of days) {
+    for (let h = startHour; h < endHour; h++) {
+      out[d * 24 + h] = true;
+    }
+  }
+  return out;
+}
+
+/** Encode as a 168-char "1"/"0" string for URL round-tripping. */
+export function encodeSchedule(mask: ScheduleMask): string {
+  return mask.map((b) => (b ? "1" : "0")).join("");
+}
+
+export function decodeSchedule(s: string | null | undefined): ScheduleMask {
+  if (!s || s.length !== SCHEDULE_LENGTH) return scheduleAllHours();
+  const out: ScheduleMask = new Array(SCHEDULE_LENGTH).fill(false);
+  for (let i = 0; i < SCHEDULE_LENGTH; i++) {
+    out[i] = s[i] === "1";
+  }
+  return out;
 }
 
 /** Per-process cache — TMY3 data is static so cache aggressively.
@@ -187,8 +239,20 @@ function parseEpw(epw: string, station: StationDef): ParsedEpw {
   return { meta, tempsF };
 }
 
-function binTemps(tempsF: number[], binWidthF: number): BinRow[] {
+/** Map hour_of_year (0..8759) to a schedule mask slot (0..167).
+ *  Convention: Jan 1 hour 0 = Sunday 00:00 slot. */
+function scheduleSlotForHour(hourOfYear: number): number {
+  return hourOfYear % SCHEDULE_LENGTH;
+}
+
+function binTemps(
+  tempsF: number[],
+  binWidthF: number,
+  mask: ScheduleMask
+): BinRow[] {
   if (binWidthF <= 0) throw new Error("binWidthF must be positive");
+  // Compute range across ALL temps so bin boundaries don't shift when
+  // the user tightens the schedule. Engineers expect consistent bins.
   const rawMin = tempsF.reduce((a, b) => Math.min(a, b), Infinity);
   const rawMax = tempsF.reduce((a, b) => Math.max(a, b), -Infinity);
   const startF = Math.floor(rawMin / binWidthF) * binWidthF;
@@ -202,7 +266,9 @@ function binTemps(tempsF: number[], binWidthF: number): BinRow[] {
       hours: 0,
     });
   }
-  for (const t of tempsF) {
+  for (let i = 0; i < tempsF.length; i++) {
+    if (!mask[scheduleSlotForHour(i)]) continue;
+    const t = tempsF[i];
     let idx = Math.floor((t - startF) / binWidthF);
     if (idx < 0) idx = 0;
     if (idx >= bins.length) idx = bins.length - 1;
@@ -211,27 +277,32 @@ function binTemps(tempsF: number[], binWidthF: number): BinRow[] {
   return bins;
 }
 
-/** Sum degree-hours vs a base temp, then divide by 24. We have hourly
- *  data so this is more accurate than the daily-mean approximation. */
+/** Sum degree-hours vs a base temp, then divide by 24. Filtered to the
+ *  operating schedule — an hour outside the schedule contributes zero,
+ *  matching engineers' expectation that HDD/CDD represent the load the
+ *  HVAC actually sees. */
 function computeDegreeDays(
   tempsF: number[],
   baseF: number,
-  kind: "hdd" | "cdd"
+  kind: "hdd" | "cdd",
+  mask: ScheduleMask
 ): number {
   let degreeHours = 0;
-  for (const t of tempsF) {
+  for (let i = 0; i < tempsF.length; i++) {
+    if (!mask[scheduleSlotForHour(i)]) continue;
+    const t = tempsF[i];
     if (kind === "hdd" && t < baseF) degreeHours += baseF - t;
     if (kind === "cdd" && t > baseF) degreeHours += t - baseF;
   }
   return degreeHours / 24;
 }
 
-/** Same but split by month. EPW hours are chronological 1..8760
- *  starting Jan 1 hour 1, non-leap. */
+/** Per-month DD, also filtered by the operating schedule. */
 function computeDegreeDaysMonthly(
   tempsF: number[],
   baseF: number,
-  kind: "hdd" | "cdd"
+  kind: "hdd" | "cdd",
+  mask: ScheduleMask
 ): number[] {
   const monthHours = [744, 672, 744, 720, 744, 720, 744, 744, 720, 744, 720, 744];
   const monthly: number[] = new Array(12).fill(0);
@@ -239,13 +310,23 @@ function computeDegreeDaysMonthly(
   for (let m = 0; m < 12; m++) {
     for (let h = 0; h < monthHours[m]; h++) {
       const t = tempsF[hourIdx];
+      const slot = scheduleSlotForHour(hourIdx);
       hourIdx++;
       if (t === undefined) break;
+      if (!mask[slot]) continue;
       if (kind === "hdd" && t < baseF) monthly[m] += baseF - t;
       if (kind === "cdd" && t > baseF) monthly[m] += t - baseF;
     }
   }
   return monthly.map((v) => v / 24);
+}
+
+function countOperatingHours(nHours: number, mask: ScheduleMask): number {
+  let n = 0;
+  for (let i = 0; i < nHours; i++) {
+    if (mask[scheduleSlotForHour(i)]) n++;
+  }
+  return n;
 }
 
 /** Public entry. */
@@ -254,6 +335,7 @@ export async function computeBinData(opts: {
   binWidthF: number;
   hddBaseF: number;
   cddBaseF: number;
+  schedule?: ScheduleMask;
 }): Promise<BinResult> {
   const station = COMMON_STATIONS.find((s) => s.usaf === opts.usaf);
   if (!station) {
@@ -263,15 +345,19 @@ export async function computeBinData(opts: {
   if (tempsF.length === 0) {
     throw new Error(`No hourly temperature data for station ${opts.usaf}`);
   }
-  const bins = binTemps(tempsF, opts.binWidthF);
-  const hddAnnual = computeDegreeDays(tempsF, opts.hddBaseF, "hdd");
-  const cddAnnual = computeDegreeDays(tempsF, opts.cddBaseF, "cdd");
-  const hddMonthly = computeDegreeDaysMonthly(tempsF, opts.hddBaseF, "hdd");
-  const cddMonthly = computeDegreeDaysMonthly(tempsF, opts.cddBaseF, "cdd");
+  const mask = opts.schedule ?? scheduleAllHours();
+  const bins = binTemps(tempsF, opts.binWidthF, mask);
+  const hddAnnual = computeDegreeDays(tempsF, opts.hddBaseF, "hdd", mask);
+  const cddAnnual = computeDegreeDays(tempsF, opts.cddBaseF, "cdd", mask);
+  const hddMonthly = computeDegreeDaysMonthly(tempsF, opts.hddBaseF, "hdd", mask);
+  const cddMonthly = computeDegreeDaysMonthly(tempsF, opts.cddBaseF, "cdd", mask);
+  // Annual avg / high / low always reflect the full year for context,
+  // regardless of operating schedule — that's climate data, not load.
   const annualAvgF =
     tempsF.reduce((a, b) => a + b, 0) / tempsF.length;
   const annualHighF = tempsF.reduce((a, b) => Math.max(a, b), -Infinity);
   const annualLowF = tempsF.reduce((a, b) => Math.min(a, b), Infinity);
+  const operatingHours = countOperatingHours(tempsF.length, mask);
   return {
     station: meta,
     binWidthF: opts.binWidthF,
@@ -286,5 +372,6 @@ export async function computeBinData(opts: {
     annualHighF,
     annualLowF,
     totalHours: tempsF.length,
+    operatingHours,
   };
 }
