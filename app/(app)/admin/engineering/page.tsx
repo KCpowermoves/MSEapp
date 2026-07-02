@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Calculator, Plus } from "lucide-react";
+import { ArrowLeft, Calculator, Plus, Thermometer } from "lucide-react";
 import { requireAdmin } from "@/lib/payroll/auth";
 import { listAllEngineeringProjects } from "@/lib/data/engineering-projects";
 
@@ -35,13 +35,22 @@ export default async function EngineeringListPage() {
             for the customer.
           </p>
         </header>
-        <Link
-          href="/admin/engineering/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-mse-navy text-white hover:bg-mse-navy-soft shadow-card active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          New project
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/admin/engineering/bin-maker"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-mse-navy border-2 border-mse-navy hover:bg-mse-navy hover:text-white active:scale-95"
+          >
+            <Thermometer className="w-4 h-4" />
+            Bin Maker Pro
+          </Link>
+          <Link
+            href="/admin/engineering/new"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-mse-navy text-white hover:bg-mse-navy-soft shadow-card active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            New project
+          </Link>
+        </div>
       </div>
 
       {projects.length === 0 ? (
