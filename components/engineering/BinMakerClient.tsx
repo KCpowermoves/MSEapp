@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Loader2, Download, RefreshCw, Clock } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Download, RefreshCw, Clock, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Station {
@@ -16,6 +16,7 @@ interface BinRow {
   maxF: number;
   midF: number;
   hours: number;
+  mcwbF: number | null;
 }
 
 interface BinResult {
@@ -46,8 +47,10 @@ interface BinResult {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SCHEDULE_LENGTH = 168;
+const MONTHS_LENGTH = 12;
 
 type ScheduleMask = boolean[];
+type MonthMask = boolean[];
 
 interface Preset {
   key: string;
@@ -88,6 +91,35 @@ const PRESETS: Preset[] = [
   },
 ];
 
+interface SeasonPreset {
+  key: string;
+  label: string;
+  hint: string;
+  build: () => MonthMask;
+}
+
+/** Month-range shortcuts for season-limited bin summaries. */
+const SEASONS: SeasonPreset[] = [
+  {
+    key: "all",
+    label: "All year",
+    hint: "Jan–Dec, full 12 months",
+    build: () => new Array(MONTHS_LENGTH).fill(true),
+  },
+  {
+    key: "cooling",
+    label: "Cooling May–Sep",
+    hint: "Summer cooling season",
+    build: () => MONTHS.map((_, i) => i >= 4 && i <= 8),
+  },
+  {
+    key: "heating",
+    label: "Heating Oct–Apr",
+    hint: "Winter heating season",
+    build: () => MONTHS.map((_, i) => i >= 9 || i <= 3),
+  },
+];
+
 function blank(): ScheduleMask {
   return new Array(SCHEDULE_LENGTH).fill(false);
 }
@@ -107,20 +139,28 @@ function paintHours(
   return out;
 }
 
-function encodeSchedule(mask: ScheduleMask): string {
+function encodeMask(mask: boolean[]): string {
   return mask.map((b) => (b ? "1" : "0")).join("");
 }
 
-function countTrue(mask: ScheduleMask): number {
+function countTrue(mask: boolean[]): number {
   let n = 0;
   for (const b of mask) if (b) n++;
   return n;
 }
 
 function matchesPreset(mask: ScheduleMask): string | null {
-  const enc = encodeSchedule(mask);
+  const enc = encodeMask(mask);
   for (const p of PRESETS) {
-    if (encodeSchedule(p.build()) === enc) return p.key;
+    if (encodeMask(p.build()) === enc) return p.key;
+  }
+  return null;
+}
+
+function matchesSeason(mask: MonthMask): string | null {
+  const enc = encodeMask(mask);
+  for (const s of SEASONS) {
+    if (encodeMask(s.build()) === enc) return s.key;
   }
   return null;
 }
@@ -131,18 +171,27 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
   const [hddBase, setHddBase] = useState<number>(65);
   const [cddBase, setCddBase] = useState<number>(65);
   const [schedule, setSchedule] = useState<ScheduleMask>(() => PRESETS[0].build());
+  const [months, setMonths] = useState<MonthMask>(() => SEASONS[0].build());
   const [data, setData] = useState<BinResult | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const currentStation = useMemo(
     () => stations.find((s) => s.usaf === stationUsaf),
     [stations, stationUsaf]
   );
   const activePreset = useMemo(() => matchesPreset(schedule), [schedule]);
+  const activeSeason = useMemo(() => matchesSeason(months), [months]);
   const weeklyHours = useMemo(() => countTrue(schedule), [schedule]);
+  const monthCount = useMemo(() => countTrue(months), [months]);
+  const scheduleEnc = useMemo(() => encodeMask(schedule), [schedule]);
+  const monthsEnc = useMemo(() => encodeMask(months), [months]);
 
-  async function loadData(mask: ScheduleMask = schedule) {
+  async function loadData() {
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
     setBusy(true);
     setError(null);
     try {
@@ -151,9 +200,12 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
         binWidth: String(binWidth),
         hddBase: String(hddBase),
         cddBase: String(cddBase),
-        schedule: encodeSchedule(mask),
+        schedule: scheduleEnc,
+        months: monthsEnc,
       });
-      const res = await fetch(`/api/admin/engineering/bin-maker?${qs.toString()}`);
+      const res = await fetch(`/api/admin/engineering/bin-maker?${qs.toString()}`, {
+        signal: ac.signal,
+      });
       const body = (await res.json().catch(() => ({}))) as
         | BinResult
         | { error?: string };
@@ -162,17 +214,23 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
       }
       setData(body);
     } catch (e) {
+      if (ac.signal.aborted) return; // superseded by a newer request
       setError(e instanceof Error ? e.message : "Failed to load data");
     } finally {
-      setBusy(false);
+      if (!ac.signal.aborted) setBusy(false);
     }
   }
 
-  // Auto-load on first mount so the page never sits blank.
+  // Auto-recompute (debounced) whenever any input changes — including
+  // individual cells toggled on the schedule grid. Also runs the
+  // initial load on mount.
   useEffect(() => {
-    void loadData();
+    const t = setTimeout(() => {
+      void loadData();
+    }, 400);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stationUsaf, binWidth, hddBase, cddBase, scheduleEnc, monthsEnc]);
 
   function toggleSlot(day: number, hour: number) {
     const idx = day * 24 + hour;
@@ -181,10 +239,10 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
     setSchedule(next);
   }
 
-  function selectPreset(preset: Preset) {
-    const mask = preset.build();
-    setSchedule(mask);
-    void loadData(mask);
+  function toggleMonth(m: number) {
+    const next = months.slice();
+    next[m] = !next[m];
+    setMonths(next);
   }
 
   function clearSchedule() {
@@ -193,20 +251,22 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
 
   function exportCsv() {
     if (!data) return;
+    const monthList = MONTHS.filter((_, i) => months[i]).join(" ");
     const lines: string[] = [];
     lines.push(`Bin Maker Pro — ${data.station.name}, ${data.station.state}`);
     lines.push(`USAF: ${data.station.usaf}`);
     lines.push(`Lat: ${data.station.latitude}, Lon: ${data.station.longitude}, Elev: ${data.station.elevation} m`);
     lines.push(`Bin width: ${data.binWidthF} °F`);
+    lines.push(`Months: ${monthCount === 12 ? "All" : monthList}`);
     lines.push(`Operating hours: ${data.operatingHours} / ${data.totalHours} (${weeklyHours} hrs/wk)`);
     lines.push("");
-    lines.push("Min F,Max F,Mid F,Hours,% of operating hours");
+    lines.push("Min F,Max F,Mid F,MCWB F,Hours,% of operating hours");
     for (const b of data.bins) {
       const pct = data.operatingHours > 0
         ? (b.hours / data.operatingHours) * 100
         : 0;
       lines.push(
-        `${b.minF},${b.maxF},${b.midF.toFixed(1)},${b.hours},${pct.toFixed(2)}`
+        `${b.minF},${b.maxF},${b.midF.toFixed(1)},${b.mcwbF === null ? "" : b.mcwbF.toFixed(1)},${b.hours},${pct.toFixed(2)}`
       );
     }
     lines.push("");
@@ -215,6 +275,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
     lines.push("");
     lines.push("Month,HDD,CDD");
     for (let i = 0; i < 12; i++) {
+      if (!months[i]) continue;
       lines.push(
         `${MONTHS[i]},${Math.round(data.hddMonthly[i])},${Math.round(data.cddMonthly[i])}`
       );
@@ -231,6 +292,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
   }
 
   const maxHours = data ? Math.max(...data.bins.map((b) => b.hours)) : 0;
+  const nothingSelected = weeklyHours === 0 || monthCount === 0;
 
   return (
     <div className="space-y-5">
@@ -285,6 +347,56 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
           </Field>
         </div>
 
+        {/* ── Month filter ─────────────────────────────────────────── */}
+        <div>
+          <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-2 flex items-center gap-1.5">
+            <CalendarRange className="w-3.5 h-3.5" />
+            Months — {monthCount === 12 ? "all year" : `${monthCount} of 12`}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {SEASONS.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setMonths(s.build())}
+                title={s.hint}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold border-2",
+                  "active:scale-95 transition-[background-color,border-color,color]",
+                  activeSeason === s.key
+                    ? "bg-mse-navy border-mse-navy text-white"
+                    : "bg-white border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30"
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+            {!activeSeason && (
+              <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-mse-gold/15 text-mse-navy border-2 border-mse-gold/30">
+                Custom
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {MONTHS.map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => toggleMonth(i)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-bold border transition-colors active:scale-95",
+                  months[i]
+                    ? "bg-mse-navy border-mse-navy text-white hover:bg-mse-navy-soft"
+                    : "bg-mse-light/60 border-mse-light text-mse-muted hover:text-mse-navy"
+                )}
+                aria-pressed={months[i]}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ── Operating schedule picker ────────────────────────────── */}
         <div>
           <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-2 flex items-center gap-1.5">
@@ -296,7 +408,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
               <button
                 key={p.key}
                 type="button"
-                onClick={() => selectPreset(p)}
+                onClick={() => setSchedule(p.build())}
                 title={p.hint}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-bold border-2",
@@ -366,7 +478,8 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
               </div>
             </div>
             <p className="text-[11px] text-mse-muted mt-2">
-              Click any cell to toggle. Presets snap the grid; edits switch you to Custom.
+              Click any cell to toggle — the table recomputes automatically.
+              Presets snap the grid; edits switch you to Custom.
             </p>
           </div>
         </div>
@@ -414,6 +527,14 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
         </div>
       </section>
 
+      {nothingSelected && (
+        <div className="rounded-xl border border-mse-gold/40 bg-mse-gold/10 text-mse-navy text-sm px-4 py-3">
+          {weeklyHours === 0
+            ? "The schedule grid is empty — every bin will show zero hours. Click cells or pick a preset."
+            : "No months are selected — every bin will show zero hours. Pick at least one month."}
+        </div>
+      )}
+
       {error && (
         <div className="rounded-xl border border-mse-red/30 bg-mse-red/5 text-mse-red text-sm px-4 py-3">
           {error}
@@ -460,8 +581,8 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                 </div>
                 <div className="text-xs text-mse-muted">
                   {data.operatingHours === data.totalHours
-                    ? "Hours per year in each bin, coldest first"
-                    : `Hours within operating schedule (${data.operatingHours.toLocaleString()} hrs) in each bin, coldest first`}
+                    ? "Hours per year in each bin with mean coincident wet bulb, coldest first"
+                    : `Hours within schedule${monthCount < 12 ? " + selected months" : ""} (${data.operatingHours.toLocaleString()} hrs) in each bin, coldest first`}
                 </div>
               </div>
             </div>
@@ -471,6 +592,9 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                   <tr className="text-left text-[11px] uppercase tracking-wider text-mse-muted border-b border-mse-light">
                     <th className="px-3 py-2 font-semibold">Range (°F)</th>
                     <th className="px-3 py-2 font-semibold">Midpoint</th>
+                    <th className="px-3 py-2 font-semibold" title="Mean coincident wet bulb — average wet-bulb temperature of the hours in this bin">
+                      MCWB (°F)
+                    </th>
                     <th className="px-3 py-2 font-semibold text-right">Hours</th>
                     <th className="px-3 py-2 font-semibold text-right">
                       {data.operatingHours === data.totalHours ? "% of year" : "% of op hrs"}
@@ -491,6 +615,13 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                         </td>
                         <td className="px-3 py-1.5 font-mono text-mse-muted">
                           {b.midF.toFixed(1)}
+                        </td>
+                        <td className="px-3 py-1.5 font-mono">
+                          {b.mcwbF === null ? (
+                            <span className="text-mse-muted">—</span>
+                          ) : (
+                            b.mcwbF.toFixed(1)
+                          )}
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono">
                           {b.hours.toLocaleString()}
@@ -522,6 +653,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                 Based on HDD base {data.hddBaseF} °F, CDD base {data.cddBaseF} °F
                 {data.operatingHours < data.totalHours &&
                   " · filtered to operating schedule"}
+                {monthCount < 12 && " · deselected months excluded"}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -535,13 +667,19 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                 </thead>
                 <tbody>
                   {MONTHS.map((m, i) => (
-                    <tr key={m} className="border-b border-mse-light/60 last:border-0">
+                    <tr
+                      key={m}
+                      className={cn(
+                        "border-b border-mse-light/60 last:border-0",
+                        !months[i] && "opacity-40"
+                      )}
+                    >
                       <td className="px-3 py-1.5 font-semibold">{m}</td>
                       <td className="px-3 py-1.5 text-right font-mono">
-                        {Math.round(data.hddMonthly[i]).toLocaleString()}
+                        {months[i] ? Math.round(data.hddMonthly[i]).toLocaleString() : "—"}
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono">
-                        {Math.round(data.cddMonthly[i]).toLocaleString()}
+                        {months[i] ? Math.round(data.cddMonthly[i]).toLocaleString() : "—"}
                       </td>
                     </tr>
                   ))}

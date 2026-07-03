@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/payroll/auth";
-import { computeBinData, decodeSchedule } from "@/lib/engineering/bin-maker";
+import {
+  computeBinData,
+  decodeSchedule,
+  decodeMonths,
+} from "@/lib/engineering/bin-maker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +33,8 @@ export async function GET(req: NextRequest) {
   // 168-char binary string: one slot per hour of the week (Sun 00 ..
   // Sat 23). Missing/invalid → 24/7 default.
   const schedule = decodeSchedule(url.searchParams.get("schedule"));
+  // 12-char binary string, Jan..Dec. Missing/invalid → all months.
+  const months = decodeMonths(url.searchParams.get("months"));
 
   try {
     const data = await computeBinData({
@@ -37,6 +43,7 @@ export async function GET(req: NextRequest) {
       hddBaseF,
       cddBaseF,
       schedule,
+      months,
     });
     // Schedule param is part of the URL, so the edge cache keys off it
     // naturally — different schedules → different cached responses.

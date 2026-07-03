@@ -28,9 +28,10 @@ export default async function BinMakerPage() {
           Bin Maker Pro
         </h1>
         <p className="text-sm text-mse-muted mt-1 max-w-2xl">
-          Live TMY3 bin-method calculator. Pick a weather station, choose a bin
-          width and degree-day base temps, and get an hours-per-bin table +
-          HDD/CDD suitable for HVAC load calcs. Data pulled from NREL.
+          Live TMY3 bin-method calculator. Pick a weather station, an operating
+          schedule, and the months you care about — get an hours-per-bin table
+          with mean coincident wet bulb + HDD/CDD suitable for HVAC load calcs.
+          Data pulled from NREL.
         </p>
       </header>
 
