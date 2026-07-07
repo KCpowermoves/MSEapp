@@ -1,6 +1,7 @@
 import "server-only";
 import {
   TABS,
+  appendCsvValueToCell,
   appendRow,
   findRowIndex,
   readTab,
@@ -163,19 +164,22 @@ export async function appendAuditItemSchedulePhoto(opts: {
   itemId: string;
   url: string;
 }): Promise<string> {
-  const item = await getAuditItem(opts.itemId);
-  if (!item) throw new Error(`AuditItem not found: ${opts.itemId}`);
-  const existing = item.schedulePhotoUrlsCsv
-    ? item.schedulePhotoUrlsCsv.split(",").map((s) => s.trim()).filter(Boolean)
-    : [];
-  existing.push(opts.url);
-  const csv = existing.join(",");
-  await setAuditItemField({
-    itemId: opts.itemId,
-    field: "schedulePhotoUrlsCsv",
-    value: csv,
+  const rowIndex = await findRowIndex(TABS.auditItems, "A", opts.itemId);
+  if (!rowIndex) throw new Error(`AuditItem not found: ${opts.itemId}`);
+  // Concurrency-safe append — merges under a per-cell lock against a
+  // fresh read (the old path merged against the 30s read cache, which
+  // could silently drop URLs written by other serverless instances).
+  await appendCsvValueToCell({
+    tab: TABS.auditItems,
+    rowIndex,
+    colLetter: ITEM_COLS.schedulePhotoUrlsCsv,
+    value: opts.url,
   });
-  return csv;
+  await updateCell(
+    `${TABS.auditItems}!${ITEM_COLS.loggedAt}${rowIndex}`,
+    nowIso()
+  );
+  return opts.url;
 }
 
 export async function setAuditItemStatus(opts: {

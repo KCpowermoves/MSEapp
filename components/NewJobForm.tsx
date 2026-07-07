@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { CrewPicker } from "@/components/CrewPicker";
 import { JobCoverCapture } from "@/components/JobCoverCapture";
-import { enqueueDraftJob } from "@/lib/upload-queue";
+import { enqueueDraftJob, enqueuePhoto } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { captureLocationEvent } from "@/lib/location";
 import { cn } from "@/lib/utils";
@@ -124,18 +124,25 @@ export function NewJobForm({
       const job = await httpResponse!.json();
       captureLocationEvent("job-create", { jobId: job.jobId }, { force: true })
         .catch(() => {});
-      // Cover photo (optional) — only attempt online. Offline-drafted
-      // jobs don't carry a cover yet; the tech can attach one once the
-      // job lands on the server.
+      // Cover photo (optional) — goes through the IndexedDB upload
+      // queue rather than a fire-and-forget fetch, so a flaky uplink
+      // retries in the background instead of silently dropping it.
       if (coverPhoto) {
         try {
-          const fd = new FormData();
-          fd.append("file", coverPhoto);
-          fd.append("jobId", job.jobId);
-          fd.append("kind", "job-cover");
-          await fetch("/api/upload", { method: "POST", body: fd });
+          await enqueuePhoto({
+            id: `cover-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            jobId: job.jobId,
+            unitId: null,
+            serviceId: null,
+            photoSlot: "cover",
+            kind: "job-cover",
+            blob: coverPhoto,
+            filename: coverPhoto.name || `cover-${Date.now()}.jpg`,
+            capturedAt: Date.now(),
+          });
+          kickWorker();
         } catch (e) {
-          console.warn("[new-job] cover upload failed:", e);
+          console.warn("[new-job] cover enqueue failed:", e);
         }
       }
       router.replace(`/jobs/${encodeURIComponent(job.jobId)}`);

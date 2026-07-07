@@ -1,6 +1,7 @@
 import "server-only";
 import {
   TABS,
+  appendCsvValueToCell,
   appendRow,
   findRowIndex,
   readTab,
@@ -204,12 +205,15 @@ export async function setUnitPhotoUrl(
   if (!rowIndex) throw new Error(`Unit not found: ${unitId}`);
 
   if (slot === "additional") {
-    // Append to comma-separated list rather than overwrite
-    const rows = await readTab(TABS.unitsServiced);
-    const offset = rowIndex - 2;
-    const existing = String(rows[offset]?.[14] ?? "");
-    const next = existing ? `${existing}, ${url}` : url;
-    await updateCell(`${TABS.unitsServiced}!${ADDITIONAL_COL}${rowIndex}`, next);
+    // Concurrency-safe append — merges against a fresh read under a
+    // per-cell lock and verifies the write landed, so parallel uploads
+    // for the same unit can't clobber each other's URLs.
+    await appendCsvValueToCell({
+      tab: TABS.unitsServiced,
+      rowIndex,
+      colLetter: ADDITIONAL_COL,
+      value: url,
+    });
     return;
   }
 

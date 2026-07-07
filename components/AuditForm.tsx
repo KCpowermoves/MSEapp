@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 import { AuditPhotoSlot } from "@/components/AuditPhotoSlot";
 import { AuditItemSection } from "@/components/AuditItemSection";
+import { uploadAuditPhotoWithFallback } from "@/lib/audit-photo-fallback";
 import { cn } from "@/lib/utils";
 import type {
   Audit,
@@ -36,24 +37,25 @@ export function AuditForm({ job, audit: initialAudit, initialItems }: Props) {
   const [notes, setNotes] = useState(audit.notes);
 
   // Upload helpers — every audit photo goes through /api/upload with
-  // kind=audit-building or kind=audit-item. The response carries the
-  // new Drive URL which we splice into local state so the slot
-  // re-renders with the cloud copy.
+  // kind=audit-building or kind=audit-item. On direct success the
+  // Drive URL is spliced into local state so the slot re-renders with
+  // the cloud copy. On a network/server failure the photo is queued in
+  // IndexedDB and retried in the background instead of being lost —
+  // the slot keeps its local preview meanwhile.
   async function uploadBuilding(slot: "front" | "fire-plan" | "bas", file: File) {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("jobId", job.jobId);
-    fd.append("auditId", audit.auditId);
-    fd.append("kind", "audit-building");
-    fd.append("slot", slot);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-    if (!res.ok || !body.url) throw new Error(body.error ?? "Upload failed");
+    const { url } = await uploadAuditPhotoWithFallback({
+      file,
+      jobId: job.jobId,
+      auditId: audit.auditId,
+      kind: "audit-building",
+      slot,
+    });
+    if (!url) return; // queued — the background worker will deliver it
     setAudit((prev) => ({
       ...prev,
-      ...(slot === "front" && { frontPhotoUrl: body.url ?? "" }),
-      ...(slot === "fire-plan" && { firePlanPhotoUrl: body.url ?? "" }),
-      ...(slot === "bas" && { basPhotoUrl: body.url ?? "" }),
+      ...(slot === "front" && { frontPhotoUrl: url }),
+      ...(slot === "fire-plan" && { firePlanPhotoUrl: url }),
+      ...(slot === "bas" && { basPhotoUrl: url }),
     }));
   }
 

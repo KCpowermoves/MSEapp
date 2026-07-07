@@ -18,6 +18,7 @@ import {
   setAuditItemField,
 } from "@/lib/data/audit-items";
 import { getAudit, setAuditField } from "@/lib/data/audits";
+import { logPhotoEvent, type PhotoLogEntry } from "@/lib/data/photo-log";
 import type { PhotoSlot } from "@/lib/types";
 
 const AUDIT_BUILDING_SLOTS = ["front", "fire-plan", "bas"] as const;
@@ -80,8 +81,10 @@ const PHOTO_SLOTS: PhotoSlot[] = [
 ];
 
 export async function POST(request: Request) {
+  let techName = "";
   try {
-    await requireSession();
+    const session = await requireSession();
+    techName = session.name ?? session.techId ?? "";
   } catch {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
@@ -156,6 +159,15 @@ export async function POST(request: Request) {
         mimeType,
         body: buffer,
       });
+      const logBase: Omit<PhotoLogEntry, "status" | "note"> = {
+        tech: techName,
+        jobId,
+        kind: "audit-building",
+        targetId: auditId,
+        slot,
+        driveFileId: uploaded.id,
+        driveUrl: uploaded.url,
+      };
       try {
         await setAuditField({
           auditId,
@@ -167,8 +179,14 @@ export async function POST(request: Request) {
           `[upload] audit-building orphan: fileId=${uploaded.id} auditId=${auditId} slot=${slot}`,
           e
         );
+        await logPhotoEvent({
+          ...logBase,
+          status: "sheet-write-failed",
+          note: e instanceof Error ? e.message : String(e),
+        });
         throw e;
       }
+      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath(`/jobs/${jobId}/audit`);
       revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
@@ -209,6 +227,15 @@ export async function POST(request: Request) {
         mimeType,
         body: buffer,
       });
+      const logBase: Omit<PhotoLogEntry, "status" | "note"> = {
+        tech: techName,
+        jobId,
+        kind: "audit-item",
+        targetId: itemId,
+        slot,
+        driveFileId: uploaded.id,
+        driveUrl: uploaded.url,
+      };
       try {
         if (slot === "schedule") {
           // Multi-photo: append the URL to the CSV column.
@@ -227,8 +254,14 @@ export async function POST(request: Request) {
           `[upload] audit-item orphan: fileId=${uploaded.id} itemId=${itemId} slot=${slot}`,
           e
         );
+        await logPhotoEvent({
+          ...logBase,
+          status: "sheet-write-failed",
+          note: e instanceof Error ? e.message : String(e),
+        });
         throw e;
       }
+      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath(`/jobs/${jobId}/audit`);
       revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
@@ -248,6 +281,14 @@ export async function POST(request: Request) {
         mimeType,
         body: buffer,
       });
+      const logBase: Omit<PhotoLogEntry, "status" | "note"> = {
+        tech: techName,
+        jobId,
+        kind: "job-cover",
+        targetId: jobId,
+        driveFileId: uploaded.id,
+        driveUrl: uploaded.url,
+      };
       try {
         await setJobCoverPhotoId({ jobId, fileId: uploaded.id });
       } catch (e) {
@@ -257,8 +298,14 @@ export async function POST(request: Request) {
           `[upload] job-cover orphan: fileId=${uploaded.id} jobId=${jobId}`,
           e
         );
+        await logPhotoEvent({
+          ...logBase,
+          status: "sheet-write-failed",
+          note: e instanceof Error ? e.message : String(e),
+        });
         throw e;
       }
+      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath("/jobs");
       revalidatePath(`/jobs/${jobId}`);
       revalidatePath("/admin/customers");
@@ -291,7 +338,30 @@ export async function POST(request: Request) {
         mimeType,
         body: buffer,
       });
-      await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
+      const logBase: Omit<PhotoLogEntry, "status" | "note"> = {
+        tech: techName,
+        jobId,
+        kind: "unit",
+        targetId: unitId,
+        slot,
+        driveFileId: uploaded.id,
+        driveUrl: uploaded.url,
+      };
+      try {
+        await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
+      } catch (e) {
+        console.error(
+          `[upload] unit orphan: fileId=${uploaded.id} unitId=${unitId} slot=${slot}`,
+          e
+        );
+        await logPhotoEvent({
+          ...logBase,
+          status: "sheet-write-failed",
+          note: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+      }
+      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath(`/jobs/${jobId}`);
       revalidatePath(`/jobs/${jobId}/service`);
       revalidatePath("/jobs");
@@ -313,7 +383,29 @@ export async function POST(request: Request) {
         mimeType,
         body: buffer,
       });
-      await appendServicePhotoUrl(serviceId, uploaded.url);
+      const logBase: Omit<PhotoLogEntry, "status" | "note"> = {
+        tech: techName,
+        jobId,
+        kind: "service",
+        targetId: serviceId,
+        driveFileId: uploaded.id,
+        driveUrl: uploaded.url,
+      };
+      try {
+        await appendServicePhotoUrl(serviceId, uploaded.url);
+      } catch (e) {
+        console.error(
+          `[upload] service orphan: fileId=${uploaded.id} serviceId=${serviceId}`,
+          e
+        );
+        await logPhotoEvent({
+          ...logBase,
+          status: "sheet-write-failed",
+          note: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+      }
+      void logPhotoEvent({ ...logBase, status: "uploaded" });
       return NextResponse.json({ url: uploaded.url });
     }
 
@@ -326,12 +418,34 @@ export async function POST(request: Request) {
         mimeType: "image/png",
         body: buffer,
       });
-      await setDispatchSignature(
-        dispatchId,
-        uploaded.url,
-        signedByName,
-        customerEmail
-      );
+      const logBase: Omit<PhotoLogEntry, "status" | "note"> = {
+        tech: techName,
+        jobId,
+        kind: "signature",
+        targetId: dispatchId,
+        driveFileId: uploaded.id,
+        driveUrl: uploaded.url,
+      };
+      try {
+        await setDispatchSignature(
+          dispatchId,
+          uploaded.url,
+          signedByName,
+          customerEmail
+        );
+      } catch (e) {
+        console.error(
+          `[upload] signature orphan: fileId=${uploaded.id} dispatchId=${dispatchId}`,
+          e
+        );
+        await logPhotoEvent({
+          ...logBase,
+          status: "sheet-write-failed",
+          note: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+      }
+      void logPhotoEvent({ ...logBase, status: "uploaded" });
       // Try the PDF render now too — if all photos already happened to
       // be uploaded by the time the customer signs, this completes the
       // dispatch's report immediately.
