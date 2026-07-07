@@ -239,6 +239,31 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
     setSchedule(next);
   }
 
+  // Drag-to-paint (mouse only — touch keeps tap-to-toggle so the grid
+  // stays scrollable on phones). Pointer-down picks the paint value
+  // (opposite of the cell you started on); dragging across cells with
+  // the button held applies it. A 12-hour row is one swipe, not 12
+  // clicks.
+  const paintValue = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    const stop = () => {
+      paintValue.current = null;
+    };
+    window.addEventListener("pointerup", stop);
+    return () => window.removeEventListener("pointerup", stop);
+  }, []);
+
+  function setSlotTo(day: number, hour: number, v: boolean) {
+    setSchedule((prev) => {
+      const idx = day * 24 + hour;
+      if (prev[idx] === v) return prev;
+      const next = prev.slice();
+      next[idx] = v;
+      return next;
+    });
+  }
+
   function toggleMonth(m: number) {
     const next = months.slice();
     next[m] = !next[m];
@@ -260,7 +285,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
     lines.push(`Months: ${monthCount === 12 ? "All" : monthList}`);
     lines.push(`Operating hours: ${data.operatingHours} / ${data.totalHours} (${weeklyHours} hrs/wk)`);
     lines.push("");
-    lines.push("Min F,Max F,Mid F,MCWB F,Hours,% of operating hours");
+    lines.push("Min °F,Max °F,Mid °F,MCWB °F,Hours,% of operating hours");
     for (const b of data.bins) {
       const pct = data.operatingHours > 0
         ? (b.hours / data.operatingHours) * 100
@@ -280,7 +305,10 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
         `${MONTHS[i]},${Math.round(data.hddMonthly[i])},${Math.round(data.cddMonthly[i])}`
       );
     }
-    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    // BOM so Excel decodes the °F headers as UTF-8 instead of Latin-1.
+    const blob = new Blob(["﻿" + lines.join("\r\n")], {
+      type: "text/csv;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -462,7 +490,31 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
                         <button
                           key={h}
                           type="button"
-                          onClick={() => toggleSlot(d, h)}
+                          onPointerDown={(e) => {
+                            if (e.pointerType === "mouse") {
+                              e.preventDefault();
+                              paintValue.current = !on;
+                              setSlotTo(d, h, !on);
+                            } else {
+                              toggleSlot(d, h);
+                            }
+                          }}
+                          onPointerEnter={(e) => {
+                            if (
+                              e.pointerType === "mouse" &&
+                              e.buttons === 1 &&
+                              paintValue.current !== null
+                            ) {
+                              setSlotTo(d, h, paintValue.current);
+                            }
+                          }}
+                          onClick={(e) => {
+                            // Keyboard activation only (Enter/Space →
+                            // detail 0). Mouse/touch are handled on
+                            // pointerdown; letting click through would
+                            // double-toggle.
+                            if (e.detail === 0) toggleSlot(d, h);
+                          }}
                           className={cn(
                             "h-5 rounded-sm transition-colors",
                             on
@@ -478,8 +530,9 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
               </div>
             </div>
             <p className="text-[11px] text-mse-muted mt-2">
-              Click any cell to toggle — the table recomputes automatically.
-              Presets snap the grid; edits switch you to Custom.
+              Click a cell to toggle, or click-and-drag to paint a whole
+              range — the table recomputes automatically. Presets snap the
+              grid; edits switch you to Custom.
             </p>
           </div>
         </div>
