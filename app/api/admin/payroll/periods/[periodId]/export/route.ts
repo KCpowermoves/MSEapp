@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import { requireAdmin } from "@/lib/payroll/auth";
 import { getPayrollPeriod } from "@/lib/data/payroll-periods";
-import { computePayrollReport } from "@/lib/payroll/compute";
+import { computePayrollReport, computeYtdByTech } from "@/lib/payroll/compute";
 import { buildPayrollPdf } from "@/lib/payroll-pdf";
 import { buildPayrollCsv } from "@/lib/payroll/csv";
 
@@ -50,6 +50,14 @@ export async function GET(
       endDate: period.endDate,
     });
 
+    // YTD line for pay stubs: everything already Paid/Closed this
+    // calendar year, excluding this period (its own total is added on
+    // top at render time so Draft exports still show a correct YTD).
+    const ytdByTech = await computeYtdByTech({
+      year: period.startDate.slice(0, 4),
+      excludePeriodId: periodId,
+    }).catch(() => undefined);
+
     const baseName = `payroll_${slugify(periodId)}_${period.startDate}_to_${period.endDate}${
       techNameFilter ? `_${slugify(techNameFilter)}` : ""
     }`;
@@ -90,6 +98,7 @@ export async function GET(
           const pdf = await buildPayrollPdf({
             report,
             techNameFilter: t.techName,
+            ytdByTech,
           });
           return { techName: t.techName, pdf };
         })
@@ -123,7 +132,7 @@ export async function GET(
       );
     }
 
-    const pdf = await buildPayrollPdf({ report, techNameFilter });
+    const pdf = await buildPayrollPdf({ report, techNameFilter, ytdByTech });
     // Wrap Buffer in a Blob so the DOM-types Response constructor
     // accepts the body without a TS widening drama. Cheap on Node 18+.
     return new Response(new Blob([pdf as unknown as BlobPart]), {

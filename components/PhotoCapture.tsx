@@ -10,6 +10,10 @@ export interface CapturedPhoto {
   thumbnailUrl: string;
   capturedAt: number;
   filename: string;
+  /** Set when the photo has been staged to IndexedDB by the parent
+   *  form (crash protection before Save). Lets the form promote or
+   *  delete the staged record when the photo is saved or removed. */
+  stagedId?: string;
 }
 
 interface Props {

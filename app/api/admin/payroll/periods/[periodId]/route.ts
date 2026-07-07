@@ -4,6 +4,7 @@ import {
   getPayrollPeriod,
   updatePayrollPeriodWindow,
 } from "@/lib/data/payroll-periods";
+import { logPayrollAction } from "@/lib/data/payroll-log";
 
 // PATCH /api/admin/payroll/periods/[periodId]
 // Update a Draft period's window/label/note. Approved/Paid periods are
@@ -83,6 +84,14 @@ export async function PATCH(
 
   try {
     await updatePayrollPeriodWindow(periodId, patch);
+    await logPayrollAction({
+      admin: guard.session.name,
+      action: "period-edit",
+      periodId,
+      detail: Object.entries(patch)
+        .map(([k, v]) => `${k}="${v}"`)
+        .join(", "),
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[payroll/periods PATCH] failed:", e);

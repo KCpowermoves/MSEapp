@@ -5,6 +5,7 @@ import {
   listAllPayrollAdjustments,
   voidAdjustment,
 } from "@/lib/data/payroll-adjustments";
+import { logPayrollAction } from "@/lib/data/payroll-log";
 
 // POST /api/admin/payroll/adjustments/void
 // Body: { adjustmentId }
@@ -53,6 +54,13 @@ export async function POST(request: Request) {
 
   try {
     await voidAdjustment(adjustmentId, guard.session.name);
+    await logPayrollAction({
+      admin: guard.session.name,
+      action: "adjustment-void",
+      periodId: adj.periodId,
+      target: adjustmentId,
+      detail: `voided ${adj.type} $${adj.amount.toFixed(2)} for ${adj.techName}: ${adj.description}`,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[payroll/adjustments void POST] failed:", e);

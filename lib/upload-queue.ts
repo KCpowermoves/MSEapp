@@ -14,7 +14,16 @@ export interface QueuedPhoto {
   jobId: string;
   unitId: string | null;
   serviceId: string | null;
-  photoSlot: PhotoSlot | "service";
+  photoSlot: PhotoSlot | "service" | string;
+  /** Upload intent forwarded to /api/upload. Unset = classic unit/service
+   *  photo. "job-cover" / "audit-building" / "audit-item" route through
+   *  the same queue so those photos get retry + backup for free. */
+  kind?: "job-cover" | "audit-building" | "audit-item";
+  auditId?: string;
+  itemId?: string;
+  /** For "staged" photos: which form instance captured it, so the form
+   *  can restore its own photos after an iOS tab kill. */
+  stagingKey?: string;
   /** The photo data. Always set when returned by listAllPhotos / listPending.
    *  Internally the blob is serialized to ArrayBuffer + mimeType before
    *  hitting IndexedDB (iOS Safari refuses to structured-clone Blobs into
@@ -24,7 +33,10 @@ export interface QueuedPhoto {
   capturedAt: number;
   attempts: number;
   lastError?: string;
-  status: "pending" | "uploading" | "failed" | "uploaded";
+  /** "staged" = captured in a form that hasn't been saved yet. The worker
+   *  ignores staged photos; saving the form promotes them to "pending".
+   *  They survive tab kills and are restorable by stagingKey. */
+  status: "pending" | "uploading" | "failed" | "uploaded" | "staged";
   /** When the most recent upload attempt completed (success or failure). Used for backoff. */
   lastAttemptAt?: number;
   /** When the current upload was started. Used for stuck-detection. */
@@ -158,10 +170,12 @@ export async function listAllPhotos(): Promise<QueuedPhoto[]> {
   return all.map(rehydrate);
 }
 
-/** Photos in pending/uploading/failed states (i.e. anything not yet on Drive). */
+/** Photos in pending/uploading/failed states (i.e. anything not yet on
+ *  Drive). Staged photos are excluded — they belong to an unsaved form
+ *  and must not upload (or show in the pending badge) until promoted. */
 export async function listPending(): Promise<QueuedPhoto[]> {
   const all = await listAllPhotos();
-  return all.filter((p) => p.status !== "uploaded");
+  return all.filter((p) => p.status !== "uploaded" && p.status !== "staged");
 }
 
 /** Photos that successfully uploaded to Drive but are still kept locally
@@ -264,6 +278,104 @@ export async function forceRetryAllFailedPhotos(): Promise<number> {
 export async function removePhoto(id: string): Promise<void> {
   const db = await getDb();
   await db.delete(STORE_PHOTOS, id);
+}
+
+// === Capture-time staging ==================================================
+// Photos captured inside a form used to live only in React state until
+// the tech hit Save — iOS killing the backgrounded tab silently wiped
+// every one of them. Staging writes each photo to IndexedDB the moment
+// it's captured; Save promotes them to "pending" (real upload queue),
+// cancel/remove deletes them, and an interrupted form finds them again
+// by stagingKey on next mount.
+
+/** Persist a just-captured photo before the form is saved. Returns the
+ *  queue id so the form can promote/remove it later. */
+export async function stagePhoto(opts: {
+  stagingKey: string;
+  jobId: string;
+  photoSlot: PhotoSlot | "service" | string;
+  blob: Blob;
+  filename: string;
+  capturedAt: number;
+}): Promise<string> {
+  const db = await getDb();
+  const id = `staged-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const full: QueuedPhoto = {
+    id,
+    jobId: opts.jobId,
+    unitId: null,
+    serviceId: null,
+    photoSlot: opts.photoSlot,
+    stagingKey: opts.stagingKey,
+    blob: opts.blob,
+    filename: opts.filename,
+    capturedAt: opts.capturedAt,
+    attempts: 0,
+    status: "staged",
+  };
+  const stored = await serializeForStorage(full);
+  await db.put(STORE_PHOTOS, stored);
+  return id;
+}
+
+/** Staged photos for one form instance, oldest first. */
+export async function listStagedPhotos(
+  stagingKey: string
+): Promise<QueuedPhoto[]> {
+  const all = await listAllPhotos();
+  return all
+    .filter((p) => p.status === "staged" && p.stagingKey === stagingKey)
+    .sort((a, b) => a.capturedAt - b.capturedAt);
+}
+
+/** Promote a staged photo into the live upload queue with its final
+ *  target (unit id may be a local- draft id — the worker holds it until
+ *  the draft syncs, same as any enqueued photo). */
+export async function promoteStagedPhoto(
+  id: string,
+  target: {
+    jobId: string;
+    unitId?: string | null;
+    serviceId?: string | null;
+    photoSlot?: PhotoSlot | "service" | string;
+    filename?: string;
+  }
+): Promise<void> {
+  const db = await getDb();
+  const item = (await db.get(STORE_PHOTOS, id)) as
+    | (QueuedPhoto & { blobBuffer?: ArrayBuffer })
+    | undefined;
+  if (!item) return;
+  await db.put(STORE_PHOTOS, {
+    ...item,
+    jobId: target.jobId,
+    unitId: target.unitId ?? null,
+    serviceId: target.serviceId ?? null,
+    photoSlot: target.photoSlot ?? item.photoSlot,
+    filename: target.filename ?? item.filename,
+    stagingKey: undefined,
+    status: "pending",
+  });
+}
+
+/** Drop staged photos that were never promoted and are older than the
+ *  cutoff (default 7 days) — e.g. a form abandoned on a lost phone. */
+export async function purgeAbandonedStaged(
+  maxAgeDays: number = 7
+): Promise<number> {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const db = await getDb();
+  const tx = db.transaction(STORE_PHOTOS, "readwrite");
+  const all = (await tx.store.getAll()) as QueuedPhoto[];
+  let n = 0;
+  for (const p of all) {
+    if (p.status !== "staged") continue;
+    if ((p.capturedAt ?? 0) > cutoff) continue;
+    await tx.store.delete(p.id);
+    n++;
+  }
+  await tx.done;
+  return n;
 }
 
 export async function clearAll(): Promise<void> {

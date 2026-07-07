@@ -67,7 +67,13 @@ export interface TechRollup {
     standalone: number;
     dailyStipend: number;
     travelBonus: number;
-    /** Manual / reattribute / split-change / standalone adjustments. */
+    /** Typed categories — broken out so pay reports and stubs can show
+     *  them as their own lines instead of one opaque blob. */
+    bonus: number;
+    deduction: number;
+    reimbursement: number;
+    /** Manual / reattribute / split-change / standalone adjustments
+     *  (everything not covered by a typed category above). */
     adjustments: number;
     /** Auto-attribution lines (everything except adjustments). */
     earned: number;
@@ -119,12 +125,18 @@ function describeAdjustment(a: PayrollAdjustment): string {
   if (a.type === "reattribute_to") return `Reattributed from ${a.relatedTech}`;
   if (a.type === "split_change") return `Crew split delta`;
   if (a.type === "standalone") return `Standalone line item`;
+  if (a.type === "bonus") return "Bonus";
+  if (a.type === "deduction") return "Deduction";
+  if (a.type === "reimbursement") return "Reimbursement";
   return "Manual adjustment";
 }
 
 function adjustmentLineType(a: PayrollAdjustment): string {
   if (a.type === "manual") return "Adjustment";
   if (a.type === "standalone") return "Standalone";
+  if (a.type === "bonus") return "Bonus";
+  if (a.type === "deduction") return "Deduction";
+  if (a.type === "reimbursement") return "Reimbursement";
   if (a.type === "reattribute_from") return "Reattribute (out)";
   if (a.type === "reattribute_to") return "Reattribute (in)";
   if (a.type === "split_change") return "Split change";
@@ -330,6 +342,9 @@ export async function computePayrollReport(
       standalone: 0,
       dailyStipend: 0,
       travelBonus: 0,
+      bonus: 0,
+      deduction: 0,
+      reimbursement: 0,
       adjustments: 0,
       earned: 0,
     };
@@ -340,6 +355,12 @@ export async function computePayrollReport(
         // any caller bypasses the translation.
         const k = bucketKey(it.lineType);
         subtotals[k] += it.amount;
+      } else if (it.adjustmentType === "bonus") {
+        subtotals.bonus += it.amount;
+      } else if (it.adjustmentType === "deduction") {
+        subtotals.deduction += it.amount;
+      } else if (it.adjustmentType === "reimbursement") {
+        subtotals.reimbursement += it.amount;
       } else {
         // Standalone-typed adjustments still get folded into the
         // adjustments bucket — they're a "manual line we added,"
@@ -355,7 +376,12 @@ export async function computePayrollReport(
       subtotals.dailyStipend +
       subtotals.travelBonus;
 
-    const grandTotal = subtotals.earned + subtotals.adjustments;
+    const grandTotal =
+      subtotals.earned +
+      subtotals.adjustments +
+      subtotals.bonus +
+      subtotals.deduction +
+      subtotals.reimbursement;
     techRollups.push({ techName, lineItems: sorted, subtotals, grandTotal });
   }
 
@@ -402,6 +428,39 @@ export async function computeReportForTech(opts: {
   const rollup =
     report.techs.find((t) => t.techName === opts.techName) ?? null;
   return { period: report.period, rollup, report };
+}
+
+// ─── YTD totals per tech ─────────────────────────────────────────────
+
+/**
+ * Sum each tech's grand total across every Paid/Closed period whose
+ * start date falls in the given calendar year — the year-to-date line
+ * on pay stubs. Excludes `excludePeriodId` so the caller can add the
+ * current period's own total on top without double-counting.
+ */
+export async function computeYtdByTech(opts: {
+  year: string; // "2026"
+  excludePeriodId?: string;
+}): Promise<Map<string, number>> {
+  const periods = await listAllPayrollPeriods();
+  const relevant = periods.filter(
+    (p) =>
+      (p.status === "Paid" || p.status === "Closed") &&
+      p.startDate.startsWith(opts.year) &&
+      p.periodId !== opts.excludePeriodId
+  );
+  const ytd = new Map<string, number>();
+  for (const p of relevant) {
+    const r = await computePayrollReport({
+      periodId: p.periodId,
+      startDate: p.startDate,
+      endDate: p.endDate,
+    });
+    for (const t of r.techs) {
+      ytd.set(t.techName, (ytd.get(t.techName) ?? 0) + t.grandTotal);
+    }
+  }
+  return ytd;
 }
 
 // ─── Period summaries for the admin list page ────────────────────────

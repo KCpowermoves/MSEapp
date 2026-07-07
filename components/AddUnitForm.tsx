@@ -9,6 +9,10 @@ import {
   enqueueDraftUnit,
   enqueuePhoto,
   listDraftsForJob,
+  listStagedPhotos,
+  promoteStagedPhoto,
+  removePhoto,
+  stagePhoto,
 } from "@/lib/upload-queue";
 import { kickWorker } from "@/lib/upload-worker";
 import { captureLocationEvent } from "@/lib/location";
@@ -30,6 +34,58 @@ const TYPE_SHORT: Record<UnitType, string> = {
 
 function defaultLabel(unitType: UnitType, n: number): string {
   return `${TYPE_SHORT[unitType]} ${n}`;
+}
+
+// === Crash protection ======================================================
+// Everything the tech enters used to live only in React state until Save
+// — iOS killing a backgrounded tab wiped up to 35 photos with no trace.
+// Now every captured photo is staged to IndexedDB the moment it exists,
+// and the text fields mirror to localStorage. Reopening Add Unit for the
+// same job restores the whole form. Save promotes staged photos into the
+// real upload queue; removing a photo deletes its staged copy.
+
+function stagingKeyFor(jobId: string): string {
+  return `unit-form:${jobId}`;
+}
+
+function textDraftKeyFor(jobId: string): string {
+  return `mse-addunit-draft:${jobId}`;
+}
+
+interface TextDraft {
+  unitType: UnitType | null;
+  customLabel: string | null;
+  make: string;
+  model: string;
+  serial: string;
+  notes: string;
+}
+
+function loadTextDraft(jobId: string): TextDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(textDraftKeyFor(jobId));
+    if (!raw) return null;
+    return JSON.parse(raw) as TextDraft;
+  } catch {
+    return null;
+  }
+}
+
+function saveTextDraft(jobId: string, draft: TextDraft): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(textDraftKeyFor(jobId), JSON.stringify(draft));
+  } catch {
+    // Quota/private-mode failures are non-fatal — photos still stage.
+  }
+}
+
+function clearTextDraft(jobId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(textDraftKeyFor(jobId));
+  } catch {}
 }
 
 
@@ -78,6 +134,101 @@ export function AddUnitForm({
     };
   }, [job.jobId]);
 
+  // Restore an interrupted form: staged photos from IndexedDB + text
+  // fields from localStorage. Runs once per mount.
+  const [restoredCount, setRestoredCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const draft = loadTextDraft(job.jobId);
+      const staged = await listStagedPhotos(stagingKeyFor(job.jobId)).catch(
+        () => []
+      );
+      if (cancelled || (!draft && staged.length === 0)) return;
+
+      if (draft) {
+        if (draft.unitType) setUnitType(draft.unitType);
+        setCustomLabel(draft.customLabel);
+        setMake(draft.make);
+        setModel(draft.model);
+        setSerial(draft.serial);
+        setNotes(draft.notes);
+      }
+      if (staged.length > 0) {
+        const restoredSlots: Partial<Record<PhotoSlot, CapturedPhoto>> = {};
+        const restoredAdditional: CapturedPhoto[] = [];
+        for (const p of staged) {
+          const photo: CapturedPhoto = {
+            blob: p.blob,
+            thumbnailUrl: URL.createObjectURL(p.blob),
+            capturedAt: p.capturedAt,
+            filename: p.filename,
+            stagedId: p.id,
+          };
+          if (p.photoSlot === "additional") {
+            restoredAdditional.push(photo);
+          } else {
+            restoredSlots[p.photoSlot as PhotoSlot] = photo;
+          }
+        }
+        setPhotos((prev) => ({ ...restoredSlots, ...prev }));
+        if (restoredAdditional.length > 0) {
+          setAdditionalPhotos((prev) => [...restoredAdditional, ...prev]);
+        }
+        setRestoredCount(staged.length);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.jobId]);
+
+  // Mirror text fields to localStorage so a killed tab loses nothing.
+  // Skipped until the tech actually picks a type (nothing to protect).
+  useEffect(() => {
+    if (!unitType && customLabel === null && !make && !model && !serial && !notes) {
+      return;
+    }
+    saveTextDraft(job.jobId, {
+      unitType,
+      customLabel,
+      make,
+      model,
+      serial,
+      notes,
+    });
+  }, [job.jobId, unitType, customLabel, make, model, serial, notes]);
+
+  // Stage a photo to IndexedDB the moment it's captured; returns the
+  // photo with its stagedId attached so removal can clean up.
+  async function stageCaptured(
+    slotKey: string,
+    photo: CapturedPhoto
+  ): Promise<CapturedPhoto> {
+    try {
+      const stagedId = await stagePhoto({
+        stagingKey: stagingKeyFor(job.jobId),
+        jobId: job.jobId,
+        photoSlot: slotKey,
+        blob: photo.blob,
+        filename: photo.filename,
+        capturedAt: photo.capturedAt,
+      });
+      return { ...photo, stagedId };
+    } catch (e) {
+      // Staging is belt-and-suspenders — never block a capture on it.
+      console.warn("[AddUnit] photo staging failed:", e);
+      return photo;
+    }
+  }
+
+  function dropStaged(photo: CapturedPhoto | null | undefined): void {
+    if (photo?.stagedId) {
+      removePhoto(photo.stagedId).catch(() => {});
+    }
+  }
+
   const effectiveNextNumber = nextUnitNumber + draftCount;
 
   // The label shown in the input. If the tech has typed a custom value,
@@ -109,12 +260,26 @@ export function AddUnitForm({
     slot === "nameplate" || slot === "out_nameplate" || slot === "in_nameplate";
 
   const setSlot = (slot: PhotoSlot) => (next: CapturedPhoto | null) => {
+    // Replacing or clearing a slot orphans its staged copy — drop it.
+    dropStaged(photos[slot]);
     setPhotos((prev) => {
       const copy = { ...prev };
       if (next === null) delete copy[slot];
       else copy[slot] = next;
       return copy;
     });
+
+    if (next) {
+      // Stage to IndexedDB immediately so a killed tab can't lose it.
+      void (async () => {
+        const staged = await stageCaptured(slot, next);
+        if (staged.stagedId) {
+          setPhotos((prev) =>
+            prev[slot] === next ? { ...prev, [slot]: staged } : prev
+          );
+        }
+      })();
+    }
 
     // Fire-and-forget OCR when a nameplate is captured. Skips if a
     // read is already running or has already populated the fields.
@@ -125,13 +290,34 @@ export function AddUnitForm({
 
   const addExtrasToAdditional = (extras: CapturedPhoto[]) => {
     setAdditionalPhotos((prev) => [...prev, ...extras]);
+    // Stage each new photo; swap in the stagedId-carrying copy once done.
+    for (const extra of extras) {
+      void (async () => {
+        const staged = await stageCaptured("additional", extra);
+        if (staged.stagedId) {
+          setAdditionalPhotos((prev) =>
+            prev.map((p) => (p === extra ? staged : p))
+          );
+        }
+      })();
+    }
   };
 
   const replaceAdditionalAt = (i: number, photo: CapturedPhoto) => {
+    dropStaged(additionalPhotos[i]);
     setAdditionalPhotos((prev) => prev.map((p, idx) => (idx === i ? photo : p)));
+    void (async () => {
+      const staged = await stageCaptured("additional", photo);
+      if (staged.stagedId) {
+        setAdditionalPhotos((prev) =>
+          prev.map((p) => (p === photo ? staged : p))
+        );
+      }
+    })();
   };
 
   const removeAdditional = (i: number) => {
+    dropStaged(additionalPhotos[i]);
     setAdditionalPhotos((prev) => prev.filter((_, idx) => idx !== i));
   };
 
@@ -145,6 +331,8 @@ export function AddUnitForm({
     setSerial("");
     setNotes("");
     setError(null);
+    setRestoredCount(0);
+    clearTextDraft(job.jobId);
     ocr.reset();
   };
 
@@ -237,37 +425,64 @@ export function AddUnitForm({
         unitNumber = String(data.unit.unitNumberOnJob).padStart(3, "0");
       }
 
-      // ── Phase 3: Enqueue photos (works for both online and offline paths;
-      // if unitId is local-, the worker rewrites it after the draft syncs).
+      // ── Phase 3: Move photos into the upload queue. Staged photos
+      // (persisted at capture time) are promoted in place; anything
+      // that somehow skipped staging is enqueued fresh. Works for both
+      // online and offline paths — if unitId is local-, the worker
+      // rewrites it after the draft syncs.
       const typeTag = submittingType.replace(/[\s/]+/g, "-");
       for (const { slot } of submittingSlots) {
         const photo = submittingPhotos[slot];
         if (!photo) continue;
-        await enqueuePhoto({
-          id: `${unitId}-${slot}-${Date.now()}`,
-          jobId: job.jobId,
-          unitId,
-          serviceId: null,
-          photoSlot: slot,
-          blob: photo.blob,
-          filename: `Unit-${unitNumber}_${typeTag}_${slot}.jpg`,
-          capturedAt: photo.capturedAt,
-        });
+        const filename = `Unit-${unitNumber}_${typeTag}_${slot}.jpg`;
+        if (photo.stagedId) {
+          await promoteStagedPhoto(photo.stagedId, {
+            jobId: job.jobId,
+            unitId,
+            photoSlot: slot,
+            filename,
+          });
+        } else {
+          await enqueuePhoto({
+            id: `${unitId}-${slot}-${Date.now()}`,
+            jobId: job.jobId,
+            unitId,
+            serviceId: null,
+            photoSlot: slot,
+            blob: photo.blob,
+            filename,
+            capturedAt: photo.capturedAt,
+          });
+        }
       }
       for (let i = 0; i < submittingAdditional.length; i++) {
         const photo = submittingAdditional[i];
         if (!photo) continue;
-        await enqueuePhoto({
-          id: `${unitId}-additional-${i}-${Date.now()}`,
-          jobId: job.jobId,
-          unitId,
-          serviceId: null,
-          photoSlot: "additional",
-          blob: photo.blob,
-          filename: `${unitNumber}_additional_${i + 1}.jpg`,
-          capturedAt: photo.capturedAt,
-        });
+        const filename = `${unitNumber}_additional_${i + 1}.jpg`;
+        if (photo.stagedId) {
+          await promoteStagedPhoto(photo.stagedId, {
+            jobId: job.jobId,
+            unitId,
+            photoSlot: "additional",
+            filename,
+          });
+        } else {
+          await enqueuePhoto({
+            id: `${unitId}-additional-${i}-${Date.now()}`,
+            jobId: job.jobId,
+            unitId,
+            serviceId: null,
+            photoSlot: "additional",
+            blob: photo.blob,
+            filename,
+            capturedAt: photo.capturedAt,
+          });
+        }
       }
+
+      // The unit is saved — the crash-protection draft has served its
+      // purpose and must not restore into the next blank form.
+      clearTextDraft(job.jobId);
 
       kickWorker();
 
@@ -339,6 +554,19 @@ export function AddUnitForm({
         <h1 className="text-2xl font-bold text-mse-navy">Add unit</h1>
       </div>
 
+      {restoredCount > 0 && (
+        <div className="rounded-xl bg-mse-gold/15 border border-mse-gold/30 px-4 py-3 text-sm text-mse-navy flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-mse-gold shrink-0" />
+          <div className="flex-1">
+            <span className="font-bold">
+              Restored {restoredCount} photo{restoredCount === 1 ? "" : "s"}
+            </span>{" "}
+            from your last session — nothing was lost. Review and tap Save
+            when ready.
+          </div>
+        </div>
+      )}
+
       {savedOfflineCount > 0 && (
         <div className="rounded-xl bg-mse-gold/15 border border-mse-gold/30 px-4 py-3 text-sm text-mse-navy flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-mse-gold shrink-0" />
@@ -358,6 +586,9 @@ export function AddUnitForm({
           value={unitType}
           onChange={(next) => {
             setUnitType(next);
+            // Slot photos don't carry across types — drop their staged
+            // copies too so they can't restore into the wrong layout.
+            for (const p of Object.values(photos)) dropStaged(p);
             setPhotos({});
             // Drop any custom label so the auto-default kicks in for
             // the new type.

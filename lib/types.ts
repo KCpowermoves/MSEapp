@@ -188,14 +188,16 @@ export interface SessionData {
 
 // ─── Payroll ──────────────────────────────────────────────────────────
 
-export type PayrollStatus = "Draft" | "Approved" | "Paid";
+export type PayrollStatus = "Draft" | "Approved" | "Paid" | "Closed";
 
 /**
  * A payroll period is a slice of time over which we compute each tech's
  * earned pay. Custom date ranges so the admin can run weekly, biweekly,
  * "this Tuesday only," whatever they need. Status moves Draft → Approved
- * → Paid; "Approved" freezes the adjustment buttons until the admin
- * clicks "Unlock to edit" (which reverts to Draft and clears Approval).
+ * → Paid → Closed; "Approved" freezes the adjustment buttons until the
+ * admin clicks "Unlock to edit" (which reverts to Draft and clears
+ * Approval). "Closed" hard-locks the books — reopening requires a typed
+ * justification which is written to the Payroll Log.
  */
 export interface PayrollPeriod {
   periodId: string;
@@ -217,7 +219,10 @@ export interface PayrollPeriod {
  * overwrite the originals. Final paycheck = sum of attribution within
  * the period + sum of adjustments tagged to that period.
  *
- *  - "manual"            : free-form +/- with note (most common)
+ *  - "manual"            : free-form +/- with note (legacy catch-all)
+ *  - "bonus"             : positive extra pay (performance, referral, spiff)
+ *  - "deduction"         : negative — advance repayment, equipment, etc.
+ *  - "reimbursement"     : positive expense pay-back (materials, mileage)
  *  - "reattribute_from"  : -$X removed from a tech (paired with _to row)
  *  - "reattribute_to"    : +$X added to another tech (paired with _from)
  *  - "split_change"      : delta from retroactively re-splitting a dispatch
@@ -225,6 +230,9 @@ export interface PayrollPeriod {
  */
 export type PayrollAdjustmentType =
   | "manual"
+  | "bonus"
+  | "deduction"
+  | "reimbursement"
   | "reattribute_from"
   | "reattribute_to"
   | "split_change"

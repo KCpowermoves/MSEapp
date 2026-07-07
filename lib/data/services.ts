@@ -1,10 +1,10 @@
 import "server-only";
 import {
   TABS,
+  appendCsvValueToCell,
   appendRow,
   findRowIndex,
   readTab,
-  updateCell,
 } from "@/lib/google/sheets";
 import { nextServiceId } from "@/lib/id-generators";
 import { bumpLastActivity } from "@/lib/data/jobs";
@@ -82,9 +82,12 @@ export async function appendServicePhotoUrl(
     serviceId
   );
   if (!rowIndex) throw new Error(`Service not found: ${serviceId}`);
-  const rows = await readTab(TABS.additionalServices);
-  const offset = rowIndex - 2;
-  const existing = String(rows[offset]?.[5] ?? "");
-  const next = existing ? `${existing}, ${url}` : url;
-  await updateCell(`${TABS.additionalServices}!F${rowIndex}`, next);
+  // Concurrency-safe append — see appendCsvValueToCell for why a plain
+  // read-merge-write here loses photos.
+  await appendCsvValueToCell({
+    tab: TABS.additionalServices,
+    rowIndex,
+    colLetter: "F",
+    value: url,
+  });
 }

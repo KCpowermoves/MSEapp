@@ -272,6 +272,9 @@ export function TechSection({
     { label: "Standalone", value: tech.subtotals.standalone },
     { label: "Stipend", value: tech.subtotals.dailyStipend },
     { label: "Travel", value: tech.subtotals.travelBonus },
+    { label: "Bonus", value: tech.subtotals.bonus },
+    { label: "Deductions", value: tech.subtotals.deduction },
+    { label: "Reimbursements", value: tech.subtotals.reimbursement },
     { label: "Adjustments", value: tech.subtotals.adjustments },
   ].filter((c) => c.value !== 0);
 

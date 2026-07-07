@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/payroll/auth";
 import { createPayrollPeriod } from "@/lib/data/payroll-periods";
+import { logPayrollAction } from "@/lib/data/payroll-log";
 
 // POST /api/admin/payroll/periods
 // Creates a new Draft payroll period with a start/end date range.
@@ -49,6 +50,12 @@ export async function POST(request: Request) {
       label,
       note,
       createdBy: guard.session.name,
+    });
+    await logPayrollAction({
+      admin: guard.session.name,
+      action: "period-create",
+      periodId: period.periodId,
+      detail: `created ${startDate} to ${endDate}${label ? ` (${label})` : ""}`,
     });
     return NextResponse.json({ ok: true, period });
   } catch (e) {

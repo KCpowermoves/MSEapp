@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/payroll/auth";
 import { getPayrollPeriod } from "@/lib/data/payroll-periods";
 import { createReattribution } from "@/lib/data/payroll-adjustments";
+import { logPayrollAction } from "@/lib/data/payroll-log";
 
 // POST /api/admin/payroll/reattribute
 // Body: { periodId, fromTech, toTech, amount, description,
@@ -84,6 +85,13 @@ export async function POST(request: Request) {
       relatedDispatchId,
       relatedUnitId,
       createdBy: guard.session.name,
+    });
+    await logPayrollAction({
+      admin: guard.session.name,
+      action: "reattribute",
+      periodId,
+      target: relatedDispatchId || `${fromTech}→${toTech}`,
+      detail: `moved $${amount.toFixed(2)} from ${fromTech} to ${toTech}${description ? `: ${description}` : ""}`,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

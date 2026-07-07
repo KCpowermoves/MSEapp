@@ -160,6 +160,55 @@ export async function writeAttributions(
   }
 }
 
+/**
+ * Back-fill Daily Stipend attribution rows for a dispatch whose photos
+ * completed AFTER submit (so submit-time attribution wrote none).
+ * Idempotent — skips any tech who already has a Daily Stipend row for
+ * this dispatch. Uses a fresh read so the duplicate check can't be
+ * fooled by the 30s cache.
+ */
+export async function appendLateStipendRows(opts: {
+  dispatchId: string;
+  dispatchDate: string;
+  techsOnSite: string[];
+  stipend: number;
+}): Promise<number> {
+  if (!opts.dispatchId || opts.stipend <= 0 || !opts.techsOnSite.length) {
+    return 0;
+  }
+  const rows = await readTab(TABS.payAttribution, { fresh: true });
+  const alreadyPaid = new Set(
+    rows
+      .filter((r) => r[0])
+      .map(rowToAttrib)
+      .filter(
+        (r) =>
+          r.dispatchId === opts.dispatchId && r.lineItem === "Daily Stipend"
+      )
+      .map((r) => r.techName)
+  );
+  let written = 0;
+  for (const tech of opts.techsOnSite) {
+    if (!tech || alreadyPaid.has(tech)) continue;
+    written++;
+    const id = `ATTR-${opts.dispatchId}-LS${String(written).padStart(2, "0")}`;
+    await appendRow(
+      TABS.payAttribution,
+      [
+        id,
+        opts.dispatchDate,
+        opts.dispatchId,
+        tech,
+        "Daily Stipend",
+        opts.stipend,
+        "Photos completed after submit (late back-fill)",
+      ],
+      "USER_ENTERED"
+    );
+  }
+  return written;
+}
+
 export interface AttribReadRow {
   id: string;
   date: string;

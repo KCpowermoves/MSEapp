@@ -39,9 +39,25 @@ export function PayrollDetailHeader(props: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const setStatus = async (next: PayrollStatus, confirmLabel?: string) => {
+  const setStatus = async (
+    next: PayrollStatus,
+    confirmLabel?: string,
+    opts: { requireJustification?: boolean } = {}
+  ) => {
     if (confirmLabel) {
       if (typeof window !== "undefined" && !window.confirm(confirmLabel)) {
+        return;
+      }
+    }
+    let justification = "";
+    if (opts.requireJustification && typeof window !== "undefined") {
+      const answer = window.prompt(
+        "This period's books are closed. Type a justification for reopening (logged to the Payroll Log):"
+      );
+      if (answer === null) return; // cancelled
+      justification = answer.trim();
+      if (justification.length < 10) {
+        setError("Justification must be at least 10 characters.");
         return;
       }
     }
@@ -55,7 +71,7 @@ export function PayrollDetailHeader(props: Props) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: next }),
+          body: JSON.stringify({ status: next, justification }),
         }
       );
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -182,19 +198,48 @@ export function PayrollDetailHeader(props: Props) {
           </>
         )}
         {props.status === "Paid" && (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                setStatus(
+                  "Closed",
+                  "Close the books on this period? It hard-locks — reopening will require a typed justification."
+                )
+              }
+              disabled={busy}
+              className={primaryBtn(busy)}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              Close books
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setStatus(
+                  "Draft",
+                  "Unlock back to Draft? Money is already out — only do this for accounting corrections."
+                )
+              }
+              disabled={busy}
+              className={secondaryBtn(busy)}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Unlock (Paid)
+            </button>
+          </>
+        )}
+        {props.status === "Closed" && (
           <button
             type="button"
             onClick={() =>
-              setStatus(
-                "Draft",
-                "Unlock back to Draft? Money is already out — only do this for accounting corrections."
-              )
+              setStatus("Draft", undefined, { requireJustification: true })
             }
             disabled={busy}
             className={secondaryBtn(busy)}
           >
-            <Lock className="w-3.5 h-3.5" />
-            Unlock (Paid)
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reopen (requires justification)
           </button>
         )}
 
@@ -279,6 +324,8 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       ? "bg-mse-gold text-mse-navy"
       : status === "Paid"
       ? "bg-emerald-500 text-white"
+      : status === "Closed"
+      ? "bg-slate-700 text-white ring-1 ring-white/30"
       : "bg-white/15 text-white";
   const display = displayStatus(status);
   return (

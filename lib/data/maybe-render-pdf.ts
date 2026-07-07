@@ -2,6 +2,7 @@ import "server-only";
 import { getJob } from "@/lib/data/jobs";
 import {
   getDispatch,
+  refreshPhotosCompleteIfNeeded,
   setDispatchEmailed,
   setDispatchReportPdf,
 } from "@/lib/data/dispatches";
@@ -48,6 +49,15 @@ export async function tryRenderPdfIfReady(
   if (!dispatch) return { rendered: false, reason: "dispatch not found" };
   if (!dispatch.submittedAt)
     return { rendered: false, reason: "not submitted" };
+
+  // Late-photo reconciliation: if this dispatch was submitted before
+  // all photos landed, flipping photosComplete + back-filling the crew
+  // stipend happens here, on the same trigger that renders the PDF.
+  try {
+    await refreshPhotosCompleteIfNeeded(dispatchId);
+  } catch (e) {
+    console.warn("[pdf] photosComplete refresh error:", e);
+  }
 
   let pdfUrl = dispatch.reportPdfUrl;
   let rendered = false;

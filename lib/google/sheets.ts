@@ -23,6 +23,15 @@ export const TABS = {
   auditItems: "Audit Items",
   // Append-only audit trail of admin "View as Joe W" sessions.
   impersonationLog: "Impersonation Log",
+  // Append-only trail of every photo that reaches Drive — written the
+  // moment the Drive upload succeeds, BEFORE the sheet-cell write. If
+  // a cell write fails or gets clobbered, the log row still proves the
+  // photo exists and where it was meant to go. Appends are atomic in
+  // the Sheets API, so this tab cannot lose rows to races.
+  photoLog: "Photo Log",
+  // Append-only trail of every admin payroll action (period status
+  // changes, adjustment create/void/link, overrides, reopens).
+  payrollLog: "Payroll Log",
   // Engineering preliminary energy audits / calculator projects.
   engineeringProjects: "Engineering Projects",
 } as const;
@@ -175,6 +184,72 @@ export async function updateCell(
   });
   const tab = tabFromRange(range);
   if (tab) invalidateCacheForTab(tab);
+}
+
+// === Concurrency-safe CSV-cell append ======================================
+// Several photo flows store multiple URLs in ONE cell as a comma-joined
+// list ("additional" unit photos, service photos, audit schedule photos).
+// A naive read-modify-write loses photos two ways:
+//   1. Same-instance concurrency: two uploads merge against the same
+//      base value; the second write clobbers the first.
+//   2. The 30s read cache: the merge base can be stale, silently
+//      dropping URLs written by other instances in the window.
+// Fix: per-cell in-process mutex (serializes the common same-instance
+// case) + always merge against a FRESH single-cell read + verify after
+// write and re-merge if another instance clobbered us mid-flight.
+
+const cellLocks = new Map<string, Promise<unknown>>();
+
+async function withCellLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = cellLocks.get(key) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.then(
+    () => undefined,
+    () => undefined
+  );
+  cellLocks.set(key, tail);
+  try {
+    return await run;
+  } finally {
+    if (cellLocks.get(key) === tail) cellLocks.delete(key);
+  }
+}
+
+/**
+ * Append `value` to a comma-separated list stored in a single cell,
+ * without losing concurrent appends. Values must not contain commas
+ * (photo URLs never do). Idempotent — appending a value already in the
+ * list is a no-op.
+ */
+export async function appendCsvValueToCell(opts: {
+  tab: string;
+  rowIndex: number;
+  colLetter: string;
+  value: string;
+}): Promise<void> {
+  const range = `${opts.tab}!${opts.colLetter}${opts.rowIndex}`;
+  await withCellLock(range, async () => {
+    const MAX_TRIES = 4;
+    for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+      // Fresh single-cell read — never merge against the shared cache.
+      const rows = await readRange(range, { fresh: true });
+      const existing = String(rows[0]?.[0] ?? "");
+      const parts = existing
+        ? existing.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+      if (!parts.includes(opts.value)) parts.push(opts.value);
+      await updateCell(range, parts.join(", "));
+
+      // Verify our value actually landed. If a writer on another
+      // serverless instance clobbered us between read and write, the
+      // re-read exposes it and we merge again (now including their value).
+      const verify = await readRange(range, { fresh: true });
+      const after = String(verify[0]?.[0] ?? "");
+      if (after.includes(opts.value)) return;
+      await new Promise((r) => setTimeout(r, 150 + Math.random() * 400));
+    }
+    throw new Error(`CSV cell append failed verification after retries: ${range}`);
+  });
 }
 
 // Convert column letter to 0-indexed position. "A"→0, "B"→1, ...

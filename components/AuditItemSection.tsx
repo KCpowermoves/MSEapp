@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Minus, Loader2 } from "lucide-react";
 import { AuditPhotoSlot } from "@/components/AuditPhotoSlot";
+import { uploadAuditPhotoWithFallback } from "@/lib/audit-photo-fallback";
 import { cn } from "@/lib/utils";
 import type {
   Audit,
@@ -91,31 +92,33 @@ export function AuditItemSection({
     slot: string,
     file: File
   ) {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("jobId", job.jobId);
-    fd.append("itemId", item.itemId);
-    fd.append("kind", "audit-item");
-    fd.append("slot", slot);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-    if (!res.ok || !body.url) throw new Error(body.error ?? "Upload failed");
+    // Direct upload with queue fallback — a network/server failure
+    // parks the photo in IndexedDB for background retry instead of
+    // losing it. The slot keeps its local preview in the meantime.
+    const { url } = await uploadAuditPhotoWithFallback({
+      file,
+      jobId: job.jobId,
+      itemId: item.itemId,
+      kind: "audit-item",
+      slot,
+    });
+    if (!url) return; // queued — the background worker will deliver it
     onItemsChange(
       items.map((i) => {
         if (i.itemId !== item.itemId) return i;
         const updated = { ...i };
-        if (slot === "model-label") updated.modelLabelPhotoUrl = body.url ?? "";
-        if (slot === "nameplate") updated.nameplatePhotoUrl = body.url ?? "";
-        if (slot === "fans") updated.fansPhotoUrl = body.url ?? "";
-        if (slot === "temp") updated.tempPhotoUrl = body.url ?? "";
-        if (slot === "wiring") updated.wiringPhotoUrl = body.url ?? "";
-        if (slot === "location") updated.locationPhotoUrl = body.url ?? "";
-        if (slot === "controls") updated.controlsPhotoUrl = body.url ?? "";
+        if (slot === "model-label") updated.modelLabelPhotoUrl = url;
+        if (slot === "nameplate") updated.nameplatePhotoUrl = url;
+        if (slot === "fans") updated.fansPhotoUrl = url;
+        if (slot === "temp") updated.tempPhotoUrl = url;
+        if (slot === "wiring") updated.wiringPhotoUrl = url;
+        if (slot === "location") updated.locationPhotoUrl = url;
+        if (slot === "controls") updated.controlsPhotoUrl = url;
         if (slot === "schedule") {
           const existing = updated.schedulePhotoUrlsCsv
             ? updated.schedulePhotoUrlsCsv.split(",").map((s) => s.trim()).filter(Boolean)
             : [];
-          existing.push(body.url ?? "");
+          existing.push(url);
           updated.schedulePhotoUrlsCsv = existing.join(",");
         }
         return updated;

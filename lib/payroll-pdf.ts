@@ -386,7 +386,8 @@ function renderSummary(doc: Doc, report: PayrollReport): void {
 function renderTechSection(
   doc: Doc,
   tech: TechRollup,
-  nameplates: Map<string, ArrayBuffer>
+  nameplates: Map<string, ArrayBuffer>,
+  ytdPrior?: number
 ): void {
   ensureRoom(doc, 140);
 
@@ -422,7 +423,15 @@ function renderTechSection(
     { label: "Standalone", value: tech.subtotals.standalone, show: tech.subtotals.standalone !== 0 },
     { label: "Daily Stipend", value: tech.subtotals.dailyStipend, show: tech.subtotals.dailyStipend !== 0 },
     { label: "Travel Bonus", value: tech.subtotals.travelBonus, show: tech.subtotals.travelBonus !== 0 },
+    { label: "Bonus", value: tech.subtotals.bonus, show: tech.subtotals.bonus !== 0 },
+    { label: "Deductions", value: tech.subtotals.deduction, show: tech.subtotals.deduction !== 0 },
+    { label: "Reimbursements", value: tech.subtotals.reimbursement, show: tech.subtotals.reimbursement !== 0 },
     { label: "Adjustments", value: tech.subtotals.adjustments, show: tech.subtotals.adjustments !== 0 },
+    {
+      label: "YTD incl. this",
+      value: (ytdPrior ?? 0) + tech.grandTotal,
+      show: ytdPrior !== undefined,
+    },
   ].filter((c) => c.show);
 
   if (chips.length > 0) {
@@ -697,6 +706,10 @@ interface BuildOpts {
   /** When set, filters output to just this tech. Used by the
    *  tech-self-view download. */
   techNameFilter?: string;
+  /** Per-tech year-to-date totals across prior Paid/Closed periods.
+   *  When provided, each tech section gets a "YTD incl. this" chip
+   *  (prior YTD + this period's grand total) — the pay-stub line. */
+  ytdByTech?: Map<string, number>;
 }
 
 export async function buildPayrollPdf(opts: BuildOpts): Promise<Buffer> {
@@ -744,7 +757,12 @@ export async function buildPayrollPdf(opts: BuildOpts): Promise<Buffer> {
           });
       } else {
         for (const tech of techs) {
-          renderTechSection(doc, tech, nameplates);
+          renderTechSection(
+            doc,
+            tech,
+            nameplates,
+            opts.ytdByTech ? opts.ytdByTech.get(tech.techName) ?? 0 : undefined
+          );
         }
       }
 

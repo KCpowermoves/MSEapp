@@ -10,6 +10,7 @@ import {
   markPending,
   markUploaded,
   markUploading,
+  purgeAbandonedStaged,
   purgeOldBackups,
   rewriteJobIds,
   rewritePhotoUnitIds,
@@ -38,12 +39,19 @@ const UPLOAD_TIMEOUT_MS = 45_000;
 const SYNC_TIMEOUT_MS = 30_000;
 const STUCK_UPLOAD_THRESHOLD_MS = 60_000;       // since uploadStartedAt
 const STUCK_SYNCING_THRESHOLD_MS = 5 * 60_000;  // since syncStartedAt
-const PHOTO_MAX_ATTEMPTS = 12;
-const DRAFT_MAX_ATTEMPTS = 12;
+// After this many attempts we switch to the slow lane (30-min cadence)
+// instead of giving up. A photo NEVER stops retrying on its own — the
+// old hard cap stranded photos forever when a draft job hit 12 failed
+// syncs, and the only rescue was the tech noticing the pending badge.
+const FAST_LANE_ATTEMPTS = 12;
+const SLOW_LANE_BACKOFF_SEC = 30 * 60;
 
 /** Backoff schedule (in seconds) keyed by attempt number. After N attempts,
- * wait this many seconds since the last attempt before retrying again. */
+ * wait this many seconds since the last attempt before retrying again.
+ * Past FAST_LANE_ATTEMPTS the cadence drops to every 30 minutes — slow
+ * enough to be battery/network-friendly, but never a dead end. */
 function backoffSeconds(attempts: number): number {
+  if (attempts >= FAST_LANE_ATTEMPTS) return SLOW_LANE_BACKOFF_SEC;
   // 30s, 60s, 2m, 4m, 5m, 5m, 5m, ...
   return Math.min(300, 30 * Math.pow(2, Math.max(0, attempts - 1)));
 }
@@ -98,7 +106,6 @@ async function syncPendingDraftJobs(): Promise<void> {
   const now = Date.now();
   for (const d of drafts) {
     if (d.status === "synced") continue;
-    if ((d.attempts ?? 0) >= DRAFT_MAX_ATTEMPTS) continue;
 
     // Recover drafts left in "syncing" state by a page reload mid-sync.
     if (d.status === "syncing") {
@@ -162,7 +169,6 @@ async function syncPendingDrafts(): Promise<void> {
   const now = Date.now();
   for (const d of drafts) {
     if (d.status === "synced") continue;
-    if ((d.attempts ?? 0) >= DRAFT_MAX_ATTEMPTS) continue;
     // Skip if parent job is still local — will retry next tick after the
     // parent job syncs and rewriteJobIds bumps this row to a real id.
     if (d.jobId.startsWith("local-job-")) continue;
@@ -189,6 +195,15 @@ async function syncPendingDrafts(): Promise<void> {
   }
 }
 
+/** Serialization key — photos sharing a key are uploaded one at a time. */
+function targetKey(p: QueuedPhoto): string {
+  if (p.unitId) return `unit:${p.unitId}`;
+  if (p.serviceId) return `service:${p.serviceId}`;
+  if (p.auditId) return `audit:${p.auditId}`;
+  if (p.itemId) return `item:${p.itemId}`;
+  return `job:${p.jobId}:${p.kind ?? ""}`;
+}
+
 async function uploadOne(item: QueuedPhoto) {
   await markUploading(item.id);
   const formData = new FormData();
@@ -196,6 +211,9 @@ async function uploadOne(item: QueuedPhoto) {
   formData.append("jobId", item.jobId);
   if (item.unitId) formData.append("unitId", item.unitId);
   if (item.serviceId) formData.append("serviceId", item.serviceId);
+  if (item.kind) formData.append("kind", item.kind);
+  if (item.auditId) formData.append("auditId", item.auditId);
+  if (item.itemId) formData.append("itemId", item.itemId);
   if (item.photoSlot && item.photoSlot !== "service") {
     formData.append("slot", item.photoSlot);
   }
@@ -239,6 +257,8 @@ async function maybePurgeOldBackups() {
   try {
     const n = await purgeOldBackups(14);
     if (n > 0) console.log(`[backup] purged ${n} expired local photo(s)`);
+    const s = await purgeAbandonedStaged(7);
+    if (s > 0) console.log(`[backup] purged ${s} abandoned staged photo(s)`);
   } catch (e) {
     console.warn("[backup] purge error", e);
   }
@@ -289,17 +309,27 @@ async function tick() {
     // we recover from ANY weirdness (page reload, abort mid-upload,
     // etc.). The "uploading" rows that were stranded longer than the
     // stuck threshold have already been bumped back to "failed" above.
-    const currentlyUploading = fresh.filter(
-      (p) => p.status === "uploading"
-    ).length;
-    const drainable = fresh
-      .filter((p) => p.status === "pending")
-      .filter((p) => (p.attempts ?? 0) < PHOTO_MAX_ATTEMPTS)
+    const uploading = fresh.filter((p) => p.status === "uploading");
+
+    // One in-flight upload per TARGET (unit / service / job+kind).
+    // Photos for the same unit can hit the same sheet cell — the server
+    // serializes those writes too, but not sending them concurrently in
+    // the first place avoids burning retry round-trips.
+    const busyTargets = new Set(uploading.map(targetKey));
+    const drainable: QueuedPhoto[] = [];
+    for (const p of fresh) {
+      if (drainable.length >= Math.max(0, MAX_CONCURRENCY - uploading.length))
+        break;
+      if (p.status !== "pending") continue;
       // skip photos still pointing at an unsynced draft job OR draft unit —
       // next tick will pick them up after the parent record syncs
-      .filter((p) => !p.unitId || !p.unitId.startsWith("local-"))
-      .filter((p) => !p.jobId || !p.jobId.startsWith("local-job-"))
-      .slice(0, Math.max(0, MAX_CONCURRENCY - currentlyUploading));
+      if (p.unitId && p.unitId.startsWith("local-")) continue;
+      if (p.jobId && p.jobId.startsWith("local-job-")) continue;
+      const key = targetKey(p);
+      if (busyTargets.has(key)) continue;
+      busyTargets.add(key);
+      drainable.push(p);
+    }
 
     for (const item of drainable) {
       uploadOne(item).catch(async (e) => {
@@ -310,9 +340,9 @@ async function tick() {
     // Schedule retries on failed photos. Backoff against lastAttemptAt
     // (NOT capturedAt — that's when the photo was taken, which can be
     // arbitrarily far in the past for offline-captured photos and would
-    // trivially exceed every backoff threshold immediately).
+    // trivially exceed every backoff threshold immediately). Photos past
+    // the fast lane keep retrying every 30 minutes — never a dead end.
     for (const p of fresh.filter((x) => x.status === "failed")) {
-      if ((p.attempts ?? 0) >= PHOTO_MAX_ATTEMPTS) continue;
       const lastAttempt = p.lastAttemptAt ?? p.capturedAt ?? 0;
       const elapsedSec = (now - lastAttempt) / 1000;
       if (elapsedSec >= backoffSeconds(p.attempts ?? 1)) {

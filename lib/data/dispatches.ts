@@ -16,6 +16,7 @@ import { listServicesForDispatch } from "@/lib/data/services";
 import {
   writeAttributions,
   deletePayAttributionRowsForDispatch,
+  appendLateStipendRows,
 } from "@/lib/data/pay-attribution";
 import { nowIso, todayIsoDate } from "@/lib/utils";
 import {
@@ -229,6 +230,52 @@ export async function submitDispatch(opts: {
     photosComplete,
     submittedAt: nowIso(),
   };
+}
+
+/**
+ * Late-photo reconciliation. photosComplete + the daily driving stipend
+ * are stamped once at submit time — if a photo was still uploading (or
+ * stuck in the tech's offline queue) when the dispatch was submitted,
+ * the dispatch row froze at FALSE and the crew silently lost the
+ * stipend even after the photo eventually landed.
+ *
+ * Called fire-and-forget after every successful unit-photo upload (via
+ * tryRenderPdfIfReady). Idempotent: no-ops unless the dispatch is
+ * submitted, currently marked incomplete, and every unit now has all
+ * required photos. Back-fills the missing Daily Stipend attribution
+ * rows (skipping any tech who already has one for this dispatch).
+ */
+export async function refreshPhotosCompleteIfNeeded(
+  dispatchId: string
+): Promise<boolean> {
+  const dispatch = await getDispatch(dispatchId);
+  if (!dispatch || !dispatch.submittedAt || dispatch.photosComplete) {
+    return false;
+  }
+  const units = await listUnitsForDispatch(dispatchId);
+  const complete =
+    units.length > 0 && units.every((u) => unitHasAllRequiredPhotos(u));
+  if (!complete) return false;
+
+  const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
+  if (!rowIndex) return false;
+
+  await updateCell(`${TABS.dispatches}!I${rowIndex}`, "TRUE", "RAW");
+  await updateCell(
+    `${TABS.dispatches}!G${rowIndex}`,
+    DAILY_DRIVING_STIPEND,
+    "RAW"
+  );
+  await appendLateStipendRows({
+    dispatchId,
+    dispatchDate: dispatch.dispatchDate,
+    techsOnSite: dispatch.techsOnSite,
+    stipend: DAILY_DRIVING_STIPEND,
+  });
+  console.log(
+    `[dispatch] late photos completed ${dispatchId} — photosComplete flipped TRUE, stipend back-filled`
+  );
+  return true;
 }
 
 /** Stamp the customer signature URL + signed-by name on a dispatch row.

@@ -125,6 +125,9 @@ export default async function TechPayrollDetailPage({
           { label: "Standalone", value: rollup.subtotals.standalone },
           { label: "Daily Stipend", value: rollup.subtotals.dailyStipend },
           { label: "Travel Bonus", value: rollup.subtotals.travelBonus },
+          { label: "Bonus", value: rollup.subtotals.bonus },
+          { label: "Deductions", value: rollup.subtotals.deduction },
+          { label: "Reimbursements", value: rollup.subtotals.reimbursement },
           { label: "Adjustments", value: rollup.subtotals.adjustments },
         ]
           .filter((c) => c.value !== 0)
