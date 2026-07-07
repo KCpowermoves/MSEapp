@@ -227,6 +227,8 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       ? "bg-mse-gold/20 text-mse-navy"
       : status === "Paid"
       ? "bg-emerald-600/15 text-emerald-700"
+      : status === "Closed"
+      ? "bg-slate-700 text-white"
       : "bg-mse-light text-mse-muted";
   // Commission reports surface the lifecycle as billing language —
   // "Invoice Approved" beats the bare HR-y "Approved" on a sheet

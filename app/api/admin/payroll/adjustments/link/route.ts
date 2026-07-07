@@ -5,6 +5,7 @@ import {
   listAllPayrollAdjustments,
   updateAdjustmentLinkage,
 } from "@/lib/data/payroll-adjustments";
+import { logPayrollAction } from "@/lib/data/payroll-log";
 
 // POST /api/admin/payroll/adjustments/link
 // Body: { adjustmentId, relatedDispatchId, relatedUnitId? }
@@ -84,6 +85,13 @@ export async function POST(request: Request) {
       relatedDispatchId,
       relatedUnitId,
       relatedTech,
+    });
+    await logPayrollAction({
+      admin: guard.session.name,
+      action: "adjustment-link",
+      periodId: adj.periodId,
+      target: adjustmentId,
+      detail: `re-linked: dispatch=${relatedDispatchId ?? "(unchanged)"} unit=${relatedUnitId ?? "(unchanged)"} tech=${relatedTech ?? "(unchanged)"}`,
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

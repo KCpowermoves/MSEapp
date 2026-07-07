@@ -4,6 +4,7 @@ import { getPayrollPeriod } from "@/lib/data/payroll-periods";
 import { getDispatch } from "@/lib/data/dispatches";
 import { listUnitsForDispatch } from "@/lib/data/units";
 import { createSplitChange } from "@/lib/data/payroll-adjustments";
+import { logPayrollAction } from "@/lib/data/payroll-log";
 import { INSTALL_PAY, crewSize } from "@/lib/pay-rates";
 import type { CrewSplit } from "@/lib/types";
 
@@ -146,6 +147,13 @@ export async function POST(request: Request) {
       description,
       relatedDispatchId: dispatchId,
       createdBy: guard.session.name,
+    });
+    await logPayrollAction({
+      admin: guard.session.name,
+      action: "split-change",
+      periodId,
+      target: dispatchId,
+      detail: description,
     });
     return NextResponse.json({ ok: true, deltas, rows });
   } catch (e) {

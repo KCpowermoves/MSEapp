@@ -28,6 +28,17 @@ interface Props {
   onSaved: () => void;
 }
 
+// Typed categories for "manual" mode. Bonus/reimbursement force a
+// positive sign, deduction forces negative — the API enforces the
+// same rule server-side so a mislabeled amount can't slip through.
+const CATEGORIES = [
+  { key: "manual", label: "Adjustment", sign: null },
+  { key: "bonus", label: "Bonus", sign: "+" },
+  { key: "deduction", label: "Deduction", sign: "-" },
+  { key: "reimbursement", label: "Reimburse", sign: "+" },
+] as const;
+type CategoryKey = (typeof CATEGORIES)[number]["key"];
+
 export function AddAdjustmentDialog({
   mode,
   periodId,
@@ -39,6 +50,7 @@ export function AddAdjustmentDialog({
   onSaved,
 }: Props) {
   const [tech, setTech] = useState(defaultTech || activeTechs[0] || "");
+  const [category, setCategory] = useState<CategoryKey>("manual");
   const [sign, setSign] = useState<"+" | "-">("+");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -66,14 +78,16 @@ export function AddAdjustmentDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const signed = sign === "+" ? amountNum : -amountNum;
+      const cat = CATEGORIES.find((c) => c.key === category);
+      const effectiveSign = cat?.sign ?? sign;
+      const signed = effectiveSign === "+" ? amountNum : -amountNum;
       const res = await fetch("/api/admin/payroll/adjustments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           periodId,
           techName: tech,
-          type: mode,
+          type: mode === "standalone" ? "standalone" : category,
           amount: signed,
           description,
           note,
@@ -132,16 +146,59 @@ export function AddAdjustmentDialog({
           </select>
         </label>
 
+        {mode === "manual" && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
+              Category
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => {
+                    setCategory(c.key);
+                    if (c.sign) setSign(c.sign);
+                  }}
+                  className={cn(
+                    "px-2 py-2 rounded-lg text-xs font-bold border-2",
+                    "active:scale-[0.97] transition-[background-color,border-color,color]",
+                    category === c.key
+                      ? "bg-mse-navy border-mse-navy text-white"
+                      : "bg-white border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30"
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            {category !== "manual" && (
+              <div className="text-[11px] text-mse-muted mt-1">
+                {category === "deduction"
+                  ? "Deductions are always money withheld — the sign is locked to negative."
+                  : "Locked to a positive amount."}
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
             Amount
           </div>
           <div className="flex items-stretch gap-2">
             <div className="flex rounded-lg border border-mse-light overflow-hidden">
-              {(["+", "-"] as const).map((s) => (
+              {(["+", "-"] as const).map((s) => {
+                const lockedSign = CATEGORIES.find(
+                  (c) => c.key === category
+                )?.sign;
+                const disabled =
+                  mode === "manual" && lockedSign !== null && lockedSign !== undefined && lockedSign !== s;
+                return (
                 <button
                   key={s}
                   type="button"
+                  disabled={disabled}
                   onClick={() => setSign(s)}
                   className={cn(
                     "px-3 py-2 text-sm font-bold",
@@ -149,13 +206,16 @@ export function AddAdjustmentDialog({
                       ? s === "+"
                         ? "bg-mse-navy text-white"
                         : "bg-mse-red text-white"
+                      : disabled
+                      ? "bg-mse-light/50 text-mse-light cursor-not-allowed"
                       : "bg-white text-mse-muted hover:bg-mse-light"
                   )}
                   aria-label={s === "+" ? "Positive" : "Negative"}
                 >
                   {s}
                 </button>
-              ))}
+                );
+              })}
             </div>
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-mse-muted font-semibold">

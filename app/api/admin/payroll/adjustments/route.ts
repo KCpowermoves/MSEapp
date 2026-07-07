@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/payroll/auth";
 import { getPayrollPeriod } from "@/lib/data/payroll-periods";
 import { createAdjustment } from "@/lib/data/payroll-adjustments";
+import { logPayrollAction } from "@/lib/data/payroll-log";
 import type { PayrollAdjustmentType } from "@/lib/types";
 
 // POST /api/admin/payroll/adjustments
 //
 // Generic adjustment creation. Used for:
-//   - "manual"      : free-form +/- with note
-//   - "standalone"  : free-form line for work outside the app
+//   - "manual"        : free-form +/- with note (legacy catch-all)
+//   - "bonus"         : positive extra pay (performance, referral, spiff)
+//   - "deduction"     : negative — advance repayment, equipment, etc.
+//   - "reimbursement" : positive expense pay-back (materials, mileage)
+//   - "standalone"    : free-form line for work outside the app
 //
 // Re-attribution and split-change get their own routes (paired writes,
 // stricter validation, distinct UX).
@@ -16,7 +20,21 @@ import type { PayrollAdjustmentType } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_TYPES: PayrollAdjustmentType[] = ["manual", "standalone"];
+const ALLOWED_TYPES: PayrollAdjustmentType[] = [
+  "manual",
+  "bonus",
+  "deduction",
+  "reimbursement",
+  "standalone",
+];
+
+// Typed categories carry an expected sign so a fat-fingered negative
+// bonus (or positive deduction) is rejected instead of silently paid.
+const SIGN_RULE: Partial<Record<PayrollAdjustmentType, "positive" | "negative">> = {
+  bonus: "positive",
+  reimbursement: "positive",
+  deduction: "negative",
+};
 
 export async function POST(request: Request) {
   const guard = await requireAdmin();
@@ -62,6 +80,19 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const signRule = SIGN_RULE[type];
+  if (signRule === "positive" && amount < 0) {
+    return NextResponse.json(
+      { error: `${type} amounts must be positive` },
+      { status: 400 }
+    );
+  }
+  if (signRule === "negative" && amount > 0) {
+    return NextResponse.json(
+      { error: `${type} amounts must be negative (it's money withheld)` },
+      { status: 400 }
+    );
+  }
   if (!description) {
     return NextResponse.json(
       { error: "description required" },
@@ -91,6 +122,13 @@ export async function POST(request: Request) {
       relatedUnitId: String(body.relatedUnitId ?? "").trim(),
       note: String(body.note ?? ""),
       createdBy: guard.session.name,
+    });
+    await logPayrollAction({
+      admin: guard.session.name,
+      action: "adjustment-create",
+      periodId,
+      target: adjustment.adjustmentId,
+      detail: `${type} ${amount >= 0 ? "+" : ""}$${amount.toFixed(2)} for ${techName}: ${description}`,
     });
     return NextResponse.json({ ok: true, adjustment });
   } catch (e) {
