@@ -358,6 +358,26 @@ export async function promoteStagedPhoto(
   });
 }
 
+/** Remove EVERY staged record for a form instance. Called after a
+ *  successful Save: photos in the form snapshot were either promoted
+ *  (no longer staged) or enqueued fresh because staging hadn't
+ *  finished when Save was tapped — in which case the late-arriving
+ *  staged copy is an orphan that would "restore" as a ghost photo
+ *  into the NEXT unit's form. This sweep removes those orphans. */
+export async function purgeStagedByKey(stagingKey: string): Promise<number> {
+  const db = await getDb();
+  const tx = db.transaction(STORE_PHOTOS, "readwrite");
+  const all = (await tx.store.getAll()) as QueuedPhoto[];
+  let n = 0;
+  for (const p of all) {
+    if (p.status !== "staged" || p.stagingKey !== stagingKey) continue;
+    await tx.store.delete(p.id);
+    n++;
+  }
+  await tx.done;
+  return n;
+}
+
 /** Drop staged photos that were never promoted and are older than the
  *  cutoff (default 7 days) — e.g. a form abandoned on a lost phone. */
 export async function purgeAbandonedStaged(

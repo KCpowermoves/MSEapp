@@ -272,12 +272,16 @@ export async function computePayrollReport(
     // in any UI. Two signals — either is sufficient:
     //   1. Note text starts with "VOIDED" (legacy void path).
     //   2. Amount has been zeroed (also the void path) AND the row's
-    //      type is "manual" — preserves real zero-delta adjustments
-    //      created intentionally (e.g. crew-split deltas where the
-    //      math happens to net out exactly even).
+    //      type can't legitimately be zero — manual/bonus/deduction/
+    //      reimbursement/standalone are all created with non-zero
+    //      amounts, so zero means voided. split_change deltas CAN net
+    //      to exactly zero intentionally, so they're excluded.
     if (
       (a.note ?? "").trim().toUpperCase().startsWith("VOIDED") ||
-      (a.amount === 0 && a.type === "manual") ||
+      (a.amount === 0 &&
+        ["manual", "bonus", "deduction", "reimbursement", "standalone"].includes(
+          a.type
+        )) ||
       offsetAdjustmentIds.has(a.adjustmentId)
     ) {
       continue;

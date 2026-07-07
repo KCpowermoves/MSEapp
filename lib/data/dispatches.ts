@@ -3,6 +3,7 @@ import {
   TABS,
   appendRow,
   findRowIndex,
+  readRange,
   readTab,
   updateCell,
 } from "@/lib/google/sheets";
@@ -245,9 +246,31 @@ export async function submitDispatch(opts: {
  * required photos. Back-fills the missing Daily Stipend attribution
  * rows (skipping any tech who already has one for this dispatch).
  */
+const refreshLocks = new Map<string, Promise<boolean>>();
+
 export async function refreshPhotosCompleteIfNeeded(
   dispatchId: string
 ): Promise<boolean> {
+  // Per-dispatch in-process lock: multiple photos of the same dispatch
+  // finishing at once (the common trigger) serialize here instead of
+  // racing the check below.
+  const prev = refreshLocks.get(dispatchId) ?? Promise.resolve(false);
+  const run = prev.then(
+    () => doRefreshPhotosComplete(dispatchId),
+    () => doRefreshPhotosComplete(dispatchId)
+  );
+  const tail = run.then(
+    (v) => v,
+    () => false
+  );
+  refreshLocks.set(dispatchId, tail);
+  void tail.then(() => {
+    if (refreshLocks.get(dispatchId) === tail) refreshLocks.delete(dispatchId);
+  });
+  return run;
+}
+
+async function doRefreshPhotosComplete(dispatchId: string): Promise<boolean> {
   const dispatch = await getDispatch(dispatchId);
   if (!dispatch || !dispatch.submittedAt || dispatch.photosComplete) {
     return false;
@@ -260,12 +283,46 @@ export async function refreshPhotosCompleteIfNeeded(
   const rowIndex = await findRowIndex(TABS.dispatches, "A", dispatchId);
   if (!rowIndex) return false;
 
+  // Fresh single-cell re-read of photosComplete right before acting —
+  // the getDispatch above can be up to 30s stale, and another instance
+  // may have completed this reconciliation already.
+  const freshFlag = await readRange(`${TABS.dispatches}!I${rowIndex}`, {
+    fresh: true,
+  });
+  if (String(freshFlag[0]?.[0] ?? "").toUpperCase() === "TRUE") {
+    return false;
+  }
+
   await updateCell(`${TABS.dispatches}!I${rowIndex}`, "TRUE", "RAW");
   await updateCell(
     `${TABS.dispatches}!G${rowIndex}`,
     DAILY_DRIVING_STIPEND,
     "RAW"
   );
+
+  // Never write money into locked books. If the payroll period that
+  // covers this dispatch date is already past Draft, skip the
+  // attribution rows and leave an audit-log entry for the admin to
+  // add a manual adjustment instead.
+  const lockedPeriod = await findLockedPeriodCovering(dispatch.dispatchDate);
+  if (lockedPeriod) {
+    const { logPayrollAction } = await import("@/lib/data/payroll-log");
+    await logPayrollAction({
+      admin: "system",
+      action: "adjustment-create",
+      periodId: lockedPeriod.periodId,
+      target: dispatchId,
+      detail:
+        `SKIPPED stipend back-fill: photos for ${dispatchId} (${dispatch.dispatchDate}) ` +
+        `completed after period was ${lockedPeriod.status}. Add a manual ` +
+        `Daily Stipend adjustment ($${DAILY_DRIVING_STIPEND}/tech: ${dispatch.techsOnSite.join(", ")}) if owed.`,
+    });
+    console.warn(
+      `[dispatch] late stipend for ${dispatchId} NOT auto-written — period ${lockedPeriod.periodId} is ${lockedPeriod.status}; logged for manual review`
+    );
+    return true;
+  }
+
   await appendLateStipendRows({
     dispatchId,
     dispatchDate: dispatch.dispatchDate,
@@ -276,6 +333,29 @@ export async function refreshPhotosCompleteIfNeeded(
     `[dispatch] late photos completed ${dispatchId} — photosComplete flipped TRUE, stipend back-filled`
   );
   return true;
+}
+
+/** The payroll period covering this date, if it's already locked
+ *  (anything past Draft). Lazy import avoids a module cycle. */
+async function findLockedPeriodCovering(
+  dateIso: string
+): Promise<{ periodId: string; status: string } | null> {
+  try {
+    const { listAllPayrollPeriods } = await import(
+      "@/lib/data/payroll-periods"
+    );
+    const periods = await listAllPayrollPeriods();
+    const hit = periods.find(
+      (p) =>
+        p.status !== "Draft" &&
+        p.startDate <= dateIso &&
+        dateIso <= p.endDate
+    );
+    return hit ? { periodId: hit.periodId, status: hit.status } : null;
+  } catch {
+    // Payroll tabs may not exist yet — treat as unlocked.
+    return null;
+  }
 }
 
 /** Stamp the customer signature URL + signed-by name on a dispatch row.

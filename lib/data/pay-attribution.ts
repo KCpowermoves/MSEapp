@@ -160,12 +160,19 @@ export async function writeAttributions(
   }
 }
 
+function techSlug(name: string): string {
+  return name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24);
+}
+
 /**
  * Back-fill Daily Stipend attribution rows for a dispatch whose photos
  * completed AFTER submit (so submit-time attribution wrote none).
  * Idempotent — skips any tech who already has a Daily Stipend row for
- * this dispatch. Uses a fresh read so the duplicate check can't be
- * fooled by the 30s cache.
+ * this dispatch, using a fresh read so the check can't be fooled by
+ * the 30s cache. IDs are DETERMINISTIC (`ATTR-{dispatch}-LS-{tech}`):
+ * if two serverless instances race past the fresh-read check anyway,
+ * they append rows with the SAME id, and listAllAttributions dedupes
+ * by id — so the crew can never actually be paid twice.
  */
 export async function appendLateStipendRows(opts: {
   dispatchId: string;
@@ -191,7 +198,7 @@ export async function appendLateStipendRows(opts: {
   for (const tech of opts.techsOnSite) {
     if (!tech || alreadyPaid.has(tech)) continue;
     written++;
-    const id = `ATTR-${opts.dispatchId}-LS${String(written).padStart(2, "0")}`;
+    const id = `ATTR-${opts.dispatchId}-LS-${techSlug(tech)}`;
     await appendRow(
       TABS.payAttribution,
       [
@@ -252,13 +259,23 @@ function rowToAttrib(row: string[]): AttribReadRow {
 }
 
 /** All attribution rows, normalized. Used by the payroll compute
- *  engine to slice by date range across all techs in one pass. */
+ *  engine to slice by date range across all techs in one pass.
+ *  Deduped by row id (first occurrence wins): back-fill writers use
+ *  deterministic ids, so even if a cross-instance race appends the
+ *  same logical row twice, it can only ever be PAID once. */
 export async function listAllAttributions(): Promise<AttribReadRow[]> {
   const rows = await readTab(TABS.payAttribution);
-  return rows
-    .filter((r) => r[0])
-    .map(rowToAttrib)
-    .filter((r) => Number.isFinite(r.amount));
+  const seen = new Set<string>();
+  const out: AttribReadRow[] = [];
+  for (const raw of rows) {
+    if (!raw[0]) continue;
+    const r = rowToAttrib(raw);
+    if (!Number.isFinite(r.amount)) continue;
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
 }
 
 /**
@@ -278,17 +295,13 @@ export async function payForTechInRange(opts: {
   if (!opts.startIso || !opts.endIso || opts.endIso < opts.startIso) {
     return { total: 0, rows: [] };
   }
-  const rows = await readTab(TABS.payAttribution);
-  const filtered = rows
-    .filter((r) => r[0])
-    .map(rowToAttrib)
-    .filter(
-      (r) =>
-        r.techName === opts.techName &&
-        r.date >= opts.startIso &&
-        r.date <= opts.endIso &&
-        Number.isFinite(r.amount)
-    );
+  const all = await listAllAttributions();
+  const filtered = all.filter(
+    (r) =>
+      r.techName === opts.techName &&
+      r.date >= opts.startIso &&
+      r.date <= opts.endIso
+  );
   const total = filtered.reduce((s, r) => s + r.amount, 0);
   return { total, rows: filtered };
 }
@@ -302,16 +315,10 @@ export async function payForTechOnDate(opts: {
   dateIso: string; // YYYY-MM-DD
 }): Promise<{ total: number; rows: AttribReadRow[] }> {
   if (!opts.techName) return { total: 0, rows: [] };
-  const rows = await readTab(TABS.payAttribution);
-  const filtered = rows
-    .filter((r) => r[0])
-    .map(rowToAttrib)
-    .filter(
-      (r) =>
-        r.techName === opts.techName &&
-        r.date === opts.dateIso &&
-        Number.isFinite(r.amount)
-    );
+  const all = await listAllAttributions();
+  const filtered = all.filter(
+    (r) => r.techName === opts.techName && r.date === opts.dateIso
+  );
   const total = filtered.reduce((s, r) => s + r.amount, 0);
   return { total, rows: filtered };
 }

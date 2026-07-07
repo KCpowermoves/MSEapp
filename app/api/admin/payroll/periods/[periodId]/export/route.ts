@@ -50,14 +50,6 @@ export async function GET(
       endDate: period.endDate,
     });
 
-    // YTD line for pay stubs: everything already Paid/Closed this
-    // calendar year, excluding this period (its own total is added on
-    // top at render time so Draft exports still show a correct YTD).
-    const ytdByTech = await computeYtdByTech({
-      year: period.startDate.slice(0, 4),
-      excludePeriodId: periodId,
-    }).catch(() => undefined);
-
     const baseName = `payroll_${slugify(periodId)}_${period.startDate}_to_${period.endDate}${
       techNameFilter ? `_${slugify(techNameFilter)}` : ""
     }`;
@@ -73,6 +65,17 @@ export async function GET(
         },
       });
     }
+
+    // YTD line for pay stubs (PDF/ZIP only — CSV doesn't render it):
+    // everything already Paid/Closed this calendar year, excluding
+    // this period (its own total is added on top at render time so
+    // Draft exports still show a correct YTD). One full report per
+    // prior period, but reads hit the 30s tab cache within a request
+    // burst — measured ~5s for a 12-period year.
+    const ytdByTech = await computeYtdByTech({
+      year: period.startDate.slice(0, 4),
+      excludePeriodId: periodId,
+    }).catch(() => undefined);
 
     if (format === "zip") {
       // One PDF per tech in a single ZIP. Each file inside the archive

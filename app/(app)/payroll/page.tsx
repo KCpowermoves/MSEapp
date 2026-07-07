@@ -31,8 +31,11 @@ export default async function TechPayrollPage() {
   const techName = session.name ?? "";
 
   const periods = await listAllPayrollPeriods();
+  // Closed periods stay visible — closing the books locks edits, it
+  // must never make a tech's already-paid earnings disappear.
   const visible = periods.filter(
-    (p) => p.status === "Approved" || p.status === "Paid"
+    (p) =>
+      p.status === "Approved" || p.status === "Paid" || p.status === "Closed"
   );
 
   const cards: PeriodCard[] = [];
@@ -59,7 +62,9 @@ export default async function TechPayrollPage() {
   cards.sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   const lifetimePay = cards.reduce((s, c) => s + c.grandTotal, 0);
-  const paidCount = cards.filter((c) => c.status === "Paid").length;
+  const paidCount = cards.filter(
+    (c) => c.status === "Paid" || c.status === "Closed"
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -83,7 +88,7 @@ export default async function TechPayrollPage() {
           />
           <div className="relative">
             <div className="text-[11px] uppercase tracking-[0.12em] font-bold text-mse-gold">
-              Lifetime · Approved + Paid
+              Lifetime · finalized periods
             </div>
             <div className="text-4xl font-bold tracking-tight tabular-nums mt-1 text-white">
               {formatCurrency(lifetimePay)}
@@ -178,6 +183,8 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       ? "bg-mse-gold/20 text-mse-navy"
       : status === "Paid"
       ? "bg-emerald-600/15 text-emerald-700"
+      : status === "Closed"
+      ? "bg-slate-700 text-white"
       : "bg-mse-light text-mse-muted";
   const label = status === "Approved" ? "Invoice Approved" : status;
   return (

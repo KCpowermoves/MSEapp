@@ -168,6 +168,9 @@ export async function POST(request: Request) {
         driveFileId: uploaded.id,
         driveUrl: uploaded.url,
       };
+      // Durable trail FIRST: once this row lands, the photo is
+      // recoverable no matter what the sheet write does next.
+      await logPhotoEvent({ ...logBase, status: "uploaded" });
       try {
         await setAuditField({
           auditId,
@@ -186,7 +189,6 @@ export async function POST(request: Request) {
         });
         throw e;
       }
-      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath(`/jobs/${jobId}/audit`);
       revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
@@ -236,6 +238,9 @@ export async function POST(request: Request) {
         driveFileId: uploaded.id,
         driveUrl: uploaded.url,
       };
+      // Durable trail FIRST: once this row lands, the photo is
+      // recoverable no matter what the sheet write does next.
+      await logPhotoEvent({ ...logBase, status: "uploaded" });
       try {
         if (slot === "schedule") {
           // Multi-photo: append the URL to the CSV column.
@@ -261,7 +266,6 @@ export async function POST(request: Request) {
         });
         throw e;
       }
-      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath(`/jobs/${jobId}/audit`);
       revalidatePath(`/jobs/${jobId}`);
       return NextResponse.json({ url: uploaded.url });
@@ -289,6 +293,9 @@ export async function POST(request: Request) {
         driveFileId: uploaded.id,
         driveUrl: uploaded.url,
       };
+      // Durable trail FIRST: once this row lands, the photo is
+      // recoverable no matter what the sheet write does next.
+      await logPhotoEvent({ ...logBase, status: "uploaded" });
       try {
         await setJobCoverPhotoId({ jobId, fileId: uploaded.id });
       } catch (e) {
@@ -305,7 +312,6 @@ export async function POST(request: Request) {
         });
         throw e;
       }
-      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath("/jobs");
       revalidatePath(`/jobs/${jobId}`);
       revalidatePath("/admin/customers");
@@ -347,6 +353,9 @@ export async function POST(request: Request) {
         driveFileId: uploaded.id,
         driveUrl: uploaded.url,
       };
+      // Durable trail FIRST: once this row lands, the photo is
+      // recoverable no matter what the sheet write does next.
+      await logPhotoEvent({ ...logBase, status: "uploaded" });
       try {
         await setUnitPhotoUrl(unitId, slot as PhotoSlot, uploaded.url);
       } catch (e) {
@@ -361,7 +370,6 @@ export async function POST(request: Request) {
         });
         throw e;
       }
-      void logPhotoEvent({ ...logBase, status: "uploaded" });
       revalidatePath(`/jobs/${jobId}`);
       revalidatePath(`/jobs/${jobId}/service`);
       revalidatePath("/jobs");
@@ -391,6 +399,9 @@ export async function POST(request: Request) {
         driveFileId: uploaded.id,
         driveUrl: uploaded.url,
       };
+      // Durable trail FIRST: once this row lands, the photo is
+      // recoverable no matter what the sheet write does next.
+      await logPhotoEvent({ ...logBase, status: "uploaded" });
       try {
         await appendServicePhotoUrl(serviceId, uploaded.url);
       } catch (e) {
@@ -405,7 +416,6 @@ export async function POST(request: Request) {
         });
         throw e;
       }
-      void logPhotoEvent({ ...logBase, status: "uploaded" });
       return NextResponse.json({ url: uploaded.url });
     }
 
@@ -426,6 +436,9 @@ export async function POST(request: Request) {
         driveFileId: uploaded.id,
         driveUrl: uploaded.url,
       };
+      // Durable trail FIRST: once this row lands, the photo is
+      // recoverable no matter what the sheet write does next.
+      await logPhotoEvent({ ...logBase, status: "uploaded" });
       try {
         await setDispatchSignature(
           dispatchId,
@@ -445,7 +458,6 @@ export async function POST(request: Request) {
         });
         throw e;
       }
-      void logPhotoEvent({ ...logBase, status: "uploaded" });
       // Try the PDF render now too — if all photos already happened to
       // be uploaded by the time the customer signs, this completes the
       // dispatch's report immediately.

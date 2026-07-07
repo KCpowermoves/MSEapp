@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, X } from "lucide-react";
 import { UnitTypePicker } from "@/components/UnitTypePicker";
@@ -11,6 +11,7 @@ import {
   listDraftsForJob,
   listStagedPhotos,
   promoteStagedPhoto,
+  purgeStagedByKey,
   removePhoto,
   stagePhoto,
 } from "@/lib/upload-queue";
@@ -200,13 +201,19 @@ export function AddUnitForm({
     });
   }, [job.jobId, unitType, customLabel, make, model, serial, notes]);
 
+  // Staging writes still in flight. Save awaits these before moving
+  // photos into the upload queue — otherwise a staged record landing
+  // AFTER the submit sweep would survive as an orphan and "restore"
+  // into the next unit's blank form as a ghost photo.
+  const stagingInFlight = useRef<Set<Promise<unknown>>>(new Set());
+
   // Stage a photo to IndexedDB the moment it's captured; returns the
   // photo with its stagedId attached so removal can clean up.
   async function stageCaptured(
     slotKey: string,
     photo: CapturedPhoto
   ): Promise<CapturedPhoto> {
-    try {
+    const p = (async () => {
       const stagedId = await stagePhoto({
         stagingKey: stagingKeyFor(job.jobId),
         jobId: job.jobId,
@@ -216,10 +223,16 @@ export function AddUnitForm({
         capturedAt: photo.capturedAt,
       });
       return { ...photo, stagedId };
+    })();
+    stagingInFlight.current.add(p);
+    try {
+      return await p;
     } catch (e) {
       // Staging is belt-and-suspenders — never block a capture on it.
       console.warn("[AddUnit] photo staging failed:", e);
       return photo;
+    } finally {
+      stagingInFlight.current.delete(p);
     }
   }
 
@@ -481,8 +494,15 @@ export function AddUnitForm({
       }
 
       // The unit is saved — the crash-protection draft has served its
-      // purpose and must not restore into the next blank form.
+      // purpose and must not restore into the next blank form. Wait
+      // for any staging writes still in flight, then sweep ALL staged
+      // records for this form: promoted photos are already "pending",
+      // and anything left staged is an orphan (e.g. Save was tapped
+      // before its staging finished, so it took the fresh-enqueue
+      // path) that would otherwise ghost-restore into the next form.
       clearTextDraft(job.jobId);
+      await Promise.allSettled(Array.from(stagingInFlight.current));
+      await purgeStagedByKey(stagingKeyFor(job.jobId)).catch(() => 0);
 
       kickWorker();
 
