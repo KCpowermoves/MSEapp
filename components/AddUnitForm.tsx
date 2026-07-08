@@ -838,7 +838,7 @@ function AdditionalPhotosPicker({
             {photos.length} of {ADDITIONAL_PHOTOS_MAX}
           </span>
           <span className="text-[11px] text-mse-muted">
-            Tap any photo to retake · tap × to remove
+            Retake / Upload on each photo · tap × to remove
           </span>
         </div>
       )}

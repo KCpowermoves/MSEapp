@@ -39,7 +39,10 @@ export function JobCoverCapture({
   uploading,
   variant = "compact",
 }: Props) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  // Camera goes straight to the rear camera; library opens the device
+  // photo picker so an existing shot can be used as the cover.
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const libraryRef = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Generate / revoke the object URL for the held File. Revoke on
@@ -56,14 +59,19 @@ export function JobCoverCapture({
   }, [file]);
 
   const handlePick = () => {
-    inputRef.current?.click();
+    cameraRef.current?.click();
+  };
+
+  const handleLibrary = () => {
+    libraryRef.current?.click();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0] ?? null;
+    const input = e.target;
+    const f = input.files?.[0] ?? null;
     onChange(f);
     // Clear the input so picking the same file twice still re-fires.
-    if (inputRef.current) inputRef.current.value = "";
+    input.value = "";
   };
 
   const remoteUrl = existingFileId
@@ -121,25 +129,47 @@ export function JobCoverCapture({
             </span>
           </div>
         )}
-        {/* No capture attr: the OS offers BOTH "Take Photo" and "Photo
-            Library" for the cover shot. */}
         <input
-          ref={inputRef}
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleChange}
+          className="hidden"
+        />
+        <input
+          ref={libraryRef}
           type="file"
           accept="image/*"
           onChange={handleChange}
           className="hidden"
         />
       </button>
-      {file && !uploading && (
+      <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => onChange(null)}
-          className="text-[11px] text-mse-muted hover:text-mse-red font-semibold"
+          onClick={handleLibrary}
+          disabled={uploading}
+          className={cn(
+            "inline-flex items-center gap-1 text-[11px] font-semibold text-mse-muted",
+            "hover:text-mse-navy transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red rounded",
+            uploading && "opacity-60 cursor-wait"
+          )}
         >
-          Remove
+          <ImageIcon className="w-3 h-3" />
+          Upload from device
         </button>
-      )}
+        {file && !uploading && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-[11px] text-mse-muted hover:text-mse-red font-semibold"
+          >
+            Remove
+          </button>
+        )}
+      </div>
     </div>
   );
 }

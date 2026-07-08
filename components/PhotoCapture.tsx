@@ -130,16 +130,9 @@ export function PhotoCapture({
 
       {value ? (
         /* ── CAPTURED STATE: large image preview ──────────────────────── */
-        <button
-          type="button"
-          onClick={openCamera}
-          disabled={busy}
+        <div
+          className="relative w-full rounded-2xl overflow-hidden border-2 border-mse-gold"
           data-photo-captured="true"
-          className={cn(
-            "relative w-full rounded-2xl overflow-hidden border-2 border-mse-gold",
-            "active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
-            "transition-transform"
-          )}
           style={{ aspectRatio: "4/3" }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -149,38 +142,44 @@ export function PhotoCapture({
             className="w-full h-full object-cover"
           />
 
-          {/* Bottom gradient overlay */}
+          {/* Bottom gradient overlay. Retake and Upload are separate
+              sibling buttons — no nesting, so a tap on one can never
+              also trigger the other. */}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent pt-12 px-3 pb-3">
             <div className="flex items-center justify-between">
-              <span className="text-white font-bold text-sm flex items-center gap-1.5 drop-shadow">
+              <span className="text-white font-bold text-sm flex items-center gap-1.5 drop-shadow min-w-0">
                 <Check className="w-4 h-4 text-mse-gold shrink-0" />
                 <span className="truncate">{label}{required && <span className="text-mse-red ml-0.5">*</span>}</span>
               </span>
-              <span className="flex items-center gap-2 shrink-0 ml-2">
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openLibrary();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      openLibrary();
-                    }
-                  }}
-                  className="text-white/80 text-xs font-semibold flex items-center gap-1 hover:text-white"
+              <span className="flex items-center gap-1.5 shrink-0 ml-2">
+                <button
+                  type="button"
+                  onClick={openLibrary}
+                  disabled={busy}
+                  className={cn(
+                    "text-white text-xs font-semibold flex items-center gap-1 px-2 py-1 rounded-lg",
+                    "bg-white/15 hover:bg-white/25 active:scale-95 transition-[background-color,transform]",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  )}
                   aria-label={`Replace ${label} from photo library`}
                 >
                   <ImageIcon className="w-3 h-3" />
                   Upload
-                </span>
-                <span className="text-white/80 text-xs font-semibold flex items-center gap-1">
+                </button>
+                <button
+                  type="button"
+                  onClick={openCamera}
+                  disabled={busy}
+                  className={cn(
+                    "text-white text-xs font-semibold flex items-center gap-1 px-2 py-1 rounded-lg",
+                    "bg-white/15 hover:bg-white/25 active:scale-95 transition-[background-color,transform]",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  )}
+                  aria-label={`Retake ${label} with camera`}
+                >
                   <RefreshCw className="w-3 h-3" />
                   Retake
-                </span>
+                </button>
               </span>
             </div>
           </div>
@@ -191,58 +190,64 @@ export function PhotoCapture({
               <Loader2 className="w-8 h-8 text-mse-navy animate-spin" />
             </div>
           )}
-        </button>
+        </div>
       ) : (
-        /* ── EMPTY STATE: tap-to-capture row + library affordance ──────── */
+        /* ── EMPTY STATE: label row + two equal action buttons ─────────── */
         <div
           className={cn(
-            "w-full rounded-2xl border-2 border-dashed border-mse-light bg-white",
+            "w-full rounded-2xl border-2 border-dashed border-mse-light bg-white p-3",
             "focus-within:border-mse-navy/30 hover:border-mse-navy/30",
             "transition-[border-color]"
           )}
         >
-          <button
-            type="button"
-            onClick={openCamera}
-            disabled={busy}
-            className={cn(
-              "w-full text-left active:scale-[0.99] transition-transform",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2 rounded-t-2xl"
-            )}
-          >
-            <div className="flex items-center gap-3 p-3">
-              <div className="w-14 h-14 rounded-xl bg-mse-light shrink-0 flex items-center justify-center">
-                {busy ? (
-                  <Loader2 className="w-6 h-6 text-mse-navy animate-spin" />
-                ) : (
-                  <Camera className="w-6 h-6 text-mse-muted" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-mse-navy">
-                  {label}
-                  {required && <span className="text-mse-red ml-1">*</span>}
-                </div>
-                {hint && (
-                  <div className="text-xs text-mse-muted mt-0.5">{hint}</div>
-                )}
-              </div>
+          <div className="min-w-0 mb-2.5">
+            <div className="font-bold text-mse-navy">
+              {label}
+              {required && <span className="text-mse-red ml-1">*</span>}
             </div>
-          </button>
-          <button
-            type="button"
-            onClick={openLibrary}
-            disabled={busy}
-            className={cn(
-              "w-full flex items-center gap-1.5 px-3 pb-2.5 pt-0.5 text-xs font-semibold text-mse-muted",
-              "hover:text-mse-navy active:scale-[0.99] transition-[color,transform]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red rounded-b-2xl"
+            {hint && (
+              <div className="text-xs text-mse-muted mt-0.5">{hint}</div>
             )}
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            or upload from device
-            {onExtras && " (multiple ok)"}
-          </button>
+          </div>
+          {/* Two independent, equal-weight choices — tapping one can
+              never open the other. */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={openCamera}
+              disabled={busy}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold",
+                "bg-mse-navy text-white hover:bg-mse-navy-soft active:scale-[0.98]",
+                "transition-[background-color,transform]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
+                busy && "opacity-60 cursor-wait"
+              )}
+            >
+              {busy ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Camera className="w-4 h-4" />
+              )}
+              Take photo
+            </button>
+            <button
+              type="button"
+              onClick={openLibrary}
+              disabled={busy}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold",
+                "bg-white border-2 border-mse-light text-mse-navy",
+                "hover:border-mse-navy/30 active:scale-[0.98]",
+                "transition-[border-color,transform]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2",
+                busy && "opacity-60 cursor-wait"
+              )}
+            >
+              <ImageIcon className="w-4 h-4" />
+              Upload{onExtras ? " (multi)" : ""}
+            </button>
+          </div>
         </div>
       )}
 
