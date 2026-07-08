@@ -121,11 +121,12 @@ export function JobCoverCapture({
             </span>
           </div>
         )}
+        {/* No capture attr: the OS offers BOTH "Take Photo" and "Photo
+            Library" for the cover shot. */}
         <input
           ref={inputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handleChange}
           className="hidden"
         />

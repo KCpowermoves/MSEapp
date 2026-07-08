@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Loader2, RotateCcw } from "lucide-react";
+import { Camera, Image as ImageIcon, Loader2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -21,7 +21,10 @@ export function AuditPhotoSlot({
   existingUrl,
   onPick,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  // Camera input goes straight to the rear camera; library input opens
+  // the device photo picker so already-taken shots can be uploaded.
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const libraryRef = useRef<HTMLInputElement | null>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,11 +37,17 @@ export function AuditPhotoSlot({
 
   const handlePick = () => {
     if (busy) return;
-    inputRef.current?.click();
+    cameraRef.current?.click();
+  };
+
+  const handleLibrary = () => {
+    if (busy) return;
+    libraryRef.current?.click();
   };
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
+    const input = e.target;
+    const f = input.files?.[0];
     if (!f) return;
     setError(null);
     if (localUrl) URL.revokeObjectURL(localUrl);
@@ -50,7 +59,7 @@ export function AuditPhotoSlot({
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+      input.value = "";
     }
   };
 
@@ -108,13 +117,34 @@ export function AuditPhotoSlot({
           </div>
         )}
         <input
-          ref={inputRef}
+          ref={cameraRef}
           type="file"
           accept="image/*"
           capture="environment"
           onChange={handleChange}
           className="hidden"
         />
+        <input
+          ref={libraryRef}
+          type="file"
+          accept="image/*"
+          onChange={handleChange}
+          className="hidden"
+        />
+      </button>
+      <button
+        type="button"
+        onClick={handleLibrary}
+        disabled={busy}
+        className={cn(
+          "w-full inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-mse-muted",
+          "hover:text-mse-navy py-1 transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red rounded",
+          busy && "opacity-60 cursor-wait"
+        )}
+      >
+        <ImageIcon className="w-3 h-3" />
+        or upload from device
       </button>
       {error && (
         <div className="text-[11px] text-mse-red bg-mse-red/5 rounded px-2 py-1">

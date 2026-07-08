@@ -243,11 +243,13 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
 
   return (
     <div className="space-y-6 pb-24">
+      {/* No capture attr: the OS offers BOTH "Take Photo" and "Photo
+          Library", so replacements can come from shots already on the
+          tech's device. */}
       <input
         ref={replaceInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={onReplaceFile}
       />
