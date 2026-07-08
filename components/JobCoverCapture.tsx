@@ -85,6 +85,28 @@ export function JobCoverCapture({
 
   return (
     <div className="space-y-2">
+      {/* Hidden inputs live at the ROOT — never inside a button. A
+          programmatic input.click() dispatches a bubbling click event;
+          if the input sits inside the camera button, "Upload from
+          device" would open the camera first and the picker after.
+          stopPropagation is belt-and-suspenders for the same reason. */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleChange}
+        onClick={(e) => e.stopPropagation()}
+        className="hidden"
+      />
+      <input
+        ref={libraryRef}
+        type="file"
+        accept="image/*"
+        onChange={handleChange}
+        onClick={(e) => e.stopPropagation()}
+        className="hidden"
+      />
       <button
         type="button"
         onClick={handlePick}
@@ -129,21 +151,6 @@ export function JobCoverCapture({
             </span>
           </div>
         )}
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleChange}
-          className="hidden"
-        />
-        <input
-          ref={libraryRef}
-          type="file"
-          accept="image/*"
-          onChange={handleChange}
-          className="hidden"
-        />
       </button>
       <div className="flex items-center gap-3">
         <button

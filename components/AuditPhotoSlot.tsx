@@ -71,6 +71,26 @@ export function AuditPhotoSlot({
 
   return (
     <div className="space-y-1">
+      {/* Hidden inputs live at the ROOT — never inside a button. A
+          programmatic input.click() bubbles; nesting them in the camera
+          button made "Upload from device" open the camera first. */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleChange}
+        onClick={(e) => e.stopPropagation()}
+        className="hidden"
+      />
+      <input
+        ref={libraryRef}
+        type="file"
+        accept="image/*"
+        onChange={handleChange}
+        onClick={(e) => e.stopPropagation()}
+        className="hidden"
+      />
       <div className="text-[11px] uppercase tracking-wider font-bold text-mse-muted">
         {label}
         {required && <span className="text-mse-red ml-1">*</span>}
@@ -116,21 +136,6 @@ export function AuditPhotoSlot({
             <span>Take photo</span>
           </div>
         )}
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleChange}
-          className="hidden"
-        />
-        <input
-          ref={libraryRef}
-          type="file"
-          accept="image/*"
-          onChange={handleChange}
-          className="hidden"
-        />
       </button>
       <button
         type="button"

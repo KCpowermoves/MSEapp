@@ -110,6 +110,10 @@ export function PhotoCapture({
 
   return (
     <div className="space-y-1">
+      {/* Hidden inputs stay at the ROOT, outside any button, and stop
+          click propagation — a programmatic input.click() bubbles, and
+          if it reached a button's onClick it would open the OTHER
+          picker too (camera-then-library double-open). */}
       <input
         ref={cameraRef}
         id={inputId}
@@ -118,6 +122,7 @@ export function PhotoCapture({
         capture="environment"
         className="hidden"
         onChange={onInputChange}
+        onClick={(e) => e.stopPropagation()}
       />
       <input
         ref={libraryRef}
@@ -126,6 +131,7 @@ export function PhotoCapture({
         {...(onExtras ? { multiple: true } : {})}
         className="hidden"
         onChange={onInputChange}
+        onClick={(e) => e.stopPropagation()}
       />
 
       {value ? (
