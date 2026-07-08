@@ -68,6 +68,35 @@ export function invalidateCacheForTab(tabName: string): void {
   }
 }
 
+/** Retry transient Sheets failures (429 quota, 5xx) with backoff.
+ *  The service account has a 60 reads/min ceiling; a burst — several
+ *  cold instances warming their caches at once — can trip it, and a
+ *  single unretried 429 crashes whatever page render triggered the
+ *  read ("A server-side exception has occurred"). Two retries with
+ *  jittered backoff absorb virtually all of these. */
+async function withReadRetry<T>(fn: () => Promise<T>): Promise<T> {
+  const RETRY_DELAYS_MS = [600, 1800];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const status = (e as { code?: number; status?: number })?.code ??
+        (e as { status?: number })?.status;
+      const retriable =
+        status === 429 || (typeof status === "number" && status >= 500);
+      if (!retriable || attempt === RETRY_DELAYS_MS.length) throw e;
+      const delay = RETRY_DELAYS_MS[attempt] + Math.random() * 400;
+      console.warn(
+        `[sheets] read got ${status}; retrying in ${Math.round(delay)}ms`
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 export async function readRange(
   range: string,
   opts: { fresh?: boolean } = {}
@@ -85,13 +114,14 @@ export async function readRange(
     readCache.delete(range);
   }
   const sheets = getSheetsClient();
-  const inflight = sheets.spreadsheets.values
-    .get({
+  const inflight = withReadRetry(() =>
+    sheets.spreadsheets.values.get({
       spreadsheetId: env.googleSheetId(),
       range,
       valueRenderOption: "UNFORMATTED_VALUE",
       dateTimeRenderOption: "FORMATTED_STRING",
     })
+  )
     .then((res) => {
       const data = (res.data.values ?? []) as string[][];
       readCache.set(range, { data, expires: Date.now() + CACHE_TTL_MS });
