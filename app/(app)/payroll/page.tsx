@@ -1,8 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, DollarSign, Eye, Lock } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Eye,
+  Lock,
+} from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listAllPayrollPeriods } from "@/lib/data/payroll-periods";
 import { computeReportForTech } from "@/lib/payroll/compute";
+import { computeDeferralLedger } from "@/lib/payroll/deferrals";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { PayrollStatus } from "@/lib/types";
 
@@ -66,6 +74,22 @@ export default async function TechPayrollPage() {
     (c) => c.status === "Paid" || c.status === "Closed"
   ).length;
 
+  // Deferred pay held for this tech — released when clients pay MSE.
+  // Best-effort: a ledger failure hides the card rather than 500ing
+  // the whole pay page.
+  let heldForMe = 0;
+  let heldJobCount = 0;
+  try {
+    const ledger = await computeDeferralLedger();
+    const mine = ledger.entries.filter(
+      (e) => e.techName === techName && e.remaining > 0
+    );
+    heldForMe = mine.reduce((s, e) => s + e.remaining, 0);
+    heldJobCount = mine.length;
+  } catch (e) {
+    console.warn("[payroll] deferral card failed:", e);
+  }
+
   return (
     <div className="space-y-6">
       <header>
@@ -103,6 +127,25 @@ export default async function TechPayrollPage() {
                   </span>
                 </>
               )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {heldForMe > 0.009 && (
+        <section className="rounded-2xl bg-white border-2 border-mse-gold/40 p-4 shadow-card flex items-start gap-3">
+          <Clock className="w-5 h-5 text-mse-gold shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-mse-muted">
+              Held for you — releases when the client pays
+            </div>
+            <div className="text-2xl font-bold text-mse-navy tabular-nums mt-0.5">
+              {formatCurrency(heldForMe)}
+            </div>
+            <div className="text-xs text-mse-muted mt-0.5">
+              Second-half pay across {heldJobCount} job
+              {heldJobCount === 1 ? "" : "s"}. It lands on a Thursday report
+              after the office confirms the client&apos;s payment.
             </div>
           </div>
         </section>

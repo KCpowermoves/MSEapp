@@ -27,6 +27,7 @@ const PERIODS_HEADERS = [
   "PaidBy",
   "PaidAt",
   "Note",
+  "PeriodType",
 ];
 
 async function ensurePeriodsTab(): Promise<void> {
@@ -36,7 +37,7 @@ async function ensurePeriodsTab(): Promise<void> {
 // Sheet column layout for "Payroll Periods":
 // A: PeriodId | B: StartDate | C: EndDate | D: Status | E: Label
 // F: CreatedBy | G: CreatedAt | H: ApprovedBy | I: ApprovedAt
-// J: PaidBy | K: PaidAt | L: Note
+// J: PaidBy | K: PaidAt | L: Note | M: PeriodType (weekly|custom)
 //
 // Schema-flexible reads — a missing PayrollPeriods tab returns []
 // rather than throwing, so the admin UI degrades cleanly until the
@@ -46,6 +47,7 @@ function normalizeStatus(raw: unknown): PayrollStatus {
   const s = String(raw ?? "").trim();
   if (s === "Approved") return "Approved";
   if (s === "Paid") return "Paid";
+  if (s === "Closed") return "Closed";
   return "Draft";
 }
 
@@ -81,6 +83,9 @@ function rowToPeriod(row: string[]): PayrollPeriod {
     paidBy: String(row[9] ?? ""),
     paidAt: String(row[10] ?? ""),
     note: String(row[11] ?? ""),
+    // Legacy rows have no column M — they behave as classic full-pay
+    // custom periods so their historical totals never change.
+    periodType: String(row[12] ?? "").trim() === "weekly" ? "weekly" : "custom",
   };
 }
 
@@ -124,6 +129,7 @@ interface CreatePeriodInput {
   label: string;
   note: string;
   createdBy: string;
+  periodType?: "weekly" | "custom";
 }
 
 export async function createPayrollPeriod(
@@ -149,6 +155,7 @@ export async function createPayrollPeriod(
       "",
       "",
       input.note,
+      input.periodType ?? "custom",
     ],
     "USER_ENTERED"
   );
@@ -165,7 +172,62 @@ export async function createPayrollPeriod(
     paidBy: "",
     paidAt: "",
     note: input.note,
+    periodType: input.periodType ?? "custom",
   };
+}
+
+// ─── Weekly (Mon–Sun) split-pay periods ──────────────────────────────
+
+/** The Monday of the week containing `d` (UTC date math on ISO). */
+export function mondayOf(dateIso: string): string {
+  const d = new Date(dateIso + "T00:00:00Z");
+  const dow = d.getUTCDay(); // 0=Sun
+  const diff = dow === 0 ? -6 : 1 - dow;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function addDays(dateIso: string, days: number): string {
+  const d = new Date(dateIso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function prettyMd(dateIso: string): string {
+  const d = new Date(dateIso + "T00:00:00Z");
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * Idempotently create the weekly Mon–Sun period covering `anchorIso`
+ * (defaults to LAST week when called on a Monday by the cron). Returns
+ * the existing period untouched when one already spans that exact
+ * week. Label carries the pay-Thursday so nobody has to compute it.
+ */
+export async function ensureWeeklyPeriod(opts: {
+  anchorIso: string; // any date inside the target week
+  createdBy: string;
+}): Promise<{ period: PayrollPeriod; created: boolean }> {
+  const startDate = mondayOf(opts.anchorIso);
+  const endDate = addDays(startDate, 6); // Sunday
+  const payThursday = addDays(endDate, 4); // the following Thursday
+  const existing = (await listAllPayrollPeriods()).find(
+    (p) => p.startDate === startDate && p.endDate === endDate
+  );
+  if (existing) return { period: existing, created: false };
+  const period = await createPayrollPeriod({
+    startDate,
+    endDate,
+    label: `Week of ${prettyMd(startDate)}–${prettyMd(endDate)}`,
+    note: `Pay date: Thursday ${prettyMd(payThursday)}`,
+    createdBy: opts.createdBy,
+    periodType: "weekly",
+  });
+  return { period, created: true };
 }
 
 /** Update the date range and/or label of a Draft period. Approved/Paid
