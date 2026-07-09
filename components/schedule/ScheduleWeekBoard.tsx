@@ -280,6 +280,20 @@ function VisitDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Inline "create a new job" sub-form, so the office can build the
+  // whole calendar without leaving the dialog for a job that doesn't
+  // exist yet.
+  const [newJobOpen, setNewJobOpen] = useState(false);
+  const [newJobName, setNewJobName] = useState("");
+  const [newJobAddress, setNewJobAddress] = useState("");
+  const [newJobUtility, setNewJobUtility] = useState<
+    "BGE" | "PEPCO" | "Delmarva" | "SMECO"
+  >("BGE");
+  const [creatingJob, setCreatingJob] = useState(false);
+  // A job just created here isn't in the server-rendered `jobs` prop —
+  // hold it locally so selectedJob resolves.
+  const [createdJob, setCreatedJob] = useState<JobLite | null>(null);
+
   const matches = useMemo(() => {
     const q = jobQuery.trim().toLowerCase();
     if (!q) return jobs.slice(0, 8);
@@ -293,13 +307,58 @@ function VisitDialog({
       .slice(0, 8);
   }, [jobs, jobQuery]);
 
-  const selectedJob = jobs.find((j) => j.jobId === jobId);
+  const selectedJob =
+    jobs.find((j) => j.jobId === jobId) ??
+    (createdJob?.jobId === jobId ? createdJob : undefined);
   const canSave = Boolean(jobId && date && techs.length > 0) && !busy;
 
   function toggleTech(name: string) {
     setTechs((prev) =>
       prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]
     );
+  }
+
+  async function createJobInline() {
+    const name = newJobName.trim();
+    if (!name) {
+      setError("Business name is required");
+      return;
+    }
+    setCreatingJob(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: name,
+          siteAddress: newJobAddress.trim(),
+          utilityTerritory: newJobUtility,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        jobId?: string;
+        job?: { jobId?: string };
+      };
+      if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
+      const newId = body.jobId ?? body.job?.jobId ?? "";
+      if (!newId) throw new Error("Job created but no ID returned");
+      const lite: JobLite = {
+        jobId: newId,
+        customerName: name,
+        siteAddress: newJobAddress.trim(),
+      };
+      setCreatedJob(lite);
+      setJobId(newId);
+      setNewJobOpen(false);
+      setNewJobName("");
+      setNewJobAddress("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create job");
+    } finally {
+      setCreatingJob(false);
+    }
   }
 
   async function save() {
@@ -396,6 +455,69 @@ function VisitDialog({
                     Change
                   </button>
                 </div>
+              ) : newJobOpen ? (
+                /* Inline new-job form — create a job without leaving. */
+                <div className="rounded-lg border-2 border-mse-navy/20 bg-mse-navy/[0.03] p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[11px] uppercase tracking-wider font-bold text-mse-navy">
+                      New job
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNewJobOpen(false)}
+                      className="text-[11px] font-bold text-mse-muted hover:text-mse-navy"
+                    >
+                      Back to search
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={newJobName}
+                    onChange={(e) => setNewJobName(e.target.value)}
+                    placeholder="Business name (the property)"
+                    autoFocus
+                    className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
+                  />
+                  <input
+                    type="text"
+                    value={newJobAddress}
+                    onChange={(e) => setNewJobAddress(e.target.value)}
+                    placeholder="Site address (optional)"
+                    className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
+                  />
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(["BGE", "PEPCO", "Delmarva", "SMECO"] as const).map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setNewJobUtility(u)}
+                        className={cn(
+                          "px-2 py-1.5 rounded-lg text-xs font-bold border-2 active:scale-95",
+                          newJobUtility === u
+                            ? "bg-mse-navy border-mse-navy text-white"
+                            : "bg-white border-mse-light text-mse-muted hover:border-mse-navy/30"
+                        )}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={createJobInline}
+                    disabled={creatingJob || !newJobName.trim()}
+                    className={cn(
+                      "w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold",
+                      "transition-[background-color,transform] active:scale-95",
+                      creatingJob || !newJobName.trim()
+                        ? "bg-mse-light text-mse-muted cursor-not-allowed"
+                        : "bg-mse-navy text-white hover:bg-mse-navy-soft"
+                    )}
+                  >
+                    {creatingJob && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Create job &amp; use it
+                  </button>
+                </div>
               ) : (
                 <>
                   <input
@@ -429,6 +551,19 @@ function VisitDialog({
                       </li>
                     )}
                   </ul>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewJobOpen(true);
+                      // Seed the new-job name from whatever they typed.
+                      if (jobQuery.trim() && !newJobName) setNewJobName(jobQuery.trim());
+                      setError(null);
+                    }}
+                    className="mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-mse-navy border-2 border-dashed border-mse-light hover:border-mse-navy/30 active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create a new job
+                  </button>
                 </>
               )}
             </div>
