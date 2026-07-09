@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { DollarSign, LayoutDashboard, LogOut } from "lucide-react";
+import { DollarSign, LayoutDashboard, LogOut, CalendarDays } from "lucide-react";
 import { PendingBadge } from "@/components/PendingBadge";
 import { LocationConsent } from "@/components/LocationConsent";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
@@ -69,6 +69,13 @@ export function AppShell({
           </Link>
           <div className="ml-auto flex items-center gap-2">
             <PendingBadge />
+            <Link
+              href="/schedule"
+              aria-label="My schedule"
+              className="p-2 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
+            >
+              <CalendarDays className="w-5 h-5" />
+            </Link>
             <Link
               href="/payroll"
               aria-label="My commission report"

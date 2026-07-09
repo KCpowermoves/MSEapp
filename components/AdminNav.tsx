@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
+  CalendarDays,
   DollarSign,
   Image as ImageIcon,
   LayoutDashboard,
@@ -29,6 +30,12 @@ const TABS: Tab[] = [
     label: "Dashboard",
     icon: <LayoutDashboard className="w-3.5 h-3.5" />,
     match: (p) => p === "/admin",
+  },
+  {
+    href: "/admin/schedule",
+    label: "Schedule",
+    icon: <CalendarDays className="w-3.5 h-3.5" />,
+    match: (p) => p.startsWith("/admin/schedule"),
   },
   {
     href: "/admin/customers",
