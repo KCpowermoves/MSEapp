@@ -188,10 +188,11 @@ export async function computePayrollReport(
   const dispatchById = new Map(dispatches.map((d) => [d.dispatchId, d]));
 
   // Comp plans — only needed for weekly split-pay periods.
+  const planTechs = period?.periodType === "weekly" ? await loadAllTechs() : [];
   const planByName =
     period?.periodType === "weekly"
       ? new Map(
-          (await loadAllTechs()).map((t) => [
+          planTechs.map((t) => [
             t.name,
             { planType: t.planType, drawAmount: t.drawAmount },
           ])
@@ -454,6 +455,59 @@ export async function computePayrollReport(
       subtotals.deferral +
       subtotals.released;
     techRollups.push({ techName, lineItems: sorted, subtotals, grandTotal });
+  }
+
+  // Draw guarantee for a NO-WORK week: a draw-plan tech with zero
+  // attribution this week still gets their flat weekly draw. Without
+  // this, the guarantee silently skipped weeks where the tech had no
+  // line items at all. The line is labeled clearly so the admin can
+  // judge it during Draft review (e.g. remove for an agreed unpaid
+  // vacation week via a matching deduction).
+  if (period?.periodType === "weekly") {
+    for (const t of planTechs) {
+      if (!t.active || t.planType !== "draw" || t.drawAmount <= 0) continue;
+      if (techMap.has(t.name)) continue;
+      const line: ReportLineItem = {
+        source: "adjustment",
+        id: `PLAN-${t.name}`,
+        date: input.endDate,
+        techName: t.name,
+        lineType: `Draw guarantee ($${t.drawAmount.toLocaleString()}/wk)`,
+        amount: t.drawAmount,
+        description:
+          "Weekly draw guarantee — no attributed work this week. Shortfall nets against future releases.",
+        dispatchId: "",
+        unitId: "",
+        jobId: "",
+        customerName: "",
+        note: "",
+        adjustmentId: "",
+        adjustmentType: "plan_deferral",
+        relatedTech: "",
+        nameplateFileId: "",
+        unitLabel: "",
+      };
+      techRollups.push({
+        techName: t.name,
+        lineItems: [line],
+        subtotals: {
+          service: 0,
+          salesPaid: 0,
+          salesPending: 0,
+          standalone: 0,
+          dailyStipend: 0,
+          travelBonus: 0,
+          bonus: 0,
+          deduction: 0,
+          reimbursement: 0,
+          deferral: t.drawAmount,
+          released: 0,
+          adjustments: 0,
+          earned: 0,
+        },
+        grandTotal: t.drawAmount,
+      });
+    }
   }
 
   // Sort techs by grand total desc — top earner first.

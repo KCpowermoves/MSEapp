@@ -57,11 +57,11 @@ function rowToAdjustment(row: string[]): PayrollAdjustment {
   };
 }
 
-export async function listAllPayrollAdjustments(): Promise<
-  PayrollAdjustment[]
-> {
+export async function listAllPayrollAdjustments(
+  opts: { fresh?: boolean } = {}
+): Promise<PayrollAdjustment[]> {
   try {
-    const rows = await readTab(TABS.payrollAdjustments);
+    const rows = await readTab(TABS.payrollAdjustments, opts);
     return rows.filter((r) => r[0]).map(rowToAdjustment);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

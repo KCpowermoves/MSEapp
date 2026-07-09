@@ -5,6 +5,7 @@ import { listAllDispatches } from "@/lib/data/dispatches";
 import { listAllJobs } from "@/lib/data/jobs";
 import { listAllPayrollPeriods } from "@/lib/data/payroll-periods";
 import { listAllPayrollAdjustments } from "@/lib/data/payroll-adjustments";
+import { todayIsoEastern } from "@/lib/utils";
 import type { PayPlanType, PayrollPeriod } from "@/lib/types";
 
 /**
@@ -192,6 +193,27 @@ export async function computeDeferralLedger(): Promise<DeferralLedger> {
     }
   }
 
+  // Zero-work weeks for draw techs: the Thursday report still pays the
+  // full draw (guarantee), so the entire draw is a shortfall to net
+  // against future releases. Only completed weeks count — a week still
+  // in progress isn't a shortfall yet.
+  const todayEt = todayIsoEastern();
+  for (const p of weeklyPeriods) {
+    if (p.endDate >= todayEt) continue;
+    for (const t of techs) {
+      if (!t.active || t.planType !== "draw" || t.drawAmount <= 0) continue;
+      const wk = [t.name, p.periodId].join(SEP);
+      if (weekTechTotals.has(wk)) continue;
+      const sf = shortfallByTech.get(t.name) ?? {
+        amount: 0,
+        weeks: new Set<string>(),
+      };
+      sf.amount = round2(sf.amount + t.drawAmount);
+      sf.weeks.add(p.label || p.periodId);
+      shortfallByTech.set(t.name, sf);
+    }
+  }
+
   // ── Released so far (deferred_release adjustments, any period) ────
   const released = new Map<string, number>();
   for (const a of adjustments) {
@@ -231,6 +253,28 @@ export async function computeDeferralLedger(): Promise<DeferralLedger> {
       weeks: Array.from(o.weeks),
     });
   }
+  // Orphaned releases: a deferred_release exists but its attribution
+  // was later deleted (dispatch unfinalized after release). Without
+  // this pass the released money would drop out of the totals — keep
+  // it visible so the books always account for every dollar out.
+  for (const [key, rel] of Array.from(released.entries())) {
+    if (owed.has(key)) continue;
+    const [techName, jobId] = key.split(SEP);
+    totalReleased += rel;
+    const job = jobById.get(jobId);
+    entries.push({
+      techName,
+      jobId,
+      customerName: `${job?.customerName ?? jobId} (attribution removed after release)`,
+      earned: 0,
+      deferredOwed: 0,
+      released: rel,
+      remaining: 0,
+      clientPaidAt: job?.clientPaidAt ?? "",
+      weeks: [],
+    });
+  }
+
   entries.sort(
     (a, b) =>
       (b.clientPaidAt ? 1 : 0) - (a.clientPaidAt ? 1 : 0) ||

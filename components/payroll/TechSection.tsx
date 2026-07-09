@@ -637,6 +637,10 @@ function LineItemRow({
   const isAdj = item.source === "adjustment";
   const negative = item.amount < 0;
   const voided = item.amount === 0 && item.note?.startsWith("VOIDED");
+  // Plan lines ("Deferred until client pays", "Draw top-up") are
+  // COMPUTED, not stored — they have no adjustmentId, so editing or
+  // deleting them is meaningless. Hide those actions.
+  const isSynthetic = isAdj && !item.adjustmentId;
 
   return (
     <tr
@@ -650,7 +654,7 @@ function LineItemRow({
         {item.date || "—"}
       </td>
       <td className="py-2 px-2 max-w-[180px]">
-        {isAdj && isDraft && !voided ? (
+        {isAdj && isDraft && !voided && !isSynthetic ? (
           // ADJUSTMENT row: click to set or change the linked site.
           // Always rebinds to a dispatch — different intent from an
           // auto-attribution row, which edits the underlying job.
@@ -765,24 +769,26 @@ function LineItemRow({
                 </button>
               </>
             )}
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={isDeleting}
-              className="p-1.5 rounded-md text-mse-muted hover:text-mse-red hover:bg-mse-red/10"
-              aria-label={
-                isAdj
-                  ? "Delete this adjustment"
-                  : "Delete this line (writes a counter-adjustment)"
-              }
-              title="Delete"
-            >
-              {isDeleting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="w-3.5 h-3.5" />
-              )}
-            </button>
+            {!isSynthetic && (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={isDeleting}
+                className="p-1.5 rounded-md text-mse-muted hover:text-mse-red hover:bg-mse-red/10"
+                aria-label={
+                  isAdj
+                    ? "Delete this adjustment"
+                    : "Delete this line (writes a counter-adjustment)"
+                }
+                title="Delete"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
           </div>
         )}
       </td>

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/payroll/auth";
-import { createPayrollPeriod } from "@/lib/data/payroll-periods";
+import {
+  createPayrollPeriod,
+  listAllPayrollPeriods,
+} from "@/lib/data/payroll-periods";
 import { logPayrollAction } from "@/lib/data/payroll-log";
 
 // POST /api/admin/payroll/periods
@@ -40,6 +43,22 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "endDate must be on or after startDate" },
       { status: 400 }
+    );
+  }
+
+  // Overlap guard: two periods covering the same dates would both pay
+  // the same attribution rows (a weekly split week + a custom full-pay
+  // period = ~150% payout). Block instead of silently double-paying.
+  const existing = await listAllPayrollPeriods();
+  const clash = existing.find(
+    (p) => p.startDate <= endDate && startDate <= p.endDate
+  );
+  if (clash) {
+    return NextResponse.json(
+      {
+        error: `Date range overlaps ${clash.periodId} (${clash.startDate} to ${clash.endDate}, ${clash.status}). Overlapping periods double-pay the same work — adjust the dates.`,
+      },
+      { status: 409 }
     );
   }
 

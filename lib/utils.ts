@@ -23,6 +23,18 @@ export function todayIsoDate(): string {
 }
 
 /**
+ * Today's date in Eastern time (YYYY-MM-DD). The crew, the office, and
+ * the Mon–Sun pay weeks all live in Maryland — using UTC here would
+ * roll a Sunday-evening action into the NEXT pay week (UTC is 4-5
+ * hours ahead). en-CA locale renders ISO order directly.
+ */
+export function todayIsoEastern(): string {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+}
+
+/**
  * ISO date (YYYY-MM-DD) of the Monday of the calendar week that
  * contains the given date. Uses local time so the boundary aligns
  * with how people read a paper calendar — a Sunday-evening dispatch

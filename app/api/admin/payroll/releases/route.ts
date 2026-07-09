@@ -3,9 +3,12 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/payroll/auth";
 import { computeDeferralLedger, JOB_MARKER } from "@/lib/payroll/deferrals";
 import { ensureWeeklyPeriod } from "@/lib/data/payroll-periods";
-import { createAdjustment } from "@/lib/data/payroll-adjustments";
+import {
+  createAdjustment,
+  listAllPayrollAdjustments,
+} from "@/lib/data/payroll-adjustments";
 import { logPayrollAction } from "@/lib/data/payroll-log";
-import { todayIsoDate } from "@/lib/utils";
+import { todayIsoEastern } from "@/lib/utils";
 
 // GET  /api/admin/payroll/releases            → the deferral ledger
 // POST /api/admin/payroll/releases            → approve releases
@@ -19,6 +22,12 @@ import { todayIsoDate } from "@/lib/utils";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+// Serialize approvals within this instance — two overlapping POSTs
+// (double-click, two tabs) queue instead of both reading the same
+// pre-write ledger and double-paying. Cross-instance approvals are
+// additionally guarded by the fresh released-sum re-check below.
+let approvalChain: Promise<unknown> = Promise.resolve();
 
 export async function GET() {
   const guard = await requireAdmin();
@@ -58,16 +67,48 @@ export async function POST(request: Request) {
     );
   }
 
+  // Chain behind any in-flight approval on this instance.
+  const run = approvalChain.then(
+    () => doApprove(requested, guard.session.name),
+    () => doApprove(requested, guard.session.name)
+  );
+  approvalChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+async function doApprove(
+  requested: Array<{ techName: string; jobId: string }>,
+  adminName: string
+): Promise<NextResponse> {
   try {
     // Recompute the ledger server-side — amounts come from HERE, never
     // from the client, so a stale page can't over-release.
     const ledger = await computeDeferralLedger();
 
-    // Target period: the weekly period covering today (created on
-    // demand). Releases fold into its Thursday report.
+    // Fresh (cache-bypassed) released sums, read moments before the
+    // write: if another instance already released one of these jobs
+    // within the cache window, this catches it.
+    const freshAdjustments = await listAllPayrollAdjustments({ fresh: true });
+    const freshReleased = new Map<string, number>();
+    for (const a of freshAdjustments) {
+      if (a.type !== "deferred_release") continue;
+      if ((a.note ?? "").trim().toUpperCase().startsWith("VOIDED")) continue;
+      const m = (a.note ?? "").match(/\[job:([^\]]+)\]/);
+      if (!m) continue;
+      const key = `${a.techName}::${m[1]}`;
+      freshReleased.set(key, (freshReleased.get(key) ?? 0) + a.amount);
+    }
+
+    // Target period: the weekly period covering today (Eastern time —
+    // a Sunday-evening approval belongs to the closing week, not the
+    // next UTC day's week). Created on demand; releases fold into its
+    // Thursday report.
     const { period } = await ensureWeeklyPeriod({
-      anchorIso: todayIsoDate(),
-      createdBy: guard.session.name,
+      anchorIso: todayIsoEastern(),
+      createdBy: adminName,
     });
     if (period.status !== "Draft") {
       return NextResponse.json(
@@ -93,36 +134,41 @@ export async function POST(request: Request) {
         results.push({ ...req, amount: 0, skipped: "no deferral found" });
         continue;
       }
-      if (entry.remaining < 0.01) {
-        results.push({ ...req, amount: 0, skipped: "already fully released" });
-        continue;
-      }
       if (!entry.clientPaidAt) {
         results.push({ ...req, amount: 0, skipped: "client not marked paid" });
+        continue;
+      }
+      // Remaining vs the FRESH released sum — never the cached ledger.
+      const freshRel =
+        freshReleased.get(`${entry.techName}::${entry.jobId}`) ?? 0;
+      const remaining =
+        Math.round((entry.deferredOwed - freshRel) * 100) / 100;
+      if (remaining < 0.01) {
+        results.push({ ...req, amount: 0, skipped: "already fully released" });
         continue;
       }
       const adjustment = await createAdjustment({
         periodId: period.periodId,
         techName: entry.techName,
         type: "deferred_release",
-        amount: entry.remaining,
+        amount: remaining,
         description: `2nd-half release — ${entry.customerName} (client paid)`,
         relatedDispatchId: "",
         relatedUnitId: "",
         note: `${JOB_MARKER(entry.jobId)} earned ${entry.earned.toFixed(2)} across ${entry.weeks.join("; ")}`,
-        createdBy: guard.session.name,
+        createdBy: adminName,
       });
       await logPayrollAction({
-        admin: guard.session.name,
+        admin: adminName,
         action: "adjustment-create",
         periodId: period.periodId,
         target: adjustment.adjustmentId,
-        detail: `RELEASE approved: $${entry.remaining.toFixed(2)} to ${entry.techName} for ${entry.jobId} (${entry.customerName})`,
+        detail: `RELEASE approved: $${remaining.toFixed(2)} to ${entry.techName} for ${entry.jobId} (${entry.customerName})`,
       });
       results.push({
         techName: entry.techName,
         jobId: entry.jobId,
-        amount: entry.remaining,
+        amount: remaining,
       });
     }
 
