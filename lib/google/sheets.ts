@@ -34,6 +34,9 @@ export const TABS = {
   payrollLog: "Payroll Log",
   // Engineering preliminary energy audits / calculator projects.
   engineeringProjects: "Engineering Projects",
+  // Dispatch calendar — planned visits (job + date + crew). A visit is
+  // a plan; a Dispatches row is what actually happened on site.
+  schedule: "Schedule",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across
