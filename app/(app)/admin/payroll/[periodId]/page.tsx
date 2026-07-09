@@ -182,6 +182,8 @@ export default async function PayrollDetailPage({
                     bonus: 0,
                     deduction: 0,
                     reimbursement: 0,
+                    deferral: 0,
+                    released: 0,
                     adjustments: 0,
                     earned: 0,
                   },

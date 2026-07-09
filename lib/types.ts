@@ -49,6 +49,19 @@ export type PhotoSlot =
   | "nameplate" | "filter"
   | "additional";
 
+/**
+ * How a tech's weekly earnings split between the Thursday payment and
+ * the deferred remainder released when the client pays MSE.
+ *
+ *  - "fifty-fifty"  : 50% on Thursday, 50% deferred per job (default)
+ *  - "full-upfront" : 100% on Thursday, nothing deferred (Dante, Jamal)
+ *  - "draw"         : flat weekly draw on Thursday (Ivan's $1,000);
+ *                     remainder (earned − draw) deferred, released
+ *                     proportionally per job. Weeks under the draw
+ *                     carry a shortfall netted against future releases.
+ */
+export type PayPlanType = "fifty-fifty" | "full-upfront" | "draw";
+
 export interface Tech {
   techId: string;
   name: string;
@@ -64,6 +77,11 @@ export interface Tech {
    *  don't go on jobs get FALSE so they stay able to log in but drop
    *  out of the on-site crew list. */
   crewEligible: boolean;
+  /** Column H of the Techs tab. Empty cell = "fifty-fifty". */
+  planType: PayPlanType;
+  /** Column I — weekly draw dollars; only meaningful for planType
+   *  "draw". Defaults to 0. */
+  drawAmount: number;
 }
 
 export interface Job {
@@ -89,6 +107,12 @@ export interface Job {
    *  edit page. Empty string when not provided. Stored in column O of
    *  the Jobs sheet. */
   coverPhotoFileId: string;
+  /** ISO timestamp when the client's payment to MSE was recorded by an
+   *  admin (column P). Empty = not paid yet. Marking a job Client Paid
+   *  unlocks the crew's deferred second-half pay for release approval. */
+  clientPaidAt: string;
+  /** Admin who marked it (column Q). */
+  clientPaidBy: string;
 }
 
 export interface Dispatch {
@@ -212,6 +236,11 @@ export interface PayrollPeriod {
   paidBy: string;
   paidAt: string;
   note: string;
+  /** Column M. "weekly" = a Monday–Sunday split-pay week: comp plans
+   *  apply (50% / draw / full-upfront) and deferral lines render.
+   *  "custom" (or empty, for legacy rows) = classic full-pay period —
+   *  totals unchanged from the old behavior. */
+  periodType: "weekly" | "custom";
 }
 
 /**
@@ -236,7 +265,10 @@ export type PayrollAdjustmentType =
   | "reattribute_from"
   | "reattribute_to"
   | "split_change"
-  | "standalone";
+  | "standalone"
+  /** Second-half pay released after the client paid MSE. Written by
+   *  the release-approval flow into the target weekly period. */
+  | "deferred_release";
 
 export interface PayrollAdjustment {
   adjustmentId: string;

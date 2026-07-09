@@ -275,6 +275,8 @@ export function TechSection({
     { label: "Bonus", value: tech.subtotals.bonus },
     { label: "Deductions", value: tech.subtotals.deduction },
     { label: "Reimbursements", value: tech.subtotals.reimbursement },
+    { label: "Deferred / top-up", value: tech.subtotals.deferral },
+    { label: "2nd-half releases", value: tech.subtotals.released },
     { label: "Adjustments", value: tech.subtotals.adjustments },
   ].filter((c) => c.value !== 0);
 

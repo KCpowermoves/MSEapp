@@ -4,7 +4,17 @@ import { cookies } from "next/headers";
 import { getIronSession } from "iron-session";
 import { env } from "@/lib/env";
 import { TABS, readTab } from "@/lib/google/sheets";
-import type { SessionData, Tech } from "@/lib/types";
+import type { PayPlanType, SessionData, Tech } from "@/lib/types";
+
+
+/** Column H — pay plan. Empty/unknown values default to the standard
+ *  50/50 split so new techs are automatically on the standard plan. */
+function normalizePlanType(raw: unknown): PayPlanType {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (v === "full-upfront" || v === "full") return "full-upfront";
+  if (v === "draw") return "draw";
+  return "fifty-fifty";
+}
 
 const SESSION_COOKIE = "mse_field_session";
 const SESSION_TTL_DAYS = 30;
@@ -50,6 +60,8 @@ export async function loadActiveTechs(): Promise<Tech[]> {
       // Empty cell defaults to TRUE — only an explicit "FALSE" hides
       // the tech from the crew picker. Keeps existing rows working.
       crewEligible: String(r[6] ?? "").toUpperCase() !== "FALSE",
+      planType: normalizePlanType(r[7]),
+      drawAmount: Number(r[8] ?? 0) || 0,
     }))
     .filter((t) => t.active);
 }
@@ -68,6 +80,8 @@ export async function loadAllTechs(): Promise<Tech[]> {
       // Empty cell defaults to TRUE — only an explicit "FALSE" hides
       // the tech from the crew picker. Keeps existing rows working.
       crewEligible: String(r[6] ?? "").toUpperCase() !== "FALSE",
+      planType: normalizePlanType(r[7]),
+      drawAmount: Number(r[8] ?? 0) || 0,
     }));
 }
 

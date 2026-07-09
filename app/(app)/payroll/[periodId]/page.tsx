@@ -128,6 +128,8 @@ export default async function TechPayrollDetailPage({
           { label: "Bonus", value: rollup.subtotals.bonus },
           { label: "Deductions", value: rollup.subtotals.deduction },
           { label: "Reimbursements", value: rollup.subtotals.reimbursement },
+          { label: "Deferred / top-up", value: rollup.subtotals.deferral },
+          { label: "2nd-half releases", value: rollup.subtotals.released },
           { label: "Adjustments", value: rollup.subtotals.adjustments },
         ]
           .filter((c) => c.value !== 0)

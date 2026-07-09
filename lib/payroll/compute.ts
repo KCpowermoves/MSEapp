@@ -1,4 +1,6 @@
 import "server-only";
+import { loadAllTechs } from "@/lib/auth";
+import { weeklyDeferralAmount } from "@/lib/payroll/deferrals";
 import { listAllAttributions } from "@/lib/data/pay-attribution";
 import {
   getPayrollPeriod,
@@ -72,6 +74,12 @@ export interface TechRollup {
     bonus: number;
     deduction: number;
     reimbursement: number;
+    /** Weekly split-pay: the portion HELD until the client pays MSE
+     *  (negative), or a draw top-up (positive) when a draw-plan tech
+     *  earned under their weekly draw. Zero on custom periods. */
+    deferral: number;
+    /** Second-half pay released into this period after clients paid. */
+    released: number;
     /** Manual / reattribute / split-change / standalone adjustments
      *  (everything not covered by a typed category above). */
     adjustments: number;
@@ -128,6 +136,7 @@ function describeAdjustment(a: PayrollAdjustment): string {
   if (a.type === "bonus") return "Bonus";
   if (a.type === "deduction") return "Deduction";
   if (a.type === "reimbursement") return "Reimbursement";
+  if (a.type === "deferred_release") return "2nd-half release (client paid)";
   return "Manual adjustment";
 }
 
@@ -137,6 +146,7 @@ function adjustmentLineType(a: PayrollAdjustment): string {
   if (a.type === "bonus") return "Bonus";
   if (a.type === "deduction") return "Deduction";
   if (a.type === "reimbursement") return "Reimbursement";
+  if (a.type === "deferred_release") return "2nd-half release";
   if (a.type === "reattribute_from") return "Reattribute (out)";
   if (a.type === "reattribute_to") return "Reattribute (in)";
   if (a.type === "split_change") return "Split change";
@@ -176,6 +186,17 @@ export async function computePayrollReport(
   // Index jobs / dispatches by id.
   const jobById = new Map(jobs.map((j) => [j.jobId, j]));
   const dispatchById = new Map(dispatches.map((d) => [d.dispatchId, d]));
+
+  // Comp plans — only needed for weekly split-pay periods.
+  const planByName =
+    period?.periodType === "weekly"
+      ? new Map(
+          (await loadAllTechs()).map((t) => [
+            t.name,
+            { planType: t.planType, drawAmount: t.drawAmount },
+          ])
+        )
+      : null;
 
   // Index units by dispatch + unit number so attribution rows can
   // look up their source unit for the nameplate thumbnail. Pay
@@ -279,9 +300,10 @@ export async function computePayrollReport(
     if (
       (a.note ?? "").trim().toUpperCase().startsWith("VOIDED") ||
       (a.amount === 0 &&
-        ["manual", "bonus", "deduction", "reimbursement", "standalone"].includes(
-          a.type
-        )) ||
+        [
+          "manual", "bonus", "deduction", "reimbursement",
+          "standalone", "deferred_release",
+        ].includes(a.type)) ||
       offsetAdjustmentIds.has(a.adjustmentId)
     ) {
       continue;
@@ -349,6 +371,8 @@ export async function computePayrollReport(
       bonus: 0,
       deduction: 0,
       reimbursement: 0,
+      deferral: 0,
+      released: 0,
       adjustments: 0,
       earned: 0,
     };
@@ -365,6 +389,8 @@ export async function computePayrollReport(
         subtotals.deduction += it.amount;
       } else if (it.adjustmentType === "reimbursement") {
         subtotals.reimbursement += it.amount;
+      } else if (it.adjustmentType === "deferred_release") {
+        subtotals.released += it.amount;
       } else {
         // Standalone-typed adjustments still get folded into the
         // adjustments bucket — they're a "manual line we added,"
@@ -380,12 +406,53 @@ export async function computePayrollReport(
       subtotals.dailyStipend +
       subtotals.travelBonus;
 
+    // Weekly split-pay: hold back the deferred portion (or top up a
+    // draw-plan tech to their weekly draw). Renders as its own line so
+    // the report's grand total = the actual Thursday payment.
+    if (period?.periodType === "weekly") {
+      const plan = planByName?.get(techName);
+      if (plan && plan.planType !== "full-upfront") {
+        const deferred = weeklyDeferralAmount(plan, subtotals.earned);
+        if (Math.abs(deferred) >= 0.01) {
+          subtotals.deferral = -deferred; // positive deferred → negative line
+          const isTopUp = deferred < 0;
+          sorted.push({
+            source: "adjustment",
+            id: `PLAN-${techName}`,
+            date: input.endDate,
+            techName,
+            lineType: isTopUp
+              ? `Draw top-up (to $${plan.drawAmount.toLocaleString()})`
+              : "Deferred until client pays",
+            amount: -deferred,
+            description: isTopUp
+              ? `Weekly draw guarantee: earned ${subtotals.earned.toFixed(2)} topped up to $${plan.drawAmount.toLocaleString()} — shortfall nets against future releases`
+              : plan.planType === "draw"
+              ? `Held back: earned − $${plan.drawAmount.toLocaleString()} draw. Releases when clients pay.`
+              : "50% held until the client pays MSE. Releases on approval.",
+            dispatchId: "",
+            unitId: "",
+            jobId: "",
+            customerName: "",
+            note: "",
+            adjustmentId: "",
+            adjustmentType: "plan_deferral",
+            relatedTech: "",
+            nameplateFileId: "",
+            unitLabel: "",
+          });
+        }
+      }
+    }
+
     const grandTotal =
       subtotals.earned +
       subtotals.adjustments +
       subtotals.bonus +
       subtotals.deduction +
-      subtotals.reimbursement;
+      subtotals.reimbursement +
+      subtotals.deferral +
+      subtotals.released;
     techRollups.push({ techName, lineItems: sorted, subtotals, grandTotal });
   }
 

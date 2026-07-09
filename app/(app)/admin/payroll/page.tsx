@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ClipboardList, DollarSign, Plus, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, ClipboardList, DollarSign, HandCoins, Plus, Sparkles } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { summarizeAllPeriods } from "@/lib/payroll/compute";
 import { NewPeriodForm } from "@/components/payroll/NewPeriodForm";
@@ -38,7 +38,14 @@ export default async function PayrollListPage({
             units, and export a PDF or CSV when you&apos;re ready to cut checks.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link
+            href="/admin/payroll/releases"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-mse-navy border-2 border-mse-navy hover:bg-mse-navy hover:text-white active:scale-95"
+          >
+            <HandCoins className="w-4 h-4" />
+            2nd-half releases
+          </Link>
           <Pill label="Saved periods" value={String(summaries.length)} />
           <Pill label="Drafts" value={String(draftCount)} accent="gold" />
           <Pill

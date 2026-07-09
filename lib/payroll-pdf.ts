@@ -426,6 +426,8 @@ function renderTechSection(
     { label: "Bonus", value: tech.subtotals.bonus, show: tech.subtotals.bonus !== 0 },
     { label: "Deductions", value: tech.subtotals.deduction, show: tech.subtotals.deduction !== 0 },
     { label: "Reimbursements", value: tech.subtotals.reimbursement, show: tech.subtotals.reimbursement !== 0 },
+    { label: "Deferred / top-up", value: tech.subtotals.deferral, show: tech.subtotals.deferral !== 0 },
+    { label: "2nd-half releases", value: tech.subtotals.released, show: tech.subtotals.released !== 0 },
     { label: "Adjustments", value: tech.subtotals.adjustments, show: tech.subtotals.adjustments !== 0 },
     {
       label: "YTD incl. this",

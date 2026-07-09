@@ -29,7 +29,33 @@ function rowToJob(row: string[]): Job {
     notes: String(row[12] ?? ""),
     projectLead: String(row[13] ?? ""),
     coverPhotoFileId: String(row[14] ?? ""),
+    clientPaidAt: String(row[15] ?? ""),
+    clientPaidBy: String(row[16] ?? ""),
   };
+}
+
+/**
+ * Record (or clear) the client's payment to MSE on a job — columns
+ * P/Q. Marking a job Client Paid is what unlocks the crew's deferred
+ * second-half pay for release approval on /admin/payroll/releases.
+ */
+export async function setJobClientPaid(opts: {
+  jobId: string;
+  paid: boolean;
+  markedBy: string;
+}): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.jobs, "A", opts.jobId);
+  if (!rowIndex) throw new Error(`Job not found: ${opts.jobId}`);
+  await updateCell(
+    `${TABS.jobs}!P${rowIndex}`,
+    opts.paid ? nowIso() : "",
+    "RAW"
+  );
+  await updateCell(
+    `${TABS.jobs}!Q${rowIndex}`,
+    opts.paid ? opts.markedBy : "",
+    "RAW"
+  );
 }
 
 export async function listAllJobs(
@@ -180,6 +206,8 @@ export async function createJob(opts: {
     notes: opts.notes ?? "",
     projectLead,
     coverPhotoFileId: "",
+    clientPaidAt: "",
+    clientPaidBy: "",
   };
 }
 
