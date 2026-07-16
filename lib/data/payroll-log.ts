@@ -30,7 +30,9 @@ export type PayrollLogAction =
   | "adjustment-void"
   | "adjustment-link"
   | "reattribute"
-  | "split-change";
+  | "split-change"
+  | "finalize-adjust"
+  | "finalize-waive";
 
 export async function logPayrollAction(entry: {
   admin: string;

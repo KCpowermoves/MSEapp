@@ -113,6 +113,16 @@ export interface Job {
   clientPaidAt: string;
   /** Admin who marked it (column Q). */
   clientPaidBy: string;
+  /** ISO timestamp when an admin force-finalized this job on the
+   *  payroll worklist (column R). The finalization detector suppresses
+   *  issues from dispatches dated on or before this stamp — problems on
+   *  LATER dispatches still flag, so multi-week projects re-surface
+   *  when new work has gaps. Empty = never force-finalized. */
+  finalizedAt: string;
+  /** Admin who force-finalized (column S). */
+  finalizedBy: string;
+  /** Why — waive reason or adjustment summary (column T). */
+  finalizeNote: string;
 }
 
 export interface Dispatch {

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { AdminSendReportButton } from "@/components/AdminSendReportButton";
 import { AdminFinalizeButton } from "@/components/AdminFinalizeButton";
 import { StuckDraftsPanel } from "@/components/admin/StuckDraftsPanel";
+import { computeFinalizationReport } from "@/lib/payroll/finalization";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function AdminDashboard() {
     techs,
     payAttribRows,
     locationRows,
+    finalization,
   ] = await Promise.all([
     listAllJobs(),
     listAllDispatches(),
@@ -44,6 +46,7 @@ export default async function AdminDashboard() {
     loadActiveTechs(),
     readTab(TABS.payAttribution),
     readTab(TABS.locationEvents).catch(() => []),
+    computeFinalizationReport().catch(() => null),
   ]);
 
   const today = todayIsoDate();
@@ -309,6 +312,30 @@ export default async function AdminDashboard() {
 
       {/* Stuck drafts alert */}
       <StuckDraftsPanel rows={stuck} />
+
+      {/* Payroll finalization worklist alert */}
+      {finalization && finalization.counts.jobs > 0 && (
+        <Link
+          href="/admin/payroll/worklist"
+          className={cn(
+            "flex items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 group",
+            "border-mse-gold/50 bg-mse-gold/10 hover:bg-mse-gold/15",
+            "transition-[background-color]"
+          )}
+        >
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-mse-navy">
+            <ClipboardList className="w-4 h-4 text-mse-gold shrink-0" />
+            {finalization.counts.jobs} job
+            {finalization.counts.jobs === 1 ? "" : "s"} need
+            {finalization.counts.jobs === 1 ? "s" : ""} finalizing before
+            payroll — missing photos, $0 pay, or unsubmitted days.
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs font-bold text-mse-navy shrink-0">
+            Review
+            <ExternalLink className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </Link>
+      )}
 
       {/* Per-tech breakdown */}
       <section>

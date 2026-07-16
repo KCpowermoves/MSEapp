@@ -88,8 +88,11 @@ export function OfflineAddUnit({ jobId }: { jobId: string }) {
       notes: "",
       projectLead: "",
       coverPhotoFileId: "",
-    clientPaidAt: "",
-    clientPaidBy: "",
+      clientPaidAt: "",
+      clientPaidBy: "",
+      finalizedAt: "",
+      finalizedBy: "",
+      finalizeNote: "",
     };
     return <AddUnitForm job={fakeJob} nextUnitNumber={nextNumber} />;
   }
@@ -115,6 +118,9 @@ export function OfflineAddUnit({ jobId }: { jobId: string }) {
     coverPhotoFileId: "",
     clientPaidAt: "",
     clientPaidBy: "",
+    finalizedAt: "",
+    finalizedBy: "",
+    finalizeNote: "",
   };
   return <AddUnitForm job={minimalJob} nextUnitNumber={nextNumber} />;
 }

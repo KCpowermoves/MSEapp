@@ -1,12 +1,33 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ClipboardList, DollarSign, HandCoins, Plus, Sparkles } from "lucide-react";
-import { cn, formatCurrency } from "@/lib/utils";
+import {
+  ArrowRight,
+  CalendarCheck,
+  CheckCircle2,
+  ClipboardList,
+  DollarSign,
+  HandCoins,
+  Plus,
+  Sparkles,
+} from "lucide-react";
+import { cn, formatCurrency, todayIsoEastern } from "@/lib/utils";
 import { summarizeAllPeriods } from "@/lib/payroll/compute";
+import { computeDeferralLedger } from "@/lib/payroll/deferrals";
+import { computeFinalizationReport } from "@/lib/payroll/finalization";
+import { ensureWeeklyPeriod, mondayOf } from "@/lib/data/payroll-periods";
+import { loadAllTechs } from "@/lib/auth";
 import { NewPeriodForm } from "@/components/payroll/NewPeriodForm";
 import { PreviewPanel } from "@/components/payroll/PreviewPanel";
+import { WorklistCard } from "@/components/payroll/WorklistCard";
+import { ApproveWeekButton } from "@/components/payroll/ApproveWeekButton";
 import type { PayrollStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+function addDaysIso(dateIso: string, days: number): string {
+  const d = new Date(dateIso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 export default async function PayrollListPage({
   searchParams,
@@ -18,7 +39,44 @@ export default async function PayrollListPage({
   const previewStart = searchParams.start ?? "";
   const previewEnd = searchParams.end ?? "";
 
-  const summaries = await summarizeAllPeriods();
+  // ── The weekly close ──────────────────────────────────────────────
+  // The admin's Thursday ritual: the most recent COMPLETED Mon–Sun
+  // week. The Monday cron normally created it already; ensure() is the
+  // idempotent safety net.
+  const today = todayIsoEastern();
+  const closeWeekAnchor = addDaysIso(mondayOf(today), -7);
+  const { period: closeWeek } = await ensureWeeklyPeriod({
+    anchorIso: closeWeekAnchor,
+    createdBy: "auto (close page)",
+  });
+
+  const [summaries, weekReport, ledger, techs] = await Promise.all([
+    summarizeAllPeriods(),
+    computeFinalizationReport({
+      weekStart: closeWeek.startDate,
+      weekEnd: closeWeek.endDate,
+    }),
+    computeDeferralLedger().catch(() => null),
+    loadAllTechs(),
+  ]);
+  const allTechNames = techs
+    .filter((t) => t.active)
+    .map((t) => t.name)
+    .sort();
+
+  const closeSummary = summaries.find(
+    (s) => s.period.periodId === closeWeek.periodId
+  );
+  const olderOpenWeeks = summaries.filter(
+    (s) =>
+      s.period.periodType === "weekly" &&
+      s.period.status === "Draft" &&
+      s.period.endDate < closeWeek.startDate
+  ).length;
+  const readyToRelease = ledger?.totals.readyToRelease ?? 0;
+  const releasePairs =
+    ledger?.entries.filter((e) => e.clientPaidAt && e.remaining > 0).length ??
+    0;
 
   const totalSaved = summaries.reduce((s, x) => s + x.grandTotal, 0);
   const draftCount = summaries.filter(
@@ -58,37 +116,153 @@ export default async function PayrollListPage({
 
       <div className="grid md:grid-cols-[1.4fr_1fr] gap-4 items-start">
         <section className="rounded-2xl bg-white border border-mse-light shadow-card p-5">
-          <div className="flex items-center gap-2 text-mse-navy">
-            <Plus className="w-4 h-4 text-mse-gold" />
-            <h2 className="font-bold">Run a new commission report period</h2>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 text-mse-navy">
+                <CalendarCheck className="w-4 h-4 text-mse-gold" />
+                <h2 className="font-bold">This week&apos;s close</h2>
+                <StatusPill status={closeWeek.status} />
+              </div>
+              <p className="text-xs text-mse-muted mt-1">
+                {closeWeek.label ||
+                  `${closeWeek.startDate} – ${closeWeek.endDate}`}
+                {closeWeek.note ? ` · ${closeWeek.note}` : ""}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-mse-navy tabular-nums">
+                {formatCurrency(closeSummary?.grandTotal ?? 0)}
+              </div>
+              <div className="text-[11px] text-mse-muted">
+                {closeSummary?.techCount ?? 0} tech
+                {(closeSummary?.techCount ?? 0) === 1 ? "" : "s"} ·{" "}
+                {prettyDate(closeWeek.startDate)} →{" "}
+                {prettyDate(closeWeek.endDate)}
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-mse-muted mt-1">
-            Pick a date range. Period is created in <strong>Draft</strong> so
-            you can add adjustments before approving.
-          </p>
+
+          {/* Step 1 — finalize the week's work */}
           <div className="mt-4">
-            <NewPeriodForm
-              existingRanges={summaries.map((s) => ({
-                start: s.period.startDate,
-                end: s.period.endDate,
-              }))}
-            />
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1.5">
+              1 · Finalize the work
+            </div>
+            {weekReport.jobs.length === 0 ? (
+              <div className="rounded-xl border border-mse-light bg-mse-light/20 px-3 py-2.5 text-xs text-mse-navy inline-flex items-center gap-1.5 w-full">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                Every job this week is submitted, photographed, and paying
+                correctly.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {weekReport.jobs.map((j) => (
+                  <WorklistCard key={j.jobId} job={j} allTechs={allTechNames} />
+                ))}
+              </div>
+            )}
+            <Link
+              href="/admin/payroll/worklist"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-mse-muted hover:text-mse-navy mt-2"
+            >
+              Full worklist (all weeks)
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          {/* Step 2 — release second halves that clients have paid */}
+          <div className="mt-4">
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1.5">
+              2 · Release second halves
+            </div>
+            <Link
+              href="/admin/payroll/releases"
+              className={cn(
+                "flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 group",
+                readyToRelease > 0
+                  ? "border-mse-gold/50 bg-mse-gold/10 hover:bg-mse-gold/15"
+                  : "border-mse-light bg-mse-light/20 hover:bg-mse-light/30"
+              )}
+            >
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-mse-navy">
+                <HandCoins className="w-3.5 h-3.5" />
+                {readyToRelease > 0
+                  ? `${formatCurrency(readyToRelease)} ready to release (${releasePairs} tech-job pair${releasePairs === 1 ? "" : "s"} · clients paid)`
+                  : "Nothing waiting — no client-paid second halves to release."}
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-mse-muted transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+
+          {/* Step 3 — approve and freeze */}
+          <div className="mt-4">
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1.5">
+              3 · Approve the report
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {closeWeek.status === "Draft" ? (
+                <ApproveWeekButton
+                  periodId={closeWeek.periodId}
+                  unfinalizedCount={weekReport.jobs.length}
+                />
+              ) : (
+                <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-600/10 border border-emerald-600/20 rounded-xl px-3 py-2.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Week is {closeWeek.status === "Approved" ? "Invoice Approved" : closeWeek.status}
+                  {closeWeek.approvedBy ? ` by ${closeWeek.approvedBy}` : ""}.
+                </div>
+              )}
+              <Link
+                href={`/admin/payroll/${encodeURIComponent(closeWeek.periodId)}`}
+                className="inline-flex items-center gap-1 text-xs font-bold text-mse-navy hover:underline"
+              >
+                Open full report
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            {olderOpenWeeks > 0 && (
+              <p className="text-[11px] text-mse-muted mt-2">
+                {olderOpenWeeks} older week{olderOpenWeeks === 1 ? "" : "s"}{" "}
+                still in Draft — see Saved periods below.
+              </p>
+            )}
           </div>
         </section>
 
-        <section className="rounded-2xl border-2 border-dashed border-mse-light p-5">
-          <div className="flex items-center gap-2 text-mse-muted">
-            <Sparkles className="w-4 h-4 text-mse-gold" />
-            <h2 className="font-bold text-mse-navy">Live preview</h2>
-          </div>
-          <p className="text-xs text-mse-muted mt-1">
-            See what a date range would total without saving anything. URL is
-            shareable.
-          </p>
-          <div className="mt-4">
-            <PreviewPanel startDate={previewStart} endDate={previewEnd} />
-          </div>
-        </section>
+        <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-dashed border-mse-light p-5">
+            <div className="flex items-center gap-2 text-mse-muted">
+              <Sparkles className="w-4 h-4 text-mse-gold" />
+              <h2 className="font-bold text-mse-navy">Live preview</h2>
+            </div>
+            <p className="text-xs text-mse-muted mt-1">
+              See what a date range would total without saving anything. URL is
+              shareable.
+            </p>
+            <div className="mt-4">
+              <PreviewPanel startDate={previewStart} endDate={previewEnd} />
+            </div>
+          </section>
+
+          <details className="rounded-2xl bg-white border border-mse-light shadow-card group">
+            <summary className="cursor-pointer list-none p-5 flex items-center gap-2 text-mse-navy select-none">
+              <Plus className="w-4 h-4 text-mse-gold transition-transform group-open:rotate-45" />
+              <span className="font-bold">Advanced: custom period</span>
+            </summary>
+            <div className="px-5 pb-5">
+              <p className="text-xs text-mse-muted -mt-1 mb-4">
+                Weekly periods create themselves every Monday. Only use this
+                for off-cycle ranges (month-end invoices, one-off
+                corrections). Created in <strong>Draft</strong>.
+              </p>
+              <NewPeriodForm
+                existingRanges={summaries.map((s) => ({
+                  start: s.period.startDate,
+                  end: s.period.endDate,
+                }))}
+              />
+            </div>
+          </details>
+        </div>
       </div>
 
       <section>

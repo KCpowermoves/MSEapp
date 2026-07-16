@@ -31,7 +31,28 @@ function rowToJob(row: string[]): Job {
     coverPhotoFileId: String(row[14] ?? ""),
     clientPaidAt: String(row[15] ?? ""),
     clientPaidBy: String(row[16] ?? ""),
+    finalizedAt: String(row[17] ?? ""),
+    finalizedBy: String(row[18] ?? ""),
+    finalizeNote: String(row[19] ?? ""),
   };
+}
+
+/**
+ * Stamp a job as force-finalized for payroll (columns R/S/T). Written
+ * by the worklist's finalize flow — either after a corrective
+ * adjustment or as an admin wave-off. The detector treats dispatches
+ * dated on or before this stamp as settled.
+ */
+export async function setJobFinalized(opts: {
+  jobId: string;
+  finalizedBy: string;
+  note: string;
+}): Promise<void> {
+  const rowIndex = await findRowIndex(TABS.jobs, "A", opts.jobId);
+  if (!rowIndex) throw new Error(`Job not found: ${opts.jobId}`);
+  await updateCell(`${TABS.jobs}!R${rowIndex}`, nowIso(), "RAW");
+  await updateCell(`${TABS.jobs}!S${rowIndex}`, opts.finalizedBy, "RAW");
+  await updateCell(`${TABS.jobs}!T${rowIndex}`, opts.note, "RAW");
 }
 
 /**
@@ -208,6 +229,9 @@ export async function createJob(opts: {
     coverPhotoFileId: "",
     clientPaidAt: "",
     clientPaidBy: "",
+    finalizedAt: "",
+    finalizedBy: "",
+    finalizeNote: "",
   };
 }
 
