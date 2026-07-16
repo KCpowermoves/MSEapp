@@ -114,8 +114,23 @@ export default async function PayrollListPage({
         </div>
       </header>
 
-      <div className="grid md:grid-cols-[1.4fr_1fr] gap-4 items-start">
-        <section className="rounded-2xl bg-white border border-mse-light shadow-card p-5">
+      {/* Live preview — quick payroll math for any range, no period saved */}
+      <section className="rounded-2xl border-2 border-dashed border-mse-light p-5">
+        <div className="flex items-center gap-2 text-mse-muted">
+          <Sparkles className="w-4 h-4 text-mse-gold" />
+          <h2 className="font-bold text-mse-navy">Live preview</h2>
+        </div>
+        <p className="text-xs text-mse-muted mt-1">
+          See what a date range would total without saving anything. URL is
+          shareable.
+        </p>
+        <div className="mt-4 max-w-xl">
+          <PreviewPanel startDate={previewStart} endDate={previewEnd} />
+        </div>
+      </section>
+
+      {/* This week's close — full width */}
+      <section className="rounded-2xl bg-white border border-mse-light shadow-card p-5">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <div className="flex items-center gap-2 text-mse-navy">
@@ -226,44 +241,30 @@ export default async function PayrollListPage({
               </p>
             )}
           </div>
-        </section>
+      </section>
 
-        <div className="space-y-4">
-          <section className="rounded-2xl border-2 border-dashed border-mse-light p-5">
-            <div className="flex items-center gap-2 text-mse-muted">
-              <Sparkles className="w-4 h-4 text-mse-gold" />
-              <h2 className="font-bold text-mse-navy">Live preview</h2>
-            </div>
-            <p className="text-xs text-mse-muted mt-1">
-              See what a date range would total without saving anything. URL is
-              shareable.
-            </p>
-            <div className="mt-4">
-              <PreviewPanel startDate={previewStart} endDate={previewEnd} />
-            </div>
-          </section>
-
-          <details className="rounded-2xl bg-white border border-mse-light shadow-card group">
-            <summary className="cursor-pointer list-none p-5 flex items-center gap-2 text-mse-navy select-none">
-              <Plus className="w-4 h-4 text-mse-gold transition-transform group-open:rotate-45" />
-              <span className="font-bold">Advanced: custom period</span>
-            </summary>
-            <div className="px-5 pb-5">
-              <p className="text-xs text-mse-muted -mt-1 mb-4">
-                Weekly periods create themselves every Monday. Only use this
-                for off-cycle ranges (month-end invoices, one-off
-                corrections). Created in <strong>Draft</strong>.
-              </p>
-              <NewPeriodForm
-                existingRanges={summaries.map((s) => ({
-                  start: s.period.startDate,
-                  end: s.period.endDate,
-                }))}
-              />
-            </div>
-          </details>
+      {/* Advanced: manual period creation for off-cycle ranges */}
+      <details className="rounded-2xl bg-white border border-mse-light shadow-card group">
+        <summary className="cursor-pointer list-none p-5 flex items-center gap-2 text-mse-navy select-none">
+          <Plus className="w-4 h-4 text-mse-gold transition-transform group-open:rotate-45" />
+          <span className="font-bold">Advanced: custom period</span>
+        </summary>
+        <div className="px-5 pb-5">
+          <p className="text-xs text-mse-muted -mt-1 mb-4">
+            Weekly periods create themselves every Monday. Only use this for
+            off-cycle ranges (month-end invoices, one-off corrections).
+            Created in <strong>Draft</strong>.
+          </p>
+          <div className="max-w-md">
+            <NewPeriodForm
+              existingRanges={summaries.map((s) => ({
+                start: s.period.startDate,
+                end: s.period.endDate,
+              }))}
+            />
+          </div>
         </div>
-      </div>
+      </details>
 
       <section>
         <div className="flex items-center justify-between mb-3">
