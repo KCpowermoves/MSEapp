@@ -5,18 +5,8 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Date range picker + quick-jump shortcuts. Creates a Draft payroll
+// Date range picker + one-click week pre-selections. Creates a Draft payroll
 // period when submitted; navigates to the detail page on success.
-
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function isoOffset(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 function startOfThisWeekMonday(): string {
   const d = new Date();
@@ -32,55 +22,52 @@ function endOfWeekSunday(monday: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-interface Shortcut {
-  label: string;
-  start: () => string;
-  end: () => string;
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** Format an ISO yyyy-mm-dd date as "Jul 13" without any timezone shift. */
+function fmtShort(iso: string): string {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
 }
 
-const SHORTCUTS: Shortcut[] = [
-  {
-    label: "This week (Mon–Sun)",
-    start: () => startOfThisWeekMonday(),
-    end: () => endOfWeekSunday(startOfThisWeekMonday()),
-  },
-  {
-    label: "Last week",
-    start: () => {
-      const d = new Date(startOfThisWeekMonday() + "T00:00:00Z");
-      d.setUTCDate(d.getUTCDate() - 7);
-      return d.toISOString().slice(0, 10);
-    },
-    end: () => {
-      const d = new Date(startOfThisWeekMonday() + "T00:00:00Z");
-      d.setUTCDate(d.getUTCDate() - 1);
-      return d.toISOString().slice(0, 10);
-    },
-  },
-  {
-    label: "Last 7 days",
-    start: () => isoOffset(-6),
-    end: () => isoToday(),
-  },
-  {
-    label: "Last 14 days",
-    start: () => isoOffset(-13),
-    end: () => isoToday(),
-  },
-];
+interface WeekOption {
+  start: string; // Monday
+  end: string; // Sunday
+  relative: string; // "This week" | "Last week" | ""
+}
+
+/** Recent Monday–Sunday pay-period weeks, most recent first. These are the
+ *  one-click pre-selections admins hit when running commission reports. */
+function recentWeeks(count: number): WeekOption[] {
+  const thisMonday = startOfThisWeekMonday();
+  const out: WeekOption[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(thisMonday + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - 7 * i);
+    const start = d.toISOString().slice(0, 10);
+    const end = endOfWeekSunday(start);
+    const relative = i === 0 ? "This week" : i === 1 ? "Last week" : "";
+    out.push({ start, end, relative });
+  }
+  return out;
+}
 
 export function NewPeriodForm() {
   const router = useRouter();
-  const [start, setStart] = useState(SHORTCUTS[0].start());
-  const [end, setEnd] = useState(SHORTCUTS[0].end());
+  const [weeks] = useState(() => recentWeeks(8));
+  const [start, setStart] = useState(weeks[1]?.start ?? weeks[0].start);
+  const [end, setEnd] = useState(weeks[1]?.end ?? weeks[0].end);
   const [label, setLabel] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apply = (s: Shortcut) => {
-    setStart(s.start());
-    setEnd(s.end());
+  const applyWeek = (w: WeekOption) => {
+    setStart(w.start);
+    setEnd(w.end);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -117,23 +104,49 @@ export function NewPeriodForm() {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="flex flex-wrap gap-1.5">
-        {SHORTCUTS.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => apply(s)}
-            className={cn(
-              "px-2.5 py-1 rounded-lg text-[11px] font-semibold border",
-              "border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30",
-              "active:scale-95 transition-[border-color,color,transform]"
-            )}
-          >
-            {s.label}
-          </button>
-        ))}
+      <div>
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1.5">
+          Pick a pay-period week
+        </div>
+        <div className="space-y-1">
+          {weeks.map((w) => {
+            const selected = start === w.start && end === w.end;
+            return (
+              <button
+                key={w.start}
+                type="button"
+                onClick={() => applyWeek(w)}
+                aria-pressed={selected}
+                className={cn(
+                  "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left",
+                  "transition-[border-color,background-color,color,transform] active:scale-[0.99]",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-navy/30",
+                  selected
+                    ? "border-mse-navy bg-mse-navy/5 text-mse-navy"
+                    : "border-mse-light text-mse-navy hover:border-mse-navy/30 hover:bg-mse-light/30"
+                )}
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <CalendarDays className="w-3.5 h-3.5 text-mse-muted shrink-0" />
+                  {fmtShort(w.start)} – {fmtShort(w.end)}
+                </span>
+                <span className="flex items-center gap-2">
+                  {w.relative && (
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-mse-muted">
+                      {w.relative}
+                    </span>
+                  )}
+                  {selected && <Check className="w-4 h-4 text-mse-navy shrink-0" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted pt-1">
+        Or set a custom range
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1 flex items-center gap-1">

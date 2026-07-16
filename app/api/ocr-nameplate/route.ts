@@ -108,7 +108,11 @@ export async function POST(request: Request) {
   const base64 = buffer.toString("base64");
 
   try {
-    const client = new Anthropic({ apiKey });
+    // maxRetries: the SDK retries 429s automatically, honoring the
+    // Retry-After header with exponential backoff. Bumped from the
+    // default 2 to 4 so a brief rate-limit spike (a tech firing several
+    // nameplate reads in a row) rides out instead of surfacing an error.
+    const client = new Anthropic({ apiKey, maxRetries: 4 });
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 200,
@@ -144,6 +148,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ ...parsed, status: "ok" });
   } catch (e) {
     console.error("[ocr] anthropic call failed:", e);
+    // A 429 that survives the SDK's retries means we're genuinely over
+    // the account's per-minute limit. Surface a distinct, friendly
+    // status so the client tells the tech to type it in, rather than
+    // leaking the raw "user rate limit exceeded" API string.
+    const isRateLimit =
+      e instanceof Anthropic.RateLimitError ||
+      (e instanceof Anthropic.APIError && e.status === 429);
+    if (isRateLimit) {
+      return NextResponse.json({
+        ...EMPTY,
+        status: "rate_limited",
+        error: "Auto-fill is busy right now — just type the details in.",
+      });
+    }
     return NextResponse.json({
       ...EMPTY,
       status: "error",

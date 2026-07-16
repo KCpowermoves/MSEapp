@@ -23,6 +23,17 @@ export function OcrStatusBanner({
 }) {
   if (status === "idle" || status === "error") return null;
 
+  if (status === "rate_limited") {
+    return (
+      <div className="rounded-xl bg-mse-light/40 border border-mse-light px-3 py-2 text-xs text-mse-muted flex items-center gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        <span>
+          Auto-fill is busy right now — just type the details below.
+        </span>
+      </div>
+    );
+  }
+
   if (status === "reading") {
     return (
       <div className="rounded-xl bg-mse-navy/5 border border-mse-navy/15 px-3 py-2 text-xs text-mse-navy flex items-center gap-2">

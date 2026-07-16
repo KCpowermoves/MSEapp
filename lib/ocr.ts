@@ -5,7 +5,7 @@ export interface OcrResult {
   model: string;
   serial: string;
   confidence: number;
-  status: "ok" | "disabled" | "error";
+  status: "ok" | "disabled" | "error" | "rate_limited";
   error?: string;
 }
 

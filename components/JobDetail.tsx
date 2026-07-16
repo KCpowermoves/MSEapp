@@ -170,7 +170,7 @@ export function JobDetail({
       <Link
         href={`/jobs/${encodeURIComponent(job.jobId)}/service`}
         prefetch
-        className="block rounded-2xl bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] transition-[background-color,transform] p-5 shadow-elevated text-white"
+        className="block rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-[background-color,transform] p-5 shadow-elevated text-white"
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center font-bold text-lg shrink-0">
@@ -198,10 +198,10 @@ export function JobDetail({
       <Link
         href={`/jobs/${encodeURIComponent(job.jobId)}/audit`}
         prefetch
-        className="block rounded-2xl bg-mse-gold/15 border-2 border-mse-gold/40 hover:bg-mse-gold/25 active:scale-[0.98] transition-[background-color,transform] p-5"
+        className="block rounded-2xl bg-rose-100 border-2 border-rose-300 hover:bg-rose-200 active:scale-[0.98] transition-[background-color,transform] p-5"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-mse-gold/30 flex items-center justify-center text-mse-navy font-bold text-lg shrink-0">
+          <div className="w-10 h-10 rounded-full bg-rose-200 flex items-center justify-center text-rose-700 font-bold text-lg shrink-0">
             ⚡
           </div>
           <div className="flex-1 min-w-0">

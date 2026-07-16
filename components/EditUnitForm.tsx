@@ -35,11 +35,11 @@ function photosForUnit(unit: UnitServiced): SlotInfo[] {
   } else if (RTU_TYPES.includes(unit.unitType)) {
     add("coil1_pre", "Coil 1 · before", unit.pre1Url);
     add("coil2_pre", "Coil 2 · before", unit.pre2Url);
-    add("filter_post", "Filter · before", unit.pre3Url);
+    add("filter_pre", "Filter · before", unit.filterUrl);
     add("coil1_post", "Coil 1 · after", unit.post1Url);
     add("coil2_post", "Coil 2 · after", unit.post2Url);
     add("nameplate", "Nameplate", unit.nameplateUrl);
-    add("filter_pre", "Filter · after", unit.filterUrl);
+    add("filter_post", "Filter · after", unit.pre3Url);
   } else if (unit.unitType === "Outdoor Split System") {
     add("out_pre_1", "Side 1 · before", unit.pre1Url);
     add("out_pre_2", "Side 2 · before", unit.pre2Url);

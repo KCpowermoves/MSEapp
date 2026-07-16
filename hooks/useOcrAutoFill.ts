@@ -3,7 +3,12 @@
 import { useRef, useState } from "react";
 import { readNameplate, type OcrResult } from "@/lib/ocr";
 
-export type OcrStatus = "idle" | "reading" | "complete" | "error";
+export type OcrStatus =
+  | "idle"
+  | "reading"
+  | "complete"
+  | "error"
+  | "rate_limited";
 
 interface OcrFields {
   make: string;
@@ -56,6 +61,10 @@ export function useOcrAutoFill(fields: OcrFields) {
     setStatus("reading");
     const r = await readNameplate(blob);
     setResult(r);
+    if (r.status === "rate_limited") {
+      setStatus("rate_limited");
+      return;
+    }
     if (r.status !== "ok") {
       setStatus("error");
       return;

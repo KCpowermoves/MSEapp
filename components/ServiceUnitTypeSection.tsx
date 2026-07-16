@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Plus, Minus, Loader2, CheckCircle2 } from "lucide-react";
 import { AuditPhotoSlot } from "@/components/AuditPhotoSlot";
 import { useOcrAutoFill } from "@/hooks/useOcrAutoFill";
-import { photoUrlForSlot } from "@/lib/photo-slots";
+import { photoUrlForSlot, applyPhotoUrlForSlot } from "@/lib/photo-slots";
 import { slotsForType, flatSlots } from "@/lib/unit-slots";
 import { cn } from "@/lib/utils";
 import type { Job, UnitServiced, UnitType, PhotoSlot } from "@/lib/types";
@@ -106,7 +106,7 @@ export function ServiceUnitTypeSection({
       units.map((u) => {
         if (u.unitId !== unitId) return u;
         const updated = { ...u };
-        applyPhotoUrl(updated, slot, body.url ?? "");
+        applyPhotoUrlForSlot(updated, slot, body.url ?? "");
         return updated;
       })
     );
@@ -374,35 +374,3 @@ function EditableCard({
   );
 }
 
-/** Mirrors lib/data/units.ts:setUnitPhotoUrl — maps PhotoSlot to the
- *  corresponding UnitServiced field name. Used locally to splice the
- *  freshly uploaded URL into client state without a full refetch. */
-function applyPhotoUrl(u: UnitServiced, slot: PhotoSlot, url: string): void {
-  const map: Record<PhotoSlot, keyof UnitServiced> = {
-    pre: "pre1Url",
-    post: "post1Url",
-    coil1_pre: "pre1Url",
-    coil1_post: "post1Url",
-    coil2_pre: "pre2Url",
-    coil2_post: "post2Url",
-    filter_pre: "pre3Url",
-    filter_post: "post3Url",
-    out_pre_1: "pre1Url",
-    out_pre_2: "pre2Url",
-    out_pre_3: "pre3Url",
-    out_post_1: "post1Url",
-    out_post_2: "post2Url",
-    out_post_3: "post3Url",
-    out_nameplate: "nameplateUrl",
-    in_pre: "inPreUrl",
-    in_post: "inPostUrl",
-    in_nameplate: "inNameplateUrl",
-    nameplate: "nameplateUrl",
-    filter: "filterUrl",
-    additional: "additionalUrls",
-  };
-  const key = map[slot];
-  if (!key) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (u as any)[key] = url;
-}
