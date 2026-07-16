@@ -38,6 +38,8 @@ export async function POST(request: Request) {
     durationMins?: unknown;
     techs?: unknown;
     notes?: unknown;
+    estUnits?: unknown;
+    auditRequired?: unknown;
   };
   try {
     body = await request.json();
@@ -53,6 +55,8 @@ export async function POST(request: Request) {
     ? body.techs.map((t) => String(t).trim()).filter(Boolean)
     : [];
   const notes = String(body.notes ?? "").slice(0, 500);
+  const estUnits = Math.max(0, Math.round(Number(body.estUnits ?? 0) || 0));
+  const auditRequired = Boolean(body.auditRequired);
 
   if (!jobId) {
     return NextResponse.json({ error: "jobId required" }, { status: 400 });
@@ -88,6 +92,8 @@ export async function POST(request: Request) {
       durationMins,
       techs,
       notes,
+      estUnits,
+      auditRequired,
       createdBy: guard.session.name,
     });
     revalidatePath("/admin/schedule");

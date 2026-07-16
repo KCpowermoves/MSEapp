@@ -32,6 +32,8 @@ const HEADERS = [
   "CreatedAt",   // J
   "UpdatedBy",   // K
   "UpdatedAt",   // L
+  "EstUnits",    // M — estimated HVAC units to clean
+  "AuditRequired", // N — TRUE / FALSE
 ];
 
 async function ensureScheduleTab(): Promise<void> {
@@ -53,6 +55,11 @@ export interface ScheduledVisit {
   createdAt: string;
   updatedBy: string;
   updatedAt: string;
+  /** Estimated HVAC units to clean on this visit. 0 = none (e.g. an
+   *  audit-only visit). */
+  estUnits: number;
+  /** Whether an energy audit is required on this visit. */
+  auditRequired: boolean;
 }
 
 function normalizeDate(raw: unknown): string {
@@ -89,6 +96,8 @@ function rowToVisit(row: string[]): ScheduledVisit {
     createdAt: String(row[9] ?? ""),
     updatedBy: String(row[10] ?? ""),
     updatedAt: String(row[11] ?? ""),
+    estUnits: Number(row[12] ?? 0) || 0,
+    auditRequired: String(row[13] ?? "").toUpperCase() === "TRUE",
   };
 }
 
@@ -156,6 +165,8 @@ export async function createVisit(opts: {
   durationMins: number;
   techs: string[];
   notes: string;
+  estUnits: number;
+  auditRequired: boolean;
   createdBy: string;
 }): Promise<ScheduledVisit> {
   await ensureScheduleTab();
@@ -174,6 +185,8 @@ export async function createVisit(opts: {
     createdAt,
     "",
     "",
+    opts.estUnits || "",
+    opts.auditRequired ? "TRUE" : "FALSE",
   ]);
   return {
     scheduleId,
@@ -188,6 +201,8 @@ export async function createVisit(opts: {
     createdAt,
     updatedBy: "",
     updatedAt: "",
+    estUnits: opts.estUnits,
+    auditRequired: opts.auditRequired,
   };
 }
 
@@ -196,7 +211,14 @@ export async function updateVisit(opts: {
   patch: Partial<
     Pick<
       ScheduledVisit,
-      "date" | "startTime" | "durationMins" | "techs" | "notes" | "status"
+      | "date"
+      | "startTime"
+      | "durationMins"
+      | "techs"
+      | "notes"
+      | "status"
+      | "estUnits"
+      | "auditRequired"
     >
   >;
   updatedBy: string;
@@ -221,6 +243,18 @@ export async function updateVisit(opts: {
     writes.push(updateCell(`${TABS.schedule}!G${rowIndex}`, p.notes, "RAW"));
   if (p.status !== undefined)
     writes.push(updateCell(`${TABS.schedule}!H${rowIndex}`, p.status, "RAW"));
+  if (p.estUnits !== undefined)
+    writes.push(
+      updateCell(`${TABS.schedule}!M${rowIndex}`, p.estUnits || "", "RAW")
+    );
+  if (p.auditRequired !== undefined)
+    writes.push(
+      updateCell(
+        `${TABS.schedule}!N${rowIndex}`,
+        p.auditRequired ? "TRUE" : "FALSE",
+        "RAW"
+      )
+    );
   writes.push(
     updateCell(`${TABS.schedule}!K${rowIndex}`, opts.updatedBy, "RAW"),
     updateCell(`${TABS.schedule}!L${rowIndex}`, nowIso(), "RAW")

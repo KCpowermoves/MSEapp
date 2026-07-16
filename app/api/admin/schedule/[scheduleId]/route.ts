@@ -25,6 +25,8 @@ export async function PATCH(
     techs?: unknown;
     notes?: unknown;
     status?: unknown;
+    estUnits?: unknown;
+    auditRequired?: unknown;
   };
   try {
     body = await request.json();
@@ -70,6 +72,10 @@ export async function PATCH(
     patch.techs = techs;
   }
   if (body.notes !== undefined) patch.notes = String(body.notes).slice(0, 500);
+  if (body.estUnits !== undefined)
+    patch.estUnits = Math.max(0, Math.round(Number(body.estUnits) || 0));
+  if (body.auditRequired !== undefined)
+    patch.auditRequired = Boolean(body.auditRequired);
   if (body.status !== undefined) {
     const s = String(body.status);
     if (s !== "Scheduled" && s !== "Cancelled") {

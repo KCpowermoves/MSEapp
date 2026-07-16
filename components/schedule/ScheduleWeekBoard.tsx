@@ -55,6 +55,70 @@ function pretty12h(hhmm: string): string {
   return `${hr}:${String(m).padStart(2, "0")}${am ? "am" : "pm"}`;
 }
 
+// Standard 2-hour shift windows. Picking one sets both the start time
+// and the duration in a single tap.
+const SHIFT_PRESETS = [
+  { key: "morning", label: "Morning", range: "9–11", start: "09:00", mins: 120 },
+  { key: "late-morning", label: "Late morning", range: "11–1", start: "11:00", mins: 120 },
+  { key: "mid-afternoon", label: "Mid-afternoon", range: "1–3", start: "13:00", mins: 120 },
+  { key: "late-afternoon", label: "Late afternoon", range: "3–5", start: "15:00", mins: 120 },
+] as const;
+
+// Custom start times, quarter-hour steps 6:00a – 8:00p.
+const QUARTER_HOURS: string[] = (() => {
+  const out: string[] = [];
+  for (let h = 6; h <= 20; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      if (h === 20 && m > 0) break;
+      out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return out;
+})();
+
+/** Which shift preset (if any) a start/duration pair corresponds to. */
+function shiftForValues(startTime: string, durationMins: number): string {
+  const p = SHIFT_PRESETS.find(
+    (s) => s.start === startTime && s.mins === durationMins
+  );
+  return p ? p.key : "custom";
+}
+
+/** Scope chips — units to clean and/or audit status. Shared by the
+ *  admin board and the tech agenda so both read the same. */
+export function ScopeBadges({
+  estUnits,
+  auditRequired,
+}: {
+  estUnits: number;
+  auditRequired: boolean;
+}) {
+  const auditOnly = auditRequired && estUnits === 0;
+  if (estUnits === 0 && !auditRequired) return null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {auditOnly ? (
+        <span className="px-2 py-0.5 rounded-full bg-mse-navy text-white text-[10px] font-bold uppercase tracking-wider">
+          Audit only
+        </span>
+      ) : (
+        <>
+          {estUnits > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-mse-gold/20 text-mse-navy text-[10px] font-bold uppercase tracking-wider">
+              {estUnits} unit{estUnits === 1 ? "" : "s"}
+            </span>
+          )}
+          {auditRequired && (
+            <span className="px-2 py-0.5 rounded-full bg-mse-navy text-white text-[10px] font-bold uppercase tracking-wider">
+              Audit required
+            </span>
+          )}
+        </>
+      )}
+    </span>
+  );
+}
+
 export function ScheduleWeekBoard({
   weekStart,
   visits,
@@ -205,6 +269,14 @@ export function ScheduleWeekBoard({
                               </span>
                             )}
                           </div>
+                          {(v.estUnits > 0 || v.auditRequired) && (
+                            <div className="mt-1">
+                              <ScopeBadges
+                                estUnits={v.estUnits}
+                                auditRequired={v.auditRequired}
+                              />
+                            </div>
+                          )}
                           {v.notes && (
                             <div className="text-[11px] text-mse-muted italic mt-0.5 truncate">
                               {v.notes}
@@ -273,12 +345,26 @@ function VisitDialog({
   const [jobQuery, setJobQuery] = useState("");
   const [jobId, setJobId] = useState(editing?.jobId ?? "");
   const [date, setDate] = useState(editing?.date ?? (state.mode === "create" ? state.date : ""));
-  const [startTime, setStartTime] = useState(editing?.startTime ?? "08:00");
-  const [durationMins, setDurationMins] = useState(editing?.durationMins ?? 0);
+  // Time defaults to the Morning shift on a new visit.
+  const [startTime, setStartTime] = useState(editing?.startTime ?? "09:00");
+  const [durationMins, setDurationMins] = useState(editing?.durationMins ?? 120);
+  const [shift, setShift] = useState<string>(
+    editing ? shiftForValues(editing.startTime, editing.durationMins) : "morning"
+  );
   const [techs, setTechs] = useState<string[]>(editing?.techs ?? []);
   const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [estUnits, setEstUnits] = useState<number>(editing?.estUnits ?? 0);
+  const [auditRequired, setAuditRequired] = useState<boolean>(
+    editing?.auditRequired ?? false
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function pickShift(p: (typeof SHIFT_PRESETS)[number]) {
+    setShift(p.key);
+    setStartTime(p.start);
+    setDurationMins(p.mins);
+  }
 
   // Inline "create a new job" sub-form, so the office can build the
   // whole calendar without leaving the dialog for a job that doesn't
@@ -372,13 +458,30 @@ function VisitDialog({
             {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ date, startTime, durationMins, techs, notes }),
+              body: JSON.stringify({
+                date,
+                startTime,
+                durationMins,
+                techs,
+                notes,
+                estUnits,
+                auditRequired,
+              }),
             }
           )
         : await fetch("/api/admin/schedule", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ jobId, date, startTime, durationMins, techs, notes }),
+            body: JSON.stringify({
+              jobId,
+              date,
+              startTime,
+              durationMins,
+              techs,
+              notes,
+              estUnits,
+              auditRequired,
+            }),
           });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? `Server error ${res.status}`);
@@ -569,47 +672,157 @@ function VisitDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
-                Date
-              </div>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
-              />
-            </label>
-            <label className="block">
-              <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
-                Start time
-              </div>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
-              />
-            </label>
-          </div>
-
           <label className="block">
             <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
-              Estimated duration (hours, optional)
+              Date
             </div>
             <input
-              type="number"
-              min={0}
-              step={0.5}
-              value={durationMins ? durationMins / 60 : ""}
-              onChange={(e) =>
-                setDurationMins(Math.round(Number(e.target.value) * 60) || 0)
-              }
-              placeholder="e.g. 4"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
             />
           </label>
+
+          {/* Time — shift presets or a 15-minute custom picker */}
+          <div>
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
+              Shift
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {SHIFT_PRESETS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => pickShift(p)}
+                  className={cn(
+                    "px-2 py-2 rounded-lg text-xs font-bold border-2 text-center leading-tight",
+                    "active:scale-95 transition-[background-color,border-color,color]",
+                    shift === p.key
+                      ? "bg-mse-navy border-mse-navy text-white"
+                      : "bg-white border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30"
+                  )}
+                >
+                  {p.label}
+                  <span className="block text-[10px] font-normal opacity-80">
+                    {p.range}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShift("custom")}
+              className={cn(
+                "mt-1.5 w-full px-2 py-1.5 rounded-lg text-xs font-bold border-2",
+                "active:scale-[0.99] transition-[background-color,border-color,color]",
+                shift === "custom"
+                  ? "bg-mse-navy border-mse-navy text-white"
+                  : "bg-white border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30"
+              )}
+            >
+              Custom time
+            </button>
+
+            {shift === "custom" && (
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <label className="block">
+                  <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
+                    Start time
+                  </div>
+                  <select
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
+                  >
+                    <option value="">Any time</option>
+                    {QUARTER_HOURS.map((t) => (
+                      <option key={t} value={t}>
+                        {pretty12h(t)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">
+                    Duration (hrs)
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.25}
+                    value={durationMins ? durationMins / 60 : ""}
+                    onChange={(e) =>
+                      setDurationMins(
+                        Math.round(Number(e.target.value) * 60) || 0
+                      )
+                    }
+                    placeholder="e.g. 2"
+                    className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Scope — what the crew is walking into */}
+          <div className="rounded-xl border border-mse-light bg-mse-light/20 p-3 space-y-3">
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted">
+              Job scope
+            </div>
+            <div className="grid grid-cols-2 gap-3 items-end">
+              <label className="block">
+                <div className="text-[11px] font-semibold text-mse-navy mb-1">
+                  HVAC units to clean (est.)
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={estUnits || ""}
+                  onChange={(e) =>
+                    setEstUnits(Math.max(0, Math.round(Number(e.target.value) || 0)))
+                  }
+                  placeholder="e.g. 8"
+                  className="w-full px-3 py-2 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
+                />
+              </label>
+              <div>
+                <div className="text-[11px] font-semibold text-mse-navy mb-1">
+                  Audit required?
+                </div>
+                <div className="flex rounded-lg border-2 border-mse-light overflow-hidden">
+                  {[
+                    { v: false, label: "No" },
+                    { v: true, label: "Yes" },
+                  ].map((o) => (
+                    <button
+                      key={o.label}
+                      type="button"
+                      onClick={() => setAuditRequired(o.v)}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-bold transition-colors",
+                        auditRequired === o.v
+                          ? "bg-mse-navy text-white"
+                          : "bg-white text-mse-muted hover:text-mse-navy"
+                      )}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="text-[11px] text-mse-muted">
+              {auditRequired && estUnits === 0
+                ? "This visit will show as Audit only."
+                : estUnits > 0 && auditRequired
+                ? `${estUnits} unit${estUnits === 1 ? "" : "s"} to clean + audit.`
+                : estUnits > 0
+                ? `${estUnits} unit${estUnits === 1 ? "" : "s"} to clean.`
+                : "Set the units and whether an audit is required."}
+            </div>
+          </div>
 
           <div>
             <div className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1">

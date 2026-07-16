@@ -5,6 +5,7 @@ import { listUpcomingVisitsForTech } from "@/lib/data/schedule";
 import { listAllJobs } from "@/lib/data/jobs";
 import { todayIsoEastern } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { ScopeBadges } from "@/components/schedule/ScheduleWeekBoard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -118,6 +119,14 @@ export default async function MySchedulePage() {
                           <Users className="w-3 h-3 text-mse-muted" />
                           {v.techs.join(", ")}
                         </div>
+                        {(v.estUnits > 0 || v.auditRequired) && (
+                          <div className="mt-1.5">
+                            <ScopeBadges
+                              estUnits={v.estUnits}
+                              auditRequired={v.auditRequired}
+                            />
+                          </div>
+                        )}
                         {v.notes && (
                           <div className="text-xs text-mse-muted italic mt-1">
                             {v.notes}
