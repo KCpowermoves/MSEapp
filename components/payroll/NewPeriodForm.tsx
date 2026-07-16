@@ -9,10 +9,14 @@ import { cn } from "@/lib/utils";
 // period when submitted; navigates to the detail page on success.
 
 function startOfThisWeekMonday(): string {
-  const d = new Date();
-  const dayOfWeek = d.getDay(); // 0 = Sun
+  const now = new Date();
+  // Anchor to a UTC-midnight date built from LOCAL calendar parts. If we let
+  // toISOString() convert a raw local Date, an evening in Eastern time (which
+  // is already tomorrow in UTC) would shift the whole week forward a day.
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const dayOfWeek = d.getUTCDay(); // 0 = Sun — matches the local calendar day
   const diff = (dayOfWeek + 6) % 7; // days since Monday
-  d.setDate(d.getDate() - diff);
+  d.setUTCDate(d.getUTCDate() - diff);
   return d.toISOString().slice(0, 10);
 }
 
