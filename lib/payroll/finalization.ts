@@ -32,8 +32,9 @@ import { todayIsoEastern } from "@/lib/utils";
 // later dispatches re-flag the job — multi-week projects stay honest.
 
 /** No detection before this date — the week split-pay went live and
- *  the finalization workflow began. Mirrors the weekly-period cron. */
-export const FINALIZE_EPOCH = "2026-07-06";
+ *  the finalization workflow began. Mirrors the weekly-period cron.
+ *  Moved back to Jun 1 (2026-07-16) with the sample-data sandbox. */
+export const FINALIZE_EPOCH = "2026-06-01";
 
 export type FinalizeReason =
   | "not-submitted"

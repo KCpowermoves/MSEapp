@@ -35,6 +35,8 @@ const auth = new google.auth.JWT({
 const sheets = google.sheets({ version: "v4", auth });
 
 // Operational tabs that accumulate per-job data. Headers in row 1 stay.
+// Techs, Pay Rates, Pay Calc, Impersonation Log, and Engineering
+// Projects are never touched.
 const TABS_TO_WIPE = [
   "Jobs",
   "Dispatches",
@@ -42,6 +44,13 @@ const TABS_TO_WIPE = [
   "Additional Services",
   "Pay Attribution",
   "Location Events",
+  "Payroll Periods",
+  "Payroll Adjustments",
+  "Payroll Log",
+  "Photo Log",
+  "Audits",
+  "Audit Items",
+  "Schedule",
 ];
 
 async function rowCount(tab) {

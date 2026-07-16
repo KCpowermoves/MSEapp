@@ -20,7 +20,9 @@ export const maxDuration = 60;
 
 // No weekly periods are ever auto-created before this date — the week
 // split-pay went live. Keeps the backfill loop from spamming history.
-const SPLIT_PAY_EPOCH = "2026-07-06";
+// Moved back to Jun 1 (2026-07-16) for the multi-week sample-data
+// sandbox so the close workflow can be tested against real history.
+const SPLIT_PAY_EPOCH = "2026-06-01";
 
 function addDaysIso(dateIso: string, days: number): string {
   const d = new Date(dateIso + "T00:00:00Z");
