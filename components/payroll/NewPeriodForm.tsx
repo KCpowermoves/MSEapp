@@ -43,6 +43,18 @@ interface WeekOption {
   relative: string; // "This week" | "Last week" | ""
 }
 
+interface DateRange {
+  start: string;
+  end: string;
+}
+
+/** True if a week collides with any existing period. ISO yyyy-mm-dd strings
+ *  compare chronologically as plain strings, so this is a simple inclusive
+ *  overlap test (aStart <= bEnd && bStart <= aEnd). */
+function weekIsTaken(w: WeekOption, ranges: DateRange[]): boolean {
+  return ranges.some((r) => w.start <= r.end && r.start <= w.end);
+}
+
 /** Recent Monday–Sunday pay-period weeks, most recent first. These are the
  *  one-click pre-selections admins hit when running commission reports. */
 function recentWeeks(count: number): WeekOption[] {
@@ -59,11 +71,24 @@ function recentWeeks(count: number): WeekOption[] {
   return out;
 }
 
-export function NewPeriodForm() {
+export function NewPeriodForm({
+  existingRanges = [],
+}: {
+  existingRanges?: DateRange[];
+}) {
   const router = useRouter();
   const [weeks] = useState(() => recentWeeks(8));
-  const [start, setStart] = useState(weeks[1]?.start ?? weeks[0].start);
-  const [end, setEnd] = useState(weeks[1]?.end ?? weeks[0].end);
+  // Default to the most recent week that doesn't already have a period, so a
+  // one-click create never lands on an overlap. Fall back to last week if all
+  // recent weeks are taken.
+  const [defaultWeek] = useState(
+    () =>
+      weeks.find((w) => !weekIsTaken(w, existingRanges)) ??
+      weeks[1] ??
+      weeks[0]
+  );
+  const [start, setStart] = useState(defaultWeek.start);
+  const [end, setEnd] = useState(defaultWeek.end);
   const [label, setLabel] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -114,20 +139,24 @@ export function NewPeriodForm() {
         </div>
         <div className="space-y-1">
           {weeks.map((w) => {
-            const selected = start === w.start && end === w.end;
+            const taken = weekIsTaken(w, existingRanges);
+            const selected = !taken && start === w.start && end === w.end;
             return (
               <button
                 key={w.start}
                 type="button"
+                disabled={taken}
                 onClick={() => applyWeek(w)}
                 aria-pressed={selected}
+                title={taken ? "A period already covers this week" : undefined}
                 className={cn(
                   "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left",
-                  "transition-[border-color,background-color,color,transform] active:scale-[0.99]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-navy/30",
-                  selected
-                    ? "border-mse-navy bg-mse-navy/5 text-mse-navy"
-                    : "border-mse-light text-mse-navy hover:border-mse-navy/30 hover:bg-mse-light/30"
+                  "transition-[border-color,background-color,color,transform]",
+                  taken
+                    ? "border-mse-light bg-mse-light/20 text-mse-muted cursor-not-allowed"
+                    : selected
+                    ? "border-mse-navy bg-mse-navy/5 text-mse-navy active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-navy/30"
+                    : "border-mse-light text-mse-navy hover:border-mse-navy/30 hover:bg-mse-light/30 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-navy/30"
                 )}
               >
                 <span className="flex items-center gap-2 text-sm font-semibold">
@@ -135,12 +164,22 @@ export function NewPeriodForm() {
                   {fmtShort(w.start)} – {fmtShort(w.end)}
                 </span>
                 <span className="flex items-center gap-2">
-                  {w.relative && (
+                  {taken ? (
                     <span className="text-[10px] uppercase tracking-wider font-semibold text-mse-muted">
-                      {w.relative}
+                      Already created
                     </span>
+                  ) : (
+                    <>
+                      {w.relative && (
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-mse-muted">
+                          {w.relative}
+                        </span>
+                      )}
+                      {selected && (
+                        <Check className="w-4 h-4 text-mse-navy shrink-0" />
+                      )}
+                    </>
                   )}
-                  {selected && <Check className="w-4 h-4 text-mse-navy shrink-0" />}
                 </span>
               </button>
             );

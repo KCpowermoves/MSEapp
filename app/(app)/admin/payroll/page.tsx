@@ -67,7 +67,12 @@ export default async function PayrollListPage({
             you can add adjustments before approving.
           </p>
           <div className="mt-4">
-            <NewPeriodForm />
+            <NewPeriodForm
+              existingRanges={summaries.map((s) => ({
+                start: s.period.startDate,
+                end: s.period.endDate,
+              }))}
+            />
           </div>
         </section>
 
