@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Clock, Plus } from "lucide-react";
+import { CheckCircle2, Clock, Handshake, Plus } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listJobsForTech } from "@/lib/data/jobs";
 import { listAllDispatches } from "@/lib/data/dispatches";
@@ -210,13 +210,25 @@ export default async function JobsHomePage({
             {firstName}
           </h1>
         </div>
-        <Link
-          href="/jobs/new"
-          className="inline-flex items-center gap-1.5 bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] transition-[transform,background-color] text-white font-bold rounded-2xl px-4 py-3 shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2 shrink-0"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="text-sm">New job</span>
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/leads/new"
+            className="inline-flex items-center gap-1.5 bg-white border-2 border-mse-navy text-mse-navy hover:bg-mse-navy hover:text-white active:scale-[0.98] transition-[transform,background-color,color] font-bold rounded-2xl px-4 py-3 shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-navy focus-visible:ring-offset-2"
+          >
+            <Handshake className="w-5 h-5" />
+            <span className="text-sm">New lead</span>
+          </Link>
+          {/* Sales-only logins sell and pre-audit — no job creation. */}
+          {session.isSales !== true && (
+            <Link
+              href="/jobs/new"
+              className="inline-flex items-center gap-1.5 bg-mse-red hover:bg-mse-red-hover active:scale-[0.98] transition-[transform,background-color] text-white font-bold rounded-2xl px-4 py-3 shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mse-red focus-visible:ring-offset-2"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="text-sm">New job</span>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Earnings summary — three tiles in one row at the very top of

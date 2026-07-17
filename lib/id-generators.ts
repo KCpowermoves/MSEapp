@@ -36,6 +36,13 @@ export async function nextServiceId(): Promise<string> {
   return `${prefix}${pad(max + 1, 5)}`;
 }
 
+export async function nextLeadId(): Promise<string> {
+  const year = currentYear();
+  const prefix = `LEAD-${year}-`;
+  const max = await getMaxIdNumber(TABS.leads, "A", prefix);
+  return `${prefix}${pad(max + 1)}`;
+}
+
 export async function nextPayrollPeriodId(): Promise<string> {
   const year = currentYear();
   const prefix = `PAYROLL-${year}-`;

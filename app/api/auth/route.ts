@@ -26,11 +26,13 @@ export async function POST(request: Request) {
   session.name = tech.name;
   session.loggedInAt = Date.now();
   session.isAdmin = tech.isAdmin === true;
+  session.isSales = tech.isSales === true;
   await session.save();
   return NextResponse.json({
     techId: tech.techId,
     name: tech.name,
     isAdmin: tech.isAdmin === true,
+    isSales: tech.isSales === true,
   });
 }
 

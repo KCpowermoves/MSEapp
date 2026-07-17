@@ -37,6 +37,9 @@ export const TABS = {
   // Dispatch calendar — planned visits (job + date + crew). A visit is
   // a plan; a Dispatches row is what actually happened on site.
   schedule: "Schedule",
+  // Sales leads — one row per prospective customer. A signed agreement
+  // converts a lead into a Jobs row (self-sold to the agent).
+  leads: "Leads",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across

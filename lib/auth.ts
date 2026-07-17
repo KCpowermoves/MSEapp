@@ -62,6 +62,7 @@ export async function loadActiveTechs(): Promise<Tech[]> {
       crewEligible: String(r[6] ?? "").toUpperCase() !== "FALSE",
       planType: normalizePlanType(r[7]),
       drawAmount: Number(r[8] ?? 0) || 0,
+      isSales: String(r[9] ?? "").toUpperCase() === "TRUE",
     }))
     .filter((t) => t.active);
 }
@@ -82,6 +83,7 @@ export async function loadAllTechs(): Promise<Tech[]> {
       crewEligible: String(r[6] ?? "").toUpperCase() !== "FALSE",
       planType: normalizePlanType(r[7]),
       drawAmount: Number(r[8] ?? 0) || 0,
+      isSales: String(r[9] ?? "").toUpperCase() === "TRUE",
     }));
 }
 

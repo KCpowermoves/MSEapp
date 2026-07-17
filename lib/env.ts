@@ -25,6 +25,11 @@ export const env = {
   // OCR endpoint returns a no-op result so the app silently degrades to
   // manual entry.
   anthropicApiKey: () => optional("ANTHROPIC_API_KEY"),
+  // Optional — SEPARATE key for the sales-side bill scanner so its
+  // Anthropic spend tracks independently of the nameplate OCR. No
+  // fallback to ANTHROPIC_API_KEY on purpose (Kevin wants clean
+  // per-feature usage tracking); absent = bill scan disabled.
+  anthropicApiKeySales: () => optional("ANTHROPIC_API_KEY_SALES"),
   // Optional — HighLevel API token for sending the customer report
   // email. When absent, /api/dispatches/send-report saves the request
   // but no actual email goes out (placeholder behavior).

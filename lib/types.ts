@@ -82,6 +82,64 @@ export interface Tech {
   /** Column I — weekly draw dollars; only meaningful for planType
    *  "draw". Defaults to 0. */
   drawAmount: number;
+  /** Column J — TRUE marks a sales-only login: leads + pre-audits,
+   *  no job creation or HVAC photo flows. Defaults to false. */
+  isSales: boolean;
+}
+
+// ─── Sales leads ─────────────────────────────────────────────────────
+
+export type LeadStatus =
+  | "Sent"       // agreement link generated / delivered
+  | "Signed"     // agreement completed (webhook or manual confirm)
+  | "Converted"  // job created from this lead
+  | "Cancelled";
+
+/** The 12 utility program keys — each maps to a SignNow agreement
+ *  template (see lib/signnow.ts). */
+export type UtilityProgram =
+  | "BGE"
+  | "PEPCO"
+  | "Delmarva"
+  | "SMECO"
+  | "Washington-Gas-MD"
+  | "Washington-Gas-VA"
+  | "PEPCO-Washington-Gas"
+  | "BGE-Washington-Gas"
+  | "PEPCO-BTU"
+  | "Delmarva-BTU"
+  | "BGE-BTU"
+  | "SMECO-BTU";
+
+export interface Lead {
+  leadId: string;
+  createdAt: string; // ISO
+  agentName: string; // whoever was logged in — sales attribution
+  status: LeadStatus;
+  businessName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  zip: string;
+  utility: UtilityProgram;
+  accountNumber: string;
+  hvacUnits: string;
+  notes: string;
+  /** Unguessable token for the public /sign/[token] page — the
+   *  customer-facing agreement link is derived from this. */
+  signToken: string;
+  /** Drive URL of the signed agreement PDF (native signing). */
+  signedPdfUrl: string;
+  signedAt: string;
+  /** Job created from this lead (status Converted). */
+  jobId: string;
+  /** Optional at-sale assignment — crew tech + planned date. Applied
+   *  as a scheduled visit when the job is created. */
+  assignTech: string;
+  assignDate: string;
+  updatedAt: string;
 }
 
 export interface Job {
@@ -213,6 +271,9 @@ export interface SessionData {
   name: string;
   loggedInAt: number;
   isAdmin?: boolean;
+  /** Sales-only login: can create leads, view their sales, and do
+   *  pre-audits — but no job creation or HVAC unit photo flows. */
+  isSales?: boolean;
   /** When set, the cookie's identity (techId/name/isAdmin) is the
    *  impersonated tech and these fields carry the real admin who
    *  initiated impersonation. Cleared by /api/admin/impersonate/exit. */
