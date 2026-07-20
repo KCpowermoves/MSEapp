@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Plus, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, ArrowLeft, Plus, Save, X } from "lucide-react";
 import { ServiceUnitTypeSection } from "@/components/ServiceUnitTypeSection";
 import { estimatedInstallPayForTech } from "@/lib/pay-rates";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -57,9 +58,18 @@ export function ServiceUnitsForm({
   todaysDispatch,
   currentUserName,
 }: Props) {
+  const router = useRouter();
   const [units, setUnits] = useState(initialUnits);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  // Units + photos auto-save as they're captured, so "Save" just
+  // returns to the job and forces a refresh so the tech sees the
+  // HVAC card flip to green — no manual reload.
+  function saveAndBack() {
+    router.push(`/jobs/${encodeURIComponent(job.jobId)}`);
+    router.refresh();
+  }
 
   // Group by unit type to drive section rendering. Any type with
   // at least one active unit (today's or prior) gets a section.
@@ -136,7 +146,7 @@ export function ServiceUnitsForm({
   );
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-28">
       {/* Compliance banner — pulses gently to catch the tech's eye
           before they start photographing a unit that won't qualify.
           motion-reduce drops the animation entirely for users with
@@ -303,6 +313,21 @@ export function ServiceUnitsForm({
           </div>
         </div>
       )}
+
+      {/* Save & go back — auto-saved, this just refreshes the job so
+          the HVAC card shows its updated (green) state. */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
+        <div className="max-w-2xl mx-auto">
+          <button
+            type="button"
+            onClick={saveAndBack}
+            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-bold bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98]"
+          >
+            <Save className="w-4 h-4" />
+            Save &amp; go back
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

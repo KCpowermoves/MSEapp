@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, CheckCircle2, Loader2, Save } from "lucide-react";
 import { AuditPhotoSlot } from "@/components/AuditPhotoSlot";
 import { AuditItemSection } from "@/components/AuditItemSection";
 import { uploadAuditPhotoWithFallback } from "@/lib/audit-photo-fallback";
@@ -30,9 +31,18 @@ const SECTIONS: { key: AuditItemType | "Building" | "BAS"; label: string }[] = [
 ];
 
 export function AuditForm({ job, audit: initialAudit, initialItems }: Props) {
+  const router = useRouter();
   const [audit, setAudit] = useState(initialAudit);
   const [items, setItems] = useState(initialItems);
   const [busyMarkComplete, setBusyMarkComplete] = useState(false);
+
+  // The audit auto-saves as you go (photos upload, notes patch on
+  // change), so "Save" just returns to the job and forces a refresh so
+  // the tech sees the card flip to green — no manual reload needed.
+  function saveAndBack() {
+    router.push(`/jobs/${encodeURIComponent(job.jobId)}`);
+    router.refresh();
+  }
   const [basNotes, setBasNotes] = useState(audit.basNotes);
   const [notes, setNotes] = useState(audit.notes);
 
@@ -79,11 +89,8 @@ export function AuditForm({ job, audit: initialAudit, initialItems }: Props) {
         { method: "POST" }
       );
       if (!res.ok) throw new Error("Could not mark complete");
-      setAudit((prev) => ({
-        ...prev,
-        status: "Complete",
-        completedAt: new Date().toISOString(),
-      }));
+      // Straight back to the job so they see the audit card go green.
+      saveAndBack();
     } finally {
       setBusyMarkComplete(false);
     }
@@ -271,31 +278,52 @@ export function AuditForm({ job, audit: initialAudit, initialItems }: Props) {
 
       {/* ─── Footer action ─── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-mse-light p-4 safe-bottom z-10">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto flex items-center gap-2">
           {audit.status === "Complete" ? (
-            <button
-              type="button"
-              onClick={reopen}
-              disabled={busyMarkComplete}
-              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-bold bg-mse-gold/20 text-mse-navy border border-mse-gold hover:bg-mse-gold/30"
-            >
-              {busyMarkComplete && <Loader2 className="w-4 h-4 animate-spin" />}
-              Audit complete · Reopen
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={reopen}
+                disabled={busyMarkComplete}
+                className="inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-bold bg-mse-gold/20 text-mse-navy border border-mse-gold hover:bg-mse-gold/30 shrink-0"
+              >
+                {busyMarkComplete && <Loader2 className="w-4 h-4 animate-spin" />}
+                Reopen
+              </button>
+              <button
+                type="button"
+                onClick={saveAndBack}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-bold bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98]"
+              >
+                <Save className="w-4 h-4" />
+                Save &amp; go back
+              </button>
+            </>
           ) : (
-            <button
-              type="button"
-              onClick={markComplete}
-              disabled={busyMarkComplete}
-              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-bold bg-mse-gold text-mse-navy hover:bg-mse-gold/90 active:scale-[0.98]"
-            >
-              {busyMarkComplete ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4" />
-              )}
-              Mark audit complete
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={saveAndBack}
+                disabled={busyMarkComplete}
+                className="inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-bold border-2 border-mse-light text-mse-navy hover:border-mse-navy/30 active:scale-[0.98] shrink-0"
+              >
+                <Save className="w-4 h-4" />
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={markComplete}
+                disabled={busyMarkComplete}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-2xl font-bold bg-mse-gold text-mse-navy hover:bg-mse-gold/90 active:scale-[0.98]"
+              >
+                {busyMarkComplete ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                Mark audit complete
+              </button>
+            </>
           )}
         </div>
       </div>

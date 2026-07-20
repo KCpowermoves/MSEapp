@@ -76,6 +76,10 @@ export function JobDetail({
   const hasPending = pendingUnits.length > 0;
   const wasSubmittedToday = submittedToday !== null;
 
+  // Completion flags drive the amber → green card coloring.
+  const hvacDone = hvacUnitSummary === "all-photographed";
+  const auditDone = auditStatus === "Complete";
+
   // Aggregate photo progress across all pending units. Drives the
   // "X of Y photos uploaded" line. Mirrors requiredUrlsForType() below.
   let pendingPhotosUploaded = 0;
@@ -167,18 +171,38 @@ export function JobDetail({
         />
       )}
 
+      {/* Status-colored: amber until the units are all photographed,
+          emerald green once done. */}
       <Link
         href={`/jobs/${encodeURIComponent(job.jobId)}/service`}
         prefetch
-        className="block rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-[background-color,transform] p-5 shadow-elevated text-white"
+        className={cn(
+          "block rounded-2xl active:scale-[0.98] transition-[background-color,transform] p-5 shadow-elevated",
+          hvacDone
+            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+            : "bg-amber-400 hover:bg-amber-500 text-amber-950"
+        )}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center font-bold text-lg shrink-0">
+          <div
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shrink-0",
+              hvacDone ? "bg-white/15" : "bg-amber-950/10"
+            )}
+          >
             <Wrench className="w-5 h-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-lg">Service HVAC units</div>
-            <div className="text-[11px] text-white/80 mt-0.5">
+            <div className="font-bold text-lg flex items-center gap-1.5">
+              Service HVAC units
+              {hvacDone && <CheckCircle2 className="w-5 h-5" />}
+            </div>
+            <div
+              className={cn(
+                "text-[11px] mt-0.5",
+                hvacDone ? "text-white/80" : "text-amber-900/80"
+              )}
+            >
               {hvacUnitSummary === "empty"
                 ? "No units yet — tap to start"
                 : hvacUnitSummary === "all-photographed"
@@ -195,23 +219,43 @@ export function JobDetail({
         ))}
       </UnitsSection>
 
+      {/* Status-colored: amber until the audit is marked Complete,
+          emerald green once done. */}
       <Link
         href={`/jobs/${encodeURIComponent(job.jobId)}/audit`}
         prefetch
-        className="block rounded-2xl bg-rose-100 border-2 border-rose-300 hover:bg-rose-200 active:scale-[0.98] transition-[background-color,transform] p-5"
+        className={cn(
+          "block rounded-2xl active:scale-[0.98] transition-[background-color,transform] p-5 shadow-elevated",
+          auditDone
+            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+            : "bg-amber-400 hover:bg-amber-500 text-amber-950"
+        )}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-rose-200 flex items-center justify-center text-rose-700 font-bold text-lg shrink-0">
+          <div
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shrink-0",
+              auditDone ? "bg-white/15" : "bg-amber-950/10"
+            )}
+          >
             ⚡
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-mse-navy">Complete energy audit</div>
-            <div className="text-[11px] text-mse-muted mt-0.5">
+            <div className="font-bold flex items-center gap-1.5">
+              Complete energy audit
+              {auditDone && <CheckCircle2 className="w-5 h-5" />}
+            </div>
+            <div
+              className={cn(
+                "text-[11px] mt-0.5",
+                auditDone ? "text-white/80" : "text-amber-900/80"
+              )}
+            >
               {auditStatus === null
                 ? "Walkthrough survey — building, walk-ins, therms, water-source, BAS."
                 : auditStatus === "Draft"
                 ? `Draft · ${auditItemCount} item${auditItemCount === 1 ? "" : "s"} logged`
-                : `Complete ✓ · ${auditItemCount} item${auditItemCount === 1 ? "" : "s"}`}
+                : `Complete · ${auditItemCount} item${auditItemCount === 1 ? "" : "s"}`}
             </div>
           </div>
         </div>
