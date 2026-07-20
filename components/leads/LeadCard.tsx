@@ -150,7 +150,7 @@ export function LeadCard({
                 href={lead.signedPdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Signed agreement PDF"
+                title="Signed documents (Drive folder)"
                 className="p-2 rounded-lg border border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30 active:scale-95"
               >
                 <FileText className="w-4 h-4" />

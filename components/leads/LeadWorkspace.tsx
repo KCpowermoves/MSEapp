@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  ListChecks,
   Loader2,
   Mail,
   MessageSquare,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import type { Prospect } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   UTILITIES,
@@ -39,6 +41,8 @@ interface BillScan {
   businessName: string;
   utility: string;
   accountNumber: string;
+  choiceId: string;
+  serviceId: string;
   address: string;
   city: string;
   zip: string;
@@ -80,6 +84,8 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
   const [fields, setFields] = useState<PreviewFields>(EMPTY);
   const [primaryUse, setPrimaryUse] = useState("");
   const [customerType, setCustomerType] = useState("");
+  const [choiceId, setChoiceId] = useState("");
+  const [serviceId, setServiceId] = useState("");
   const [notes, setNotes] = useState("");
   const [assignTech, setAssignTech] = useState("");
   const [assignDate, setAssignDate] = useState("");
@@ -88,6 +94,9 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
   const [signedName, setSignedName] = useState("");
   const [consent, setConsent] = useState(false);
   const [sigDataUrl, setSigDataUrl] = useState<string | null>(null);
+
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [prospectId, setProspectId] = useState("");
 
   const [scanState, setScanState] = useState<
     "idle" | "scanning" | "done" | "unreadable" | "busy"
@@ -105,6 +114,41 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
   const pickUtility = (u: UtilityName) => {
     setUtilityName(u);
     setUtility(packetsForUtility(u)[0]);
+  };
+
+  // Load the admin-uploaded prospect list (if any) for the quick-pick.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/prospects")
+      .then((r) => (r.ok ? r.json() : { prospects: [] }))
+      .then((d: { prospects?: Prospect[] }) => {
+        if (!cancelled) setProspects(d.prospects ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const pickProspect = (id: string) => {
+    setProspectId(id);
+    const p = prospects.find((x) => x.prospectId === id);
+    if (!p) return;
+    setFields({
+      businessName: p.businessName,
+      contactName: p.contactName,
+      title: p.title,
+      email: p.email,
+      phone: p.phone,
+      address: p.address,
+      city: p.city,
+      zip: p.zip,
+      accountNumber: p.accountNumber,
+      hvacUnits: p.hvacUnits,
+    });
+    if ((UTILITIES as readonly string[]).includes(p.utility)) {
+      pickUtility(p.utility as UtilityName);
+    }
   };
 
   const programs = utilityName ? packetsForUtility(utilityName) : [];
@@ -127,6 +171,8 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
         city: prev.city || data.city,
         zip: prev.zip || data.zip,
       }));
+      if (data.choiceId) setChoiceId((v) => v || data.choiceId);
+      if (data.serviceId) setServiceId((v) => v || data.serviceId);
       setScanState("done");
     } catch {
       setScanState("unreadable");
@@ -147,9 +193,12 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     hvacUnits: fields.hvacUnits,
     primaryUse,
     customerType,
+    choiceId,
+    serviceId,
     notes,
     assignTech,
     assignDate,
+    prospectId,
   });
 
   const createLead = async (deliveryMethod: string): Promise<Lead> => {
@@ -365,6 +414,34 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
 
   return (
     <div className="space-y-4">
+      {/* ── Quick-pick from the admin-uploaded prospect list ── */}
+      {prospects.length > 0 && (
+        <div className="bg-white rounded-2xl border border-mse-light shadow-card p-5 space-y-2">
+          <span className={cn(labelCls, "flex items-center gap-1.5")}>
+            <ListChecks className="w-3.5 h-3.5" />
+            Start from a saved prospect
+          </span>
+          <select
+            value={prospectId}
+            onChange={(e) => pickProspect(e.target.value)}
+            className={input}
+          >
+            <option value="">Choose a prospect to prefill…</option>
+            {prospects.map((p) => (
+              <option key={p.prospectId} value={p.prospectId}>
+                {[p.businessName || p.contactName, p.city, p.phone]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-mse-muted">
+            {prospects.length} prospect{prospects.length === 1 ? "" : "s"} loaded
+            by your admin. Picking one fills the form below.
+          </p>
+        </div>
+      )}
+
       {/* ── Pick the utility ── */}
       <div className="bg-white rounded-2xl border border-mse-light shadow-card p-5 space-y-3">
         <span className={labelCls}>Utility</span>
@@ -513,6 +590,29 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
                   </label>
                 </>
               )}
+            </div>
+
+            {/* Utility enrollment IDs — captured from the bill (esp.
+                PEPCO/BGE), stored for the office. Optional. */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <label className="block">
+                <span className={labelCls}>Choice ID</span>
+                <input
+                  value={choiceId}
+                  onChange={(e) => setChoiceId(e.target.value)}
+                  placeholder="From the bill (optional)"
+                  className={input}
+                />
+              </label>
+              <label className="block">
+                <span className={labelCls}>Service ID</span>
+                <input
+                  value={serviceId}
+                  onChange={(e) => setServiceId(e.target.value)}
+                  placeholder="From the bill (optional)"
+                  className={input}
+                />
+              </label>
             </div>
 
             <label className="block">

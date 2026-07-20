@@ -40,6 +40,9 @@ export const TABS = {
   // Sales leads — one row per prospective customer. A signed agreement
   // converts a lead into a Jobs row (self-sold to the agent).
   leads: "Leads",
+  // Prospect list — admin-uploaded rows a sales rep can pick from to
+  // prefill a New Lead. Consumed (marked Used) when a lead is made.
+  prospects: "Prospects",
 } as const;
 
 // Short-TTL cache to dedupe reads within a single request and across
@@ -202,6 +205,24 @@ export async function appendRow(
     valueInputOption: inputOption,
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
+  });
+  invalidateCacheForTab(tabName);
+}
+
+/** Append many rows in a single API call — for bulk imports. */
+export async function appendRows(
+  tabName: string,
+  rows: (string | number | boolean)[][],
+  inputOption: InputOption = "USER_ENTERED"
+): Promise<void> {
+  if (rows.length === 0) return;
+  const sheets = getSheetsClient();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: env.googleSheetId(),
+    range: `${tabName}!A1`,
+    valueInputOption: inputOption,
+    insertDataOption: "INSERT_ROWS",
+    requestBody: { values: rows },
   });
   invalidateCacheForTab(tabName);
 }

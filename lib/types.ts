@@ -105,6 +105,31 @@ export type UtilityProgram =
   | "SMECO-LARGE"
   | "SMECO-SMALL";
 
+/** A row from an admin-uploaded prospect list. A sales rep picks one
+ *  to prefill a New Lead; it's marked Used once a lead is created. */
+export interface Prospect {
+  prospectId: string;
+  importedAt: string;
+  importedBy: string;
+  status: "New" | "Used";
+  /** Optional per-rep assignment (from an "Agent"/"Assigned" column).
+   *  Blank = visible to every rep. */
+  agent: string;
+  businessName: string;
+  contactName: string;
+  title: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  zip: string;
+  utility: string; // may be blank; rep confirms the packet
+  accountNumber: string;
+  hvacUnits: string;
+  notes: string;
+  usedByLeadId: string;
+}
+
 export interface Lead {
   leadId: string;
   createdAt: string; // ISO
@@ -119,6 +144,11 @@ export interface Lead {
   zip: string;
   utility: UtilityProgram;
   accountNumber: string;
+  /** Utility enrollment identifiers captured from the bill — Choice ID
+   *  and Service ID (needed for PEPCO/BGE program enrollment). Stored
+   *  for the office; not printed on the agreement forms. */
+  choiceId: string;
+  serviceId: string;
   hvacUnits: string;
   notes: string;
   /** Unguessable token for the public /sign/[token] page — the

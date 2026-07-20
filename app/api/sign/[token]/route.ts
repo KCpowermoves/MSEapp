@@ -6,7 +6,7 @@ import {
   updateLeadFields,
 } from "@/lib/data/leads";
 import { convertLeadToJob } from "@/lib/data/lead-convert";
-import { buildPacketPdf } from "@/lib/agreements/fill-engine.mjs";
+import { buildPacketDocuments } from "@/lib/agreements/fill-engine.mjs";
 import { uploadFile } from "@/lib/google/drive";
 import { getJob } from "@/lib/data/jobs";
 import { nowIso } from "@/lib/utils";
@@ -113,10 +113,13 @@ export async function POST(
       by: "customer-signature",
     });
 
-    // 3. Fill the real paperwork and store it (best-effort).
+    // 3. Fill the real paperwork and store it (best-effort). Each
+    //    document in the packet is saved as its OWN PDF in the job's
+    //    Drive folder — never merged — so a customer who signed two or
+    //    three forms ends up with two or three separate files.
     let signedPdfUrl = "";
     try {
-      const pdf = await buildPacketPdf({
+      const docs = await buildPacketDocuments({
         packetKey: lead.utility,
         fields,
         primaryUse,
@@ -126,17 +129,25 @@ export async function POST(
       });
       const job = converted.jobId ? await getJob(converted.jobId) : null;
       if (job?.driveFolderId) {
-        const uploaded = await uploadFile({
-          folderId: job.driveFolderId,
-          filename: `Signed Agreement - ${fields.businessName || fields.contactName || lead.leadId} - ${signedAtIso.slice(0, 10)}.pdf`,
-          mimeType: "application/pdf",
-          body: Buffer.from(pdf),
-        });
-        signedPdfUrl = uploaded.url;
+        const who = fields.businessName || fields.contactName || lead.leadId;
+        const date = signedAtIso.slice(0, 10);
+        const urls: string[] = [];
+        for (const doc of docs) {
+          const uploaded = await uploadFile({
+            folderId: job.driveFolderId,
+            filename: `Signed - ${who} - ${doc.label} - ${date}.pdf`,
+            mimeType: "application/pdf",
+            body: Buffer.from(doc.bytes),
+          });
+          urls.push(uploaded.url);
+        }
+        // Point the lead's quick link at the job's Drive folder, which
+        // now holds every separate signed document.
+        signedPdfUrl = job.driveFolderUrl || urls[0] || "";
       }
     } catch (pdfErr) {
       console.error(
-        `[sign] packet PDF failed for ${lead.leadId} — job ${converted.jobId} still created:`,
+        `[sign] packet PDFs failed for ${lead.leadId} — job ${converted.jobId} still created:`,
         pdfErr
       );
     }

@@ -8,6 +8,7 @@ import {
   DollarSign,
   Image as ImageIcon,
   LayoutDashboard,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,12 @@ const TABS: Tab[] = [
     label: "Customers",
     icon: <Building2 className="w-3.5 h-3.5" />,
     match: (p) => p.startsWith("/admin/customers"),
+  },
+  {
+    href: "/admin/prospects",
+    label: "Prospects",
+    icon: <Users className="w-3.5 h-3.5" />,
+    match: (p) => p.startsWith("/admin/prospects"),
   },
   {
     href: "/admin/library",

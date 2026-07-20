@@ -16,12 +16,14 @@ const SYSTEM_PROMPT = `You read commercial utility bills (electric and gas) from
 Given a photo or screenshot of a utility bill, extract the fields below.
 
 Return ONLY a single JSON object with this exact shape:
-{ "businessName": "...", "utility": "...", "accountNumber": "...", "address": "...", "city": "...", "zip": "...", "confidence": 0 }
+{ "businessName": "...", "utility": "...", "accountNumber": "...", "choiceId": "...", "serviceId": "...", "address": "...", "city": "...", "zip": "...", "confidence": 0 }
 
 Rules:
 - "businessName" is the customer/account holder name on the bill.
 - "utility" must be EXACTLY one of: "BGE", "PEPCO", "Delmarva", "SMECO", "Washington Gas", or "" if unclear. (Baltimore Gas and Electric = BGE; Potomac Electric Power = PEPCO; Delmarva Power = Delmarva; Southern Maryland Electric Cooperative = SMECO.)
 - "accountNumber" is the utility account number, digits and dashes as printed. Not the invoice number, not the meter number.
+- "choiceId" is the electric supplier CHOICE ID (aka "Choice ID"), if the bill shows one — common on PEPCO and BGE bills for third-party supplier enrollment. "" if not present.
+- "serviceId" is the SERVICE ID / service point / SDP number if shown (common on PEPCO). "" if not present.
 - "address" / "city" / "zip" are the SERVICE address (where power/gas is delivered), not the mailing address, when both appear.
 - If a field can't be read with reasonable confidence, use "" rather than guessing.
 - "confidence" is an integer 0-100 for the overall read.
@@ -31,6 +33,8 @@ interface BillOcrResult {
   businessName: string;
   utility: string;
   accountNumber: string;
+  choiceId: string;
+  serviceId: string;
   address: string;
   city: string;
   zip: string;
@@ -43,6 +47,8 @@ const EMPTY: BillOcrResult = {
   businessName: "",
   utility: "",
   accountNumber: "",
+  choiceId: "",
+  serviceId: "",
   address: "",
   city: "",
   zip: "",
@@ -68,6 +74,8 @@ function parseBillJson(raw: string): Partial<BillOcrResult> | null {
       businessName: String(parsed.businessName ?? "").trim(),
       utility: String(parsed.utility ?? "").trim(),
       accountNumber: String(parsed.accountNumber ?? "").trim(),
+      choiceId: String(parsed.choiceId ?? "").trim(),
+      serviceId: String(parsed.serviceId ?? "").trim(),
       address: String(parsed.address ?? "").trim(),
       city: String(parsed.city ?? "").trim(),
       zip: String(parsed.zip ?? "").trim(),

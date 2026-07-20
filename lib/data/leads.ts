@@ -19,6 +19,7 @@ import type { Lead, LeadStatus, UtilityProgram } from "@/lib/types";
 // N: HvacUnits | O: Notes | P: SignToken | Q: SignedPdfUrl
 // R: SignedAt | S: JobId | T: AssignTech | U: AssignDate | V: UpdatedAt
 // W: Title | X: PrimaryUse | Y: CustomerType | Z: DeliveryMethod
+// AA: ChoiceId | AB: ServiceId
 
 const LEADS_HEADERS = [
   "LeadId",
@@ -47,6 +48,8 @@ const LEADS_HEADERS = [
   "PrimaryUse",
   "CustomerType",
   "DeliveryMethod",
+  "ChoiceId",
+  "ServiceId",
 ];
 
 async function ensureLeadsTab(): Promise<void> {
@@ -81,6 +84,8 @@ function rowToLead(row: string[]): Lead {
     primaryUse: String(row[23] ?? ""),
     customerType: String(row[24] ?? ""),
     deliveryMethod: String(row[25] ?? ""),
+    choiceId: String(row[26] ?? ""),
+    serviceId: String(row[27] ?? ""),
   };
 }
 
@@ -137,6 +142,8 @@ export async function createLead(input: {
   primaryUse?: string;
   customerType?: string;
   deliveryMethod?: string;
+  choiceId?: string;
+  serviceId?: string;
   assignTech?: string;
   assignDate?: string;
 }): Promise<Lead> {
@@ -173,6 +180,8 @@ export async function createLead(input: {
     input.primaryUse ?? "",
     input.customerType ?? "",
     input.deliveryMethod ?? "",
+    input.choiceId ?? "",
+    input.serviceId ?? "",
   ]);
   return {
     leadId,
@@ -201,6 +210,8 @@ export async function createLead(input: {
     primaryUse: input.primaryUse ?? "",
     customerType: input.customerType ?? "",
     deliveryMethod: input.deliveryMethod ?? "",
+    choiceId: input.choiceId ?? "",
+    serviceId: input.serviceId ?? "",
   };
 }
 
@@ -250,6 +261,8 @@ export async function updateLeadFields(opts: {
   title: string;
   primaryUse: string;
   customerType: string;
+  choiceId?: string;
+  serviceId?: string;
 }): Promise<void> {
   const rowIndex = await leadRowIndex(opts.leadId);
   const writes: Promise<void>[] = [];
@@ -267,6 +280,8 @@ export async function updateLeadFields(opts: {
   set("W", opts.title);
   set("X", opts.primaryUse);
   set("Y", opts.customerType);
+  if (opts.choiceId !== undefined) set("AA", opts.choiceId);
+  if (opts.serviceId !== undefined) set("AB", opts.serviceId);
   set("V", nowIso());
   await Promise.all(writes);
 }
