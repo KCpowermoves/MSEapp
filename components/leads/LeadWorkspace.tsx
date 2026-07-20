@@ -152,11 +152,11 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     assignDate,
   });
 
-  const createLead = async (): Promise<Lead> => {
+  const createLead = async (deliveryMethod: string): Promise<Lead> => {
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(leadPayload()),
+      body: JSON.stringify({ ...leadPayload(), deliveryMethod }),
     });
     const data = (await res.json().catch(() => ({}))) as {
       error?: string;
@@ -187,7 +187,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
 
     setSubmitting(true);
     try {
-      const lead = await createLead();
+      const lead = await createLead("in-person");
       const res = await fetch(`/api/sign/${encodeURIComponent(lead.signToken)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -223,7 +223,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     }
     setSubmitting(true);
     try {
-      const lead = await createLead();
+      const lead = await createLead(mode);
       const url = `${window.location.origin}/sign/${lead.signToken}`;
       if (mode === "text") {
         const body = encodeURIComponent(

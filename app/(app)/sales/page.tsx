@@ -131,7 +131,7 @@ export default async function SalesPage() {
           </div>
         ) : (
           open.map((l) => (
-            <LeadCard key={l.leadId} lead={l} crewTechs={crewTechs} showAgent={isAdmin} />
+            <LeadCard key={l.leadId} lead={l} crewTechs={crewTechs} showAgent={isAdmin} isAdmin={isAdmin} />
           ))
         )}
       </section>
@@ -143,7 +143,7 @@ export default async function SalesPage() {
             History
           </h2>
           {closed.map((l) => (
-            <LeadCard key={l.leadId} lead={l} crewTechs={crewTechs} showAgent={isAdmin} />
+            <LeadCard key={l.leadId} lead={l} crewTechs={crewTechs} showAgent={isAdmin} isAdmin={isAdmin} />
           ))}
         </section>
       )}

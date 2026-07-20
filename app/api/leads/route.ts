@@ -84,6 +84,7 @@ export async function POST(request: Request) {
       notes: s("notes"),
       primaryUse: s("primaryUse"),
       customerType: s("customerType"),
+      deliveryMethod: s("deliveryMethod"),
       assignTech: s("assignTech") || undefined,
       assignDate: s("assignDate") || undefined,
     });

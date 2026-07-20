@@ -6,11 +6,14 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Check,
-  CheckCircle2,
+  Clock,
   Copy,
-  ExternalLink,
   FileText,
   Loader2,
+  Mail,
+  MessageSquare,
+  PenLine,
+  ShieldAlert,
   UserPlus,
   X,
 } from "lucide-react";
@@ -18,9 +21,10 @@ import { cn } from "@/lib/utils";
 import { packetLabel } from "@/lib/programs";
 import type { Lead, LeadStatus } from "@/lib/types";
 
-// One lead on the My Sales page. Actions: open/copy the native
-// signing link, Mark signed (paper fallback — converts to a job),
-// Assign crew + date, Cancel.
+// One lead on the My Sales page. Open leads are AWAITING SIGNATURE —
+// the card shows how the link was delivered and never implies the deal
+// is done. A job only comes from a real customer e-signature (via the
+// signing page), or an admin override for a paper-signed deal.
 
 const STATUS_STYLE: Record<LeadStatus, string> = {
   Sent: "bg-mse-gold/15 text-mse-navy border-mse-gold/40",
@@ -28,6 +32,18 @@ const STATUS_STYLE: Record<LeadStatus, string> = {
   Converted: "bg-emerald-600/10 text-emerald-700 border-emerald-600/25",
   Cancelled: "bg-mse-light text-mse-muted border-mse-light",
 };
+
+// Open leads read "Awaiting signature" instead of the bare "Sent".
+const STATUS_LABEL: Partial<Record<LeadStatus, string>> = {
+  Sent: "Awaiting signature",
+};
+
+function deliveryChip(method: string): { label: string; icon: React.ReactNode } | null {
+  if (method === "text") return { label: "Texted", icon: <MessageSquare className="w-3 h-3" /> };
+  if (method === "email") return { label: "Emailed", icon: <Mail className="w-3 h-3" /> };
+  if (method === "in-person") return { label: "In person", icon: <PenLine className="w-3 h-3" /> };
+  return null;
+}
 
 function fmtDate(iso: string): string {
   if (!iso) return "";
@@ -40,10 +56,12 @@ export function LeadCard({
   lead,
   crewTechs,
   showAgent,
+  isAdmin,
 }: {
   lead: Lead;
   crewTechs: string[];
   showAgent: boolean;
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,12 +101,19 @@ export function LeadCard({
           <div className="flex items-center gap-2 flex-wrap">
             <span
               className={cn(
-                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border",
                 STATUS_STYLE[lead.status]
               )}
             >
-              {lead.status}
+              {open && <Clock className="w-3 h-3" />}
+              {STATUS_LABEL[lead.status] ?? lead.status}
             </span>
+            {open && deliveryChip(lead.deliveryMethod) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-mse-light text-mse-muted border border-mse-light">
+                {deliveryChip(lead.deliveryMethod)!.icon}
+                {deliveryChip(lead.deliveryMethod)!.label}
+              </span>
+            )}
             <span className="text-sm font-bold text-mse-navy truncate">
               {lead.businessName || lead.contactName || lead.leadId}
             </span>
@@ -140,72 +165,85 @@ export function LeadCard({
             </Link>
           </div>
         ) : open ? (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <a
-              href={`/sign/${encodeURIComponent(lead.signToken)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open agreement"
-              className="p-2 rounded-lg border border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30 active:scale-95"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-            <button
-              type="button"
-              title="Copy agreement link"
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(`${window.location.origin}/sign/${lead.signToken}`)
-                  .then(() => {
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  });
-              }}
-              className="p-2 rounded-lg border border-mse-light text-mse-muted hover:text-mse-navy hover:border-mse-navy/30 active:scale-95"
-            >
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            </button>
-          </div>
+          <button
+            type="button"
+            title="Copy signing link to resend"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(`${window.location.origin}/sign/${lead.signToken}`)
+                .then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                });
+            }}
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg border border-mse-light text-xs font-semibold text-mse-muted hover:text-mse-navy hover:border-mse-navy/30 active:scale-95"
+          >
+            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copied ? "Copied" : "Copy link"}
+          </button>
         ) : null}
       </div>
 
       {open && (
-        <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-mse-light">
-          <button
-            type="button"
-            onClick={() => patch({ action: "mark-signed" }, "sign")}
-            disabled={busy !== null}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-mse-navy text-white hover:bg-mse-navy-soft active:scale-95"
-          >
-            {busy === "sign" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <CheckCircle2 className="w-3.5 h-3.5" />
-            )}
-            Signed — create job
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssignOpen((v) => !v)}
-            disabled={busy !== null}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold border-2 border-mse-light text-mse-navy hover:border-mse-navy/30 active:scale-95"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            {lead.assignTech ? "Reassign" : "Assign"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm("Cancel this lead?")) {
-                void patch({ action: "cancel" }, "cancel");
-              }
-            }}
-            disabled={busy !== null}
-            className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-bold text-mse-muted hover:text-mse-red active:scale-95 ml-auto"
-          >
-            <X className="w-3.5 h-3.5" />
-            Cancel
-          </button>
+        <div className="mt-3 pt-3 border-t border-mse-light space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <a
+              href={`/sign/${encodeURIComponent(lead.signToken)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-mse-navy text-white hover:bg-mse-navy-soft active:scale-95"
+            >
+              <PenLine className="w-3.5 h-3.5" />
+              Open to sign
+            </a>
+            <button
+              type="button"
+              onClick={() => setAssignOpen((v) => !v)}
+              disabled={busy !== null}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold border-2 border-mse-light text-mse-navy hover:border-mse-navy/30 active:scale-95"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              {lead.assignTech ? "Reassign" : "Assign"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Cancel this lead?")) {
+                  void patch({ action: "cancel" }, "cancel");
+                }
+              }}
+              disabled={busy !== null}
+              className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-bold text-mse-muted hover:text-mse-red active:scale-95 ml-auto"
+            >
+              <X className="w-3.5 h-3.5" />
+              Cancel
+            </button>
+          </div>
+          {/* Admin-only: create the job for a paper-signed deal, with no
+              customer e-signature on file. Regular agents can't. */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Create a job for this lead WITHOUT a customer e-signature? Use this only for a deal that's already signed on paper — it will be logged as an admin override."
+                  )
+                ) {
+                  void patch({ action: "mark-signed" }, "sign");
+                }
+              }}
+              disabled={busy !== null}
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-mse-muted hover:text-mse-navy"
+            >
+              {busy === "sign" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <ShieldAlert className="w-3 h-3" />
+              )}
+              Admin: create job without e-signature
+            </button>
+          )}
         </div>
       )}
 

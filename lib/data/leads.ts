@@ -18,7 +18,7 @@ import type { Lead, LeadStatus, UtilityProgram } from "@/lib/types";
 // I: Address | J: City | K: Zip | L: Utility | M: AccountNumber
 // N: HvacUnits | O: Notes | P: SignToken | Q: SignedPdfUrl
 // R: SignedAt | S: JobId | T: AssignTech | U: AssignDate | V: UpdatedAt
-// W: Title | X: PrimaryUse | Y: CustomerType
+// W: Title | X: PrimaryUse | Y: CustomerType | Z: DeliveryMethod
 
 const LEADS_HEADERS = [
   "LeadId",
@@ -46,6 +46,7 @@ const LEADS_HEADERS = [
   "Title",
   "PrimaryUse",
   "CustomerType",
+  "DeliveryMethod",
 ];
 
 async function ensureLeadsTab(): Promise<void> {
@@ -79,6 +80,7 @@ function rowToLead(row: string[]): Lead {
     title: String(row[22] ?? ""),
     primaryUse: String(row[23] ?? ""),
     customerType: String(row[24] ?? ""),
+    deliveryMethod: String(row[25] ?? ""),
   };
 }
 
@@ -134,6 +136,7 @@ export async function createLead(input: {
   title?: string;
   primaryUse?: string;
   customerType?: string;
+  deliveryMethod?: string;
   assignTech?: string;
   assignDate?: string;
 }): Promise<Lead> {
@@ -169,6 +172,7 @@ export async function createLead(input: {
     input.title ?? "",
     input.primaryUse ?? "",
     input.customerType ?? "",
+    input.deliveryMethod ?? "",
   ]);
   return {
     leadId,
@@ -196,6 +200,7 @@ export async function createLead(input: {
     title: input.title ?? "",
     primaryUse: input.primaryUse ?? "",
     customerType: input.customerType ?? "",
+    deliveryMethod: input.deliveryMethod ?? "",
   };
 }
 

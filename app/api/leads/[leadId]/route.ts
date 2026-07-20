@@ -6,13 +6,16 @@ import { convertLeadToJob } from "@/lib/data/lead-convert";
 import { createVisit } from "@/lib/data/schedule";
 
 // PATCH /api/leads/[leadId]
-//   { action: "mark-signed" }                      → convert to a Job now
+//   { action: "mark-signed" }                      → ADMIN-ONLY override:
+//     create a job for a lead with no customer e-signature (e.g. a
+//     paper-signed deal). Regular agents cannot — a job only comes from
+//     a real signature via /api/sign/[token], or an admin creating it.
 //   { action: "cancel" }                           → dead lead
 //   { action: "assign", assignTech, assignDate }   → set/replace the
 //     at-sale assignment; if the lead already converted, schedules a
 //     visit on the job directly.
 //
-// Permissions: the owning agent or any admin.
+// Permissions: the owning agent or any admin (mark-signed: admin only).
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,9 +48,19 @@ export async function PATCH(
 
   try {
     if (action === "mark-signed") {
+      // A job without a customer e-signature is an admin-only override.
+      if (!session.isAdmin) {
+        return NextResponse.json(
+          {
+            error:
+              "Only an admin can create a job without a customer e-signature. Have the customer sign the agreement, or ask an admin.",
+          },
+          { status: 403 }
+        );
+      }
       const result = await convertLeadToJob({
         leadId,
-        by: session.name ?? session.techId,
+        by: `${session.name ?? session.techId} (admin override, no e-signature)`,
       });
       revalidatePath("/sales");
       revalidatePath("/jobs");

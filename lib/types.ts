@@ -139,6 +139,11 @@ export interface Lead {
   /** SMECO Small Business participation agreement picks. */
   primaryUse: string;
   customerType: string;
+  /** How the signing link was delivered: "text" | "email" |
+   *  "in-person" (signed on the agent's device) | "" (legacy). Drives
+   *  the open-lead badge so it's clear the lead is still awaiting a
+   *  signature, not done. */
+  deliveryMethod: string;
 }
 
 export interface Job {
