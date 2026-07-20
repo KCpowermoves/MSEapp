@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Handshake } from "lucide-react";
 import { getSession, loadActiveTechs } from "@/lib/auth";
-import { NewLeadForm } from "@/components/leads/NewLeadForm";
+import { LeadWorkspace } from "@/components/leads/LeadWorkspace";
 
 export const dynamic = "force-dynamic";
 
@@ -33,13 +33,13 @@ export default async function NewLeadPage() {
           New lead
         </h1>
         <p className="text-sm text-mse-muted mt-1">
-          Save the customer, pick the program, and the signed agreement
-          creates the job automatically. You&apos;re the agent of record —
-          sales credit is yours.
+          Pick the utility, fill or scan the details, and the real paperwork
+          fills in live. Sign on the spot or text/email the link. You&apos;re
+          the agent of record — sales credit is yours.
         </p>
       </div>
 
-      <NewLeadForm crewTechs={crewTechs} />
+      <LeadWorkspace crewTechs={crewTechs} />
     </div>
   );
 }

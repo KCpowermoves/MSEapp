@@ -82,6 +82,8 @@ export async function POST(request: Request) {
       accountNumber: s("accountNumber"),
       hvacUnits: s("hvacUnits"),
       notes: s("notes"),
+      primaryUse: s("primaryUse"),
+      customerType: s("customerType"),
       assignTech: s("assignTech") || undefined,
       assignDate: s("assignDate") || undefined,
     });
