@@ -7,6 +7,7 @@ import {
 } from "@/lib/data/leads";
 import { convertLeadToJob } from "@/lib/data/lead-convert";
 import { buildPacketDocuments } from "@/lib/agreements/fill-engine.mjs";
+import { REQUIRED_LEAD_FIELDS } from "@/lib/programs";
 import { uploadFile } from "@/lib/google/drive";
 import { getJob } from "@/lib/data/jobs";
 import { nowIso } from "@/lib/utils";
@@ -81,6 +82,20 @@ export async function POST(
   }
   const primaryUse = String(body.primaryUse ?? lead.primaryUse ?? "").slice(0, 40);
   const customerType = String(body.customerType ?? lead.customerType ?? "").slice(0, 40);
+
+  // Every field except the account number is required to sign (matches
+  // the client's red-field gate; enforced here so it can't be bypassed).
+  const missing: string[] = REQUIRED_LEAD_FIELDS.filter((k) => !fields[k]?.trim());
+  if (lead.utility === "SMECO-SMALL") {
+    if (!primaryUse.trim()) missing.push("primaryUse");
+    if (!customerType.trim()) missing.push("customerType");
+  }
+  if (missing.length > 0) {
+    return NextResponse.json(
+      { error: "All fields except the account number are required to sign." },
+      { status: 400 }
+    );
+  }
 
   const signedAtIso = nowIso();
 

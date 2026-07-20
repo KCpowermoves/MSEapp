@@ -7,6 +7,7 @@ import {
   PRIMARY_USE_OPTIONS,
   CUSTOMER_TYPE_OPTIONS,
 } from "@/lib/agreements/registry.mjs";
+import { REQUIRED_LEAD_FIELDS } from "@/lib/programs";
 import { FormsPreview, type PreviewFields } from "@/components/sign/FormsPreview";
 import { SignaturePad } from "@/components/sign/SignaturePad";
 import type { Lead } from "@/lib/types";
@@ -57,16 +58,39 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<Set<string>>(new Set());
 
   const isSmecoSmall = lead.utility === "SMECO-SMALL";
-  const setField = (k: keyof PreviewFields, v: string) =>
+  const setField = (k: keyof PreviewFields, v: string) => {
     setFields((prev) => ({ ...prev, [k]: v }));
+    if (v.trim()) setMissing((m) => (m.has(k) ? new Set(Array.from(m).filter((x) => x !== k)) : m));
+  };
+
+  // Every required field must be filled before signing (all but account
+  // number / Choice ID / Service ID). SMECO-Small also needs the two
+  // picks. Empty ones highlight red and block the signature.
+  const findMissing = (): Set<string> => {
+    const m = new Set<string>();
+    for (const k of REQUIRED_LEAD_FIELDS) {
+      if (!String(fields[k as keyof PreviewFields] ?? "").trim()) m.add(k);
+    }
+    if (isSmecoSmall) {
+      if (!primaryUse.trim()) m.add("primaryUse");
+      if (!customerType.trim()) m.add("customerType");
+    }
+    return m;
+  };
 
   const submit = async () => {
     if (submitting) return;
     setError(null);
-    if (!fields.businessName.trim() && !fields.contactName.trim()) {
-      return setError("Business or contact name is required.");
+    const miss = findMissing();
+    if (miss.size > 0) {
+      setMissing(miss);
+      setFieldsOpen(true);
+      return setError(
+        "Please fill in the highlighted fields before signing — everything except the account number is required."
+      );
     }
     if (!signedName.trim()) return setError("Please type the signer's full name.");
     if (!consent) return setError("Please check the e-sign consent box.");
@@ -138,26 +162,37 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
         </button>
         {fieldsOpen && (
           <div className="px-5 pb-5 grid grid-cols-2 gap-2.5">
-            {FIELD_DEFS.map((f) => (
-              <label key={f.key} className={cn("block", !f.half && "col-span-2")}>
-                <span className={labelCls}>{f.label}</span>
-                <input
-                  type={f.type ?? "text"}
-                  value={fields[f.key]}
-                  onChange={(e) => setField(f.key, e.target.value)}
-                  placeholder={f.placeholder}
-                  className={input}
-                />
-              </label>
-            ))}
+            {FIELD_DEFS.map((f) => {
+              const bad = missing.has(f.key);
+              return (
+                <label key={f.key} className={cn("block", !f.half && "col-span-2")}>
+                  <span className={cn(labelCls, bad && "text-mse-red")}>
+                    {f.label}
+                    {bad && " · required"}
+                  </span>
+                  <input
+                    type={f.type ?? "text"}
+                    value={fields[f.key]}
+                    onChange={(e) => setField(f.key, e.target.value)}
+                    placeholder={f.placeholder}
+                    className={cn(input, bad && "border-mse-red bg-mse-red/5")}
+                  />
+                </label>
+              );
+            })}
             {isSmecoSmall && (
               <>
                 <label className="block">
-                  <span className={labelCls}>Primary use</span>
+                  <span className={cn(labelCls, missing.has("primaryUse") && "text-mse-red")}>
+                    Primary use{missing.has("primaryUse") && " · required"}
+                  </span>
                   <select
                     value={primaryUse}
-                    onChange={(e) => setPrimaryUse(e.target.value)}
-                    className={input}
+                    onChange={(e) => {
+                      setPrimaryUse(e.target.value);
+                      if (e.target.value) setMissing((m) => new Set(Array.from(m).filter((x) => x !== "primaryUse")));
+                    }}
+                    className={cn(input, missing.has("primaryUse") && "border-mse-red bg-mse-red/5")}
                   >
                     <option value="">Pick…</option>
                     {PRIMARY_USE_OPTIONS.map((o: string) => (
@@ -166,11 +201,16 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
                   </select>
                 </label>
                 <label className="block">
-                  <span className={labelCls}>Customer type</span>
+                  <span className={cn(labelCls, missing.has("customerType") && "text-mse-red")}>
+                    Customer type{missing.has("customerType") && " · required"}
+                  </span>
                   <select
                     value={customerType}
-                    onChange={(e) => setCustomerType(e.target.value)}
-                    className={input}
+                    onChange={(e) => {
+                      setCustomerType(e.target.value);
+                      if (e.target.value) setMissing((m) => new Set(Array.from(m).filter((x) => x !== "customerType")));
+                    }}
+                    className={cn(input, missing.has("customerType") && "border-mse-red bg-mse-red/5")}
                   >
                     <option value="">Pick…</option>
                     {CUSTOMER_TYPE_OPTIONS.map((o: string) => (

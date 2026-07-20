@@ -22,6 +22,7 @@ import {
   UTILITIES,
   packetsForUtility,
   UTILITY_PROGRAM_LABELS,
+  REQUIRED_LEAD_FIELDS,
   type UtilityName,
 } from "@/lib/programs";
 import {
@@ -106,10 +107,27 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
   const [sentLead, setSentLead] = useState<Lead | null>(null);
   const [signedDone, setSignedDone] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [missing, setMissing] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const setField = (k: keyof PreviewFields, v: string) =>
+  const setField = (k: keyof PreviewFields, v: string) => {
     setFields((prev) => ({ ...prev, [k]: v }));
+    if (v.trim()) setMissing((m) => (m.has(k) ? new Set(Array.from(m).filter((x) => x !== k)) : m));
+  };
+
+  // All customer fields except account #/Choice ID/Service ID must be
+  // filled before signing; SMECO-Small also needs its two picks.
+  const findMissing = (): Set<string> => {
+    const m = new Set<string>();
+    for (const k of REQUIRED_LEAD_FIELDS) {
+      if (!String(fields[k as keyof PreviewFields] ?? "").trim()) m.add(k);
+    }
+    if (utility === "SMECO-SMALL") {
+      if (!primaryUse.trim()) m.add("primaryUse");
+      if (!customerType.trim()) m.add("customerType");
+    }
+    return m;
+  };
 
   const pickUtility = (u: UtilityName) => {
     setUtilityName(u);
@@ -230,6 +248,13 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     setError(null);
     const shared = validateShared();
     if (shared) return setError(shared);
+    const miss = findMissing();
+    if (miss.size > 0) {
+      setMissing(miss);
+      return setError(
+        "Fill in the highlighted fields before signing — everything except the account number is required."
+      );
+    }
     if (!signedName.trim()) return setError("Type the signer's full name.");
     if (!consent) return setError("Check the e-sign consent box.");
     if (!sigDataUrl) return setError("Sign in the signature box.");
@@ -429,7 +454,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
             <option value="">Choose a prospect to prefill…</option>
             {prospects.map((p) => (
               <option key={p.prospectId} value={p.prospectId}>
-                {[p.businessName || p.contactName, p.city, p.phone]
+                {[p.businessName || p.contactName, p.address, p.city]
                   .filter(Boolean)
                   .join(" · ")}
               </option>
@@ -548,26 +573,37 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
             )}
 
             <div className="grid grid-cols-2 gap-2.5">
-              {FIELD_DEFS.map((f) => (
-                <label key={f.key} className={cn("block", !f.half && "col-span-2")}>
-                  <span className={labelCls}>{f.label}</span>
-                  <input
-                    type={f.type ?? "text"}
-                    value={fields[f.key]}
-                    onChange={(e) => setField(f.key, e.target.value)}
-                    placeholder={f.placeholder}
-                    className={input}
-                  />
-                </label>
-              ))}
+              {FIELD_DEFS.map((f) => {
+                const bad = missing.has(f.key);
+                return (
+                  <label key={f.key} className={cn("block", !f.half && "col-span-2")}>
+                    <span className={cn(labelCls, bad && "text-mse-red")}>
+                      {f.label}
+                      {bad && " · required"}
+                    </span>
+                    <input
+                      type={f.type ?? "text"}
+                      value={fields[f.key]}
+                      onChange={(e) => setField(f.key, e.target.value)}
+                      placeholder={f.placeholder}
+                      className={cn(input, bad && "border-mse-red bg-mse-red/5")}
+                    />
+                  </label>
+                );
+              })}
               {isSmecoSmall && (
                 <>
                   <label className="block">
-                    <span className={labelCls}>Primary use</span>
+                    <span className={cn(labelCls, missing.has("primaryUse") && "text-mse-red")}>
+                      Primary use{missing.has("primaryUse") && " · required"}
+                    </span>
                     <select
                       value={primaryUse}
-                      onChange={(e) => setPrimaryUse(e.target.value)}
-                      className={input}
+                      onChange={(e) => {
+                        setPrimaryUse(e.target.value);
+                        if (e.target.value) setMissing((m) => new Set(Array.from(m).filter((x) => x !== "primaryUse")));
+                      }}
+                      className={cn(input, missing.has("primaryUse") && "border-mse-red bg-mse-red/5")}
                     >
                       <option value="">Pick…</option>
                       {PRIMARY_USE_OPTIONS.map((o: string) => (
@@ -576,11 +612,16 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
                     </select>
                   </label>
                   <label className="block">
-                    <span className={labelCls}>Customer type</span>
+                    <span className={cn(labelCls, missing.has("customerType") && "text-mse-red")}>
+                      Customer type{missing.has("customerType") && " · required"}
+                    </span>
                     <select
                       value={customerType}
-                      onChange={(e) => setCustomerType(e.target.value)}
-                      className={input}
+                      onChange={(e) => {
+                        setCustomerType(e.target.value);
+                        if (e.target.value) setMissing((m) => new Set(Array.from(m).filter((x) => x !== "customerType")));
+                      }}
+                      className={cn(input, missing.has("customerType") && "border-mse-red bg-mse-red/5")}
                     >
                       <option value="">Pick…</option>
                       {CUSTOMER_TYPE_OPTIONS.map((o: string) => (

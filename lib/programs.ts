@@ -8,6 +8,21 @@ import type { UtilityProgram } from "@/lib/types";
 export const UTILITIES = ["BGE", "PEPCO", "Delmarva", "SMECO"] as const;
 export type UtilityName = (typeof UTILITIES)[number];
 
+/** Customer/contact fields that must be filled before an agreement can
+ *  be signed. Everything here is required; account number, Choice ID,
+ *  Service ID, and notes stay optional (per Kevin 2026-07-20). */
+export const REQUIRED_LEAD_FIELDS = [
+  "businessName",
+  "contactName",
+  "title",
+  "phone",
+  "email",
+  "address",
+  "city",
+  "zip",
+  "hvacUnits",
+] as const;
+
 /** Which agreement packets a utility offers. SMECO has two sizes;
  *  everyone else is one tap. */
 export function packetsForUtility(u: UtilityName): UtilityProgram[] {
