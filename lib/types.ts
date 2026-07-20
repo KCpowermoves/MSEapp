@@ -95,21 +95,15 @@ export type LeadStatus =
   | "Converted"  // job created from this lead
   | "Cancelled";
 
-/** The 12 utility program keys — each maps to a SignNow agreement
- *  template (see lib/signnow.ts). */
+/** Agreement packet keys — each maps to a set of utility program PDFs
+ *  in lib/agreements/registry.mjs. Washington Gas programs retired
+ *  2026-07-20 per Kevin. */
 export type UtilityProgram =
   | "BGE"
   | "PEPCO"
-  | "Delmarva"
-  | "SMECO"
-  | "Washington-Gas-MD"
-  | "Washington-Gas-VA"
-  | "PEPCO-Washington-Gas"
-  | "BGE-Washington-Gas"
-  | "PEPCO-BTU"
-  | "Delmarva-BTU"
-  | "BGE-BTU"
-  | "SMECO-BTU";
+  | "DELMARVA"
+  | "SMECO-LARGE"
+  | "SMECO-SMALL";
 
 export interface Lead {
   leadId: string;
@@ -140,6 +134,11 @@ export interface Lead {
   assignTech: string;
   assignDate: string;
   updatedAt: string;
+  /** Contact person's title (Owner, Manager…) — on every agreement. */
+  title: string;
+  /** SMECO Small Business participation agreement picks. */
+  primaryUse: string;
+  customerType: string;
 }
 
 export interface Job {

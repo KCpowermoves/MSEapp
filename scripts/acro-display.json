@@ -1,0 +1,402 @@
+{
+ "bge-enhanced": [
+  {
+   "page": 3,
+   "x": 84.8,
+   "yTop": 105.6,
+   "size": 9,
+   "source": "businessName"
+  },
+  {
+   "page": 3,
+   "x": 146.5,
+   "yTop": 139.7,
+   "size": 9,
+   "source": "address"
+  },
+  {
+   "page": 3,
+   "x": 48,
+   "yTop": 156.7,
+   "size": 9,
+   "source": "city"
+  },
+  {
+   "page": 3,
+   "x": 347.2,
+   "yTop": 156.7,
+   "size": 9,
+   "source": "!state"
+  },
+  {
+   "page": 3,
+   "x": 439.5,
+   "yTop": 156.7,
+   "size": 9,
+   "source": "zip"
+  },
+  {
+   "page": 3,
+   "x": 204.6,
+   "yTop": 173.8,
+   "size": 9,
+   "source": "contactName"
+  },
+  {
+   "page": 3,
+   "x": 402.6,
+   "yTop": 173.8,
+   "size": 9,
+   "source": "title"
+  },
+  {
+   "page": 3,
+   "x": 54,
+   "yTop": 190.8,
+   "size": 9,
+   "source": "email"
+  },
+  {
+   "page": 3,
+   "x": 439.2,
+   "yTop": 190.8,
+   "size": 9,
+   "source": "phone"
+  },
+  {
+   "page": 3,
+   "x": 443.4,
+   "yTop": 283.3,
+   "size": 9,
+   "source": "!date"
+  },
+  {
+   "page": 3,
+   "x": 448.5,
+   "yTop": 445.7,
+   "size": 9,
+   "source": "!date"
+  },
+  {
+   "page": 3,
+   "x": 92,
+   "yTop": 494.6,
+   "size": 9,
+   "source": "accountNumber"
+  },
+  {
+   "page": 3,
+   "x": 91.4,
+   "yTop": 516.7,
+   "size": 9,
+   "source": "hvacUnits"
+  }
+ ],
+ "bge-release": [
+  {
+   "page": 1,
+   "x": 56,
+   "yTop": 159.5,
+   "size": 9,
+   "source": "contactName"
+  },
+  {
+   "page": 1,
+   "x": 307.9,
+   "yTop": 159.5,
+   "size": 9,
+   "source": "title"
+  },
+  {
+   "page": 1,
+   "x": 49.3,
+   "yTop": 186.5,
+   "size": 9,
+   "source": "businessName"
+  },
+  {
+   "page": 1,
+   "x": 49.3,
+   "yTop": 213.3,
+   "size": 9,
+   "source": "address"
+  },
+  {
+   "page": 1,
+   "x": 307.9,
+   "yTop": 213.3,
+   "size": 9,
+   "source": "city"
+  },
+  {
+   "page": 1,
+   "x": 408.2,
+   "yTop": 213.3,
+   "size": 9,
+   "source": "!state"
+  },
+  {
+   "page": 1,
+   "x": 492.8,
+   "yTop": 213.3,
+   "size": 9,
+   "source": "zip"
+  },
+  {
+   "page": 1,
+   "x": 253.4,
+   "yTop": 600.9,
+   "size": 9,
+   "source": "phone"
+  },
+  {
+   "page": 1,
+   "x": 396.9,
+   "yTop": 600.9,
+   "size": 9,
+   "source": "accountNumber"
+  },
+  {
+   "page": 1,
+   "x": 105.6,
+   "yTop": 628.2,
+   "size": 9,
+   "source": "!day"
+  },
+  {
+   "page": 1,
+   "x": 205.9,
+   "yTop": 628.2,
+   "size": 9,
+   "source": "!month"
+  },
+  {
+   "page": 1,
+   "x": 271.6,
+   "yTop": 628.2,
+   "size": 9,
+   "source": "!year"
+  },
+  {
+   "page": 1,
+   "x": 345.3,
+   "yTop": 628.2,
+   "size": 9,
+   "source": "city"
+  },
+  {
+   "page": 1,
+   "x": 425,
+   "yTop": 628.2,
+   "size": 9,
+   "source": "!state"
+  },
+  {
+   "page": 1,
+   "x": 493.5,
+   "yTop": 628.2,
+   "size": 9,
+   "source": "zip"
+  },
+  {
+   "page": 1,
+   "x": 49.3,
+   "yTop": 658,
+   "size": 9,
+   "source": "!requestorName"
+  },
+  {
+   "page": 1,
+   "x": 253.6,
+   "yTop": 658,
+   "size": 9,
+   "source": "!requestorPhone"
+  },
+  {
+   "page": 1,
+   "x": 397.2,
+   "yTop": 658,
+   "size": 9,
+   "source": "!requestorEmail"
+  }
+ ],
+ "pepco-consent": [
+  {
+   "page": 1,
+   "x": 82.2,
+   "yTop": 181.8,
+   "size": 9,
+   "source": "!requestorName"
+  },
+  {
+   "page": 1,
+   "x": 97.8,
+   "yTop": 204.2,
+   "size": 9,
+   "source": "!requestorOrg"
+  },
+  {
+   "page": 1,
+   "x": 81.8,
+   "yTop": 226.7,
+   "size": 9,
+   "source": "!requestorAddress"
+  },
+  {
+   "page": 1,
+   "x": 103.8,
+   "yTop": 249.2,
+   "size": 9,
+   "source": "!requestorEmail"
+  },
+  {
+   "page": 1,
+   "x": 318.4,
+   "yTop": 249.2,
+   "size": 9,
+   "source": "!requestorPhone"
+  },
+  {
+   "page": 1,
+   "x": 113.6,
+   "yTop": 435.7,
+   "size": 9,
+   "source": "businessName"
+  },
+  {
+   "page": 1,
+   "x": 76.8,
+   "yTop": 458.2,
+   "size": 9,
+   "source": "address"
+  },
+  {
+   "page": 1,
+   "x": 60.4,
+   "yTop": 480.6,
+   "size": 9,
+   "source": "city"
+  },
+  {
+   "page": 1,
+   "x": 261,
+   "yTop": 480.6,
+   "size": 9,
+   "source": "!state"
+  },
+  {
+   "page": 1,
+   "x": 337.2,
+   "yTop": 480.6,
+   "size": 9,
+   "source": "zip"
+  },
+  {
+   "page": 1,
+   "x": 148.3,
+   "yTop": 503.2,
+   "size": 9,
+   "source": "contactName"
+  },
+  {
+   "page": 1,
+   "x": 155.7,
+   "yTop": 525.6,
+   "size": 9,
+   "source": "phone"
+  },
+  {
+   "page": 1,
+   "x": 38.5,
+   "yTop": 615.7,
+   "size": 9,
+   "source": "accountNumber"
+  }
+ ],
+ "smeco-enhanced": [
+  {
+   "page": 3,
+   "x": 367,
+   "yTop": 185.4,
+   "size": 9,
+   "source": "title"
+  },
+  {
+   "page": 3,
+   "x": 69.4,
+   "yTop": 76.9,
+   "size": 9,
+   "source": "businessName"
+  },
+  {
+   "page": 3,
+   "x": 41.5,
+   "yTop": 158,
+   "size": 9,
+   "source": "city"
+  },
+  {
+   "page": 3,
+   "x": 118.8,
+   "yTop": 130.1,
+   "size": 9,
+   "source": "address"
+  },
+  {
+   "page": 3,
+   "x": 400.9,
+   "yTop": 212.4,
+   "size": 9,
+   "source": "phone"
+  },
+  {
+   "page": 3,
+   "x": 369.2,
+   "yTop": 157.7,
+   "size": 9,
+   "source": "!state"
+  },
+  {
+   "page": 3,
+   "x": 491.6,
+   "yTop": 158,
+   "size": 9,
+   "source": "zip"
+  },
+  {
+   "page": 3,
+   "x": 152.7,
+   "yTop": 184.4,
+   "size": 9,
+   "source": "contactName"
+  },
+  {
+   "page": 3,
+   "x": 46.4,
+   "yTop": 212.7,
+   "size": 9,
+   "source": "email"
+  },
+  {
+   "page": 3,
+   "x": 491,
+   "yTop": 435.1,
+   "size": 9,
+   "source": "!date"
+  },
+  {
+   "page": 3,
+   "x": 491.9,
+   "yTop": 283.8,
+   "size": 9,
+   "source": "!date"
+  },
+  {
+   "page": 3,
+   "x": 126.6,
+   "yTop": 536.1,
+   "size": 9,
+   "source": "accountNumber"
+  }
+ ]
+}

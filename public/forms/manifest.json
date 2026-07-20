@@ -1,0 +1,197 @@
+{
+  "bge-enhanced": {
+    "file": "BGE Enhanced Tune up Terms.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 2,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 3,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "bge-btu": {
+    "file": "BGE BTU 2023 TERMS.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 2,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "bge-release": {
+    "file": "BGE BTU ConsentLetter.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "pepco-terms": {
+    "file": "Pepco BTU terms 2023.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 2,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 3,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 4,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 5,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "pepco-consent": {
+    "file": "Pepco BTU Consent Letter.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "delmarva-terms": {
+    "file": "Delmarva BTU terms 2023.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 2,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 3,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 4,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 5,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 6,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "delmarva-consent": {
+    "file": "Delmarva BTU consent letter.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "smeco-enhanced": {
+    "file": "SMECO Enhanced Tune Up Terms (1).pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 2,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 3,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "smeco-bldg": {
+    "file": "SMECO Bldg Tune up Terms (1).pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 2,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "smeco-release": {
+    "file": "SMECO Consent Form.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  },
+  "smeco-small": {
+    "file": "SMECO Small Business HVAC Terms with therm MSE.pdf",
+    "pages": [
+      {
+        "page": 1,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 2,
+        "width": 612,
+        "height": 792
+      },
+      {
+        "page": 3,
+        "width": 612,
+        "height": 792
+      }
+    ]
+  }
+}

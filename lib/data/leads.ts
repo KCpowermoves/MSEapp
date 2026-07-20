@@ -18,6 +18,7 @@ import type { Lead, LeadStatus, UtilityProgram } from "@/lib/types";
 // I: Address | J: City | K: Zip | L: Utility | M: AccountNumber
 // N: HvacUnits | O: Notes | P: SignToken | Q: SignedPdfUrl
 // R: SignedAt | S: JobId | T: AssignTech | U: AssignDate | V: UpdatedAt
+// W: Title | X: PrimaryUse | Y: CustomerType
 
 const LEADS_HEADERS = [
   "LeadId",
@@ -42,6 +43,9 @@ const LEADS_HEADERS = [
   "AssignTech",
   "AssignDate",
   "UpdatedAt",
+  "Title",
+  "PrimaryUse",
+  "CustomerType",
 ];
 
 async function ensureLeadsTab(): Promise<void> {
@@ -72,6 +76,9 @@ function rowToLead(row: string[]): Lead {
     assignTech: String(row[19] ?? ""),
     assignDate: String(row[20] ?? ""),
     updatedAt: String(row[21] ?? ""),
+    title: String(row[22] ?? ""),
+    primaryUse: String(row[23] ?? ""),
+    customerType: String(row[24] ?? ""),
   };
 }
 
@@ -124,6 +131,9 @@ export async function createLead(input: {
   accountNumber: string;
   hvacUnits: string;
   notes: string;
+  title?: string;
+  primaryUse?: string;
+  customerType?: string;
   assignTech?: string;
   assignDate?: string;
 }): Promise<Lead> {
@@ -156,6 +166,9 @@ export async function createLead(input: {
     input.assignTech ?? "",
     input.assignDate ?? "",
     createdAt,
+    input.title ?? "",
+    input.primaryUse ?? "",
+    input.customerType ?? "",
   ]);
   return {
     leadId,
@@ -180,6 +193,9 @@ export async function createLead(input: {
     assignTech: input.assignTech ?? "",
     assignDate: input.assignDate ?? "",
     updatedAt: createdAt,
+    title: input.title ?? "",
+    primaryUse: input.primaryUse ?? "",
+    customerType: input.customerType ?? "",
   };
 }
 
@@ -208,6 +224,44 @@ export async function updateLead(opts: {
   if (opts.jobId !== undefined) set("S", opts.jobId);
   if (opts.assignTech !== undefined) set("T", opts.assignTech);
   if (opts.assignDate !== undefined) set("U", opts.assignDate);
+  set("V", nowIso());
+  await Promise.all(writes);
+}
+
+/** Update the agreement's editable customer fields — called when the
+ *  signing page submits with corrections the agent or customer made
+ *  at the table. */
+export async function updateLeadFields(opts: {
+  leadId: string;
+  businessName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  zip: string;
+  accountNumber: string;
+  hvacUnits: string;
+  title: string;
+  primaryUse: string;
+  customerType: string;
+}): Promise<void> {
+  const rowIndex = await leadRowIndex(opts.leadId);
+  const writes: Promise<void>[] = [];
+  const set = (col: string, val: string) =>
+    writes.push(updateCell(`${TABS.leads}!${col}${rowIndex}`, val, "RAW"));
+  set("E", opts.businessName);
+  set("F", opts.contactName);
+  set("G", opts.email);
+  set("H", opts.phone);
+  set("I", opts.address);
+  set("J", opts.city);
+  set("K", opts.zip);
+  set("M", opts.accountNumber);
+  set("N", opts.hvacUnits);
+  set("W", opts.title);
+  set("X", opts.primaryUse);
+  set("Y", opts.customerType);
   set("V", nowIso());
   await Promise.all(writes);
 }

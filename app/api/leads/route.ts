@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       agentName,
       businessName,
       contactName,
+      title: s("title"),
       email: s("email"),
       phone,
       address: s("address"),

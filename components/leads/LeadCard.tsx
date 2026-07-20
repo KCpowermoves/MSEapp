@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UTILITY_PROGRAM_LABELS } from "@/lib/programs";
+import { packetLabel } from "@/lib/programs";
 import type { Lead, LeadStatus } from "@/lib/types";
 
 // One lead on the My Sales page. Actions: open/copy the native
@@ -96,7 +96,7 @@ export function LeadCard({
           <div className="text-xs text-mse-muted mt-1 flex items-center gap-2 flex-wrap">
             <span>{fmtDate(lead.createdAt)}</span>
             <span>·</span>
-            <span>{UTILITY_PROGRAM_LABELS[lead.utility] ?? lead.utility}</span>
+            <span>{packetLabel(lead.utility)}</span>
             {lead.hvacUnits && (
               <>
                 <span>·</span>

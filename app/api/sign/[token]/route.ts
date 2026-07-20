@@ -1,28 +1,35 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getLeadByToken, updateLead } from "@/lib/data/leads";
+import {
+  getLeadByToken,
+  updateLead,
+  updateLeadFields,
+} from "@/lib/data/leads";
 import { convertLeadToJob } from "@/lib/data/lead-convert";
-import { buildAgreementPdf } from "@/lib/agreement-pdf";
+import { buildPacketPdf } from "@/lib/agreements/fill-engine.mjs";
 import { uploadFile } from "@/lib/google/drive";
 import { getJob } from "@/lib/data/jobs";
 import { nowIso } from "@/lib/utils";
 
-// POST /api/sign/[token] — execute the agreement. Public; the
-// unguessable token is the authorization (same trust model the old
-// SignNow share links had). On success:
-//   1. lead converts to a Job (idempotent — double-taps can't dupe)
-//   2. the signed agreement PDF is generated and stored in the job's
-//      Drive folder
-//   3. the lead records the signed PDF URL
+// POST /api/sign/[token] — execute the agreement packet. Public; the
+// unguessable token is the authorization. On success:
+//   1. any field edits made at the table are saved to the lead
+//   2. the lead converts to a Job (idempotent)
+//   3. the REAL utility paperwork is filled + signature-stamped into
+//      one merged PDF and stored in the job's Drive folder
 //
 // The PDF step is best-effort: a Drive hiccup must not undo a
-// legally-signed conversion. Failures log loudly for admin follow-up.
+// signed conversion. Failures log loudly for admin follow-up.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024;
+const FIELD_KEYS = [
+  "businessName", "contactName", "title", "email", "phone",
+  "address", "city", "zip", "accountNumber", "hvacUnits",
+] as const;
 
 export async function POST(
   request: Request,
@@ -34,17 +41,12 @@ export async function POST(
     return NextResponse.json({ error: "Agreement not found" }, { status: 404 });
   }
   if (lead.jobId) {
-    // Already executed — idempotent success.
     return NextResponse.json({ ok: true, alreadySigned: true });
   }
 
-  let body: {
-    signedName?: unknown;
-    consent?: unknown;
-    signatureDataUrl?: unknown;
-  };
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "Bad JSON" }, { status: 400 });
   }
@@ -69,42 +71,72 @@ export async function POST(
     return NextResponse.json({ error: "Signature invalid" }, { status: 400 });
   }
 
+  // Merge table-side edits over the stored lead values.
+  const rawFields = (body.fields ?? {}) as Record<string, unknown>;
+  const fields: Record<string, string> = {};
+  for (const k of FIELD_KEYS) {
+    const edited = rawFields[k];
+    fields[k] =
+      typeof edited === "string" ? edited.trim().slice(0, 200) : String(lead[k] ?? "");
+  }
+  const primaryUse = String(body.primaryUse ?? lead.primaryUse ?? "").slice(0, 40);
+  const customerType = String(body.customerType ?? lead.customerType ?? "").slice(0, 40);
+
   const signedAtIso = nowIso();
-  const signerIp =
-    (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() ||
-    "unknown";
 
   try {
-    // 1. Convert — creates the Job (+ Drive folder) and, if the agent
-    //    assigned at sale time, the scheduled visit.
+    // 1. Persist edits so the lead/job reflect what was signed.
+    try {
+      await updateLeadFields({
+        leadId: lead.leadId,
+        businessName: fields.businessName,
+        contactName: fields.contactName,
+        email: fields.email,
+        phone: fields.phone,
+        address: fields.address,
+        city: fields.city,
+        zip: fields.zip,
+        accountNumber: fields.accountNumber,
+        hvacUnits: fields.hvacUnits,
+        title: fields.title,
+        primaryUse,
+        customerType,
+      });
+    } catch (e) {
+      console.warn("[sign] field save failed (continuing):", e);
+    }
+
+    // 2. Convert — creates the Job (+ Drive folder) and, if assigned
+    //    at sale, the scheduled visit.
     const { lead: converted } = await convertLeadToJob({
       leadId: lead.leadId,
       by: "customer-signature",
     });
 
-    // 2. Render + store the signed agreement PDF (best-effort).
+    // 3. Fill the real paperwork and store it (best-effort).
     let signedPdfUrl = "";
     try {
-      const pdf = await buildAgreementPdf({
-        lead: { ...lead, signedAt: signedAtIso },
+      const pdf = await buildPacketPdf({
+        packetKey: lead.utility,
+        fields,
+        primaryUse,
+        customerType,
         signaturePng,
-        signedName,
-        signedAtIso,
-        signerIp,
+        signedAt: new Date(signedAtIso),
       });
       const job = converted.jobId ? await getJob(converted.jobId) : null;
       if (job?.driveFolderId) {
         const uploaded = await uploadFile({
           folderId: job.driveFolderId,
-          filename: `Agreement - ${lead.businessName || lead.contactName || lead.leadId} - ${signedAtIso.slice(0, 10)}.pdf`,
+          filename: `Signed Agreement - ${fields.businessName || fields.contactName || lead.leadId} - ${signedAtIso.slice(0, 10)}.pdf`,
           mimeType: "application/pdf",
-          body: pdf,
+          body: Buffer.from(pdf),
         });
         signedPdfUrl = uploaded.url;
       }
     } catch (pdfErr) {
       console.error(
-        `[sign] PDF generation/upload failed for ${lead.leadId} — job ${converted.jobId} still created:`,
+        `[sign] packet PDF failed for ${lead.leadId} — job ${converted.jobId} still created:`,
         pdfErr
       );
     }

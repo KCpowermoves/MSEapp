@@ -16,9 +16,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  ELECTRIC_OPTIONS,
-  programsForElectric,
+  UTILITIES,
+  packetsForUtility,
   UTILITY_PROGRAM_LABELS,
+  type UtilityName,
 } from "@/lib/programs";
 import type { Lead, UtilityProgram } from "@/lib/types";
 
@@ -54,9 +55,9 @@ export function NewLeadForm({
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [zip, setZip] = useState("");
-  const [electric, setElectric] =
-    useState<(typeof ELECTRIC_OPTIONS)[number]>("BGE");
+  const [utilityName, setUtilityName] = useState<UtilityName>("BGE");
   const [utility, setUtility] = useState<UtilityProgram>("BGE");
+  const [title, setTitle] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [hvacUnits, setHvacUnits] = useState("");
   const [notes, setNotes] = useState("");
@@ -72,11 +73,11 @@ export function NewLeadForm({
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const programs = programsForElectric(electric);
+  const programs = packetsForUtility(utilityName);
 
-  const pickElectric = (e: (typeof ELECTRIC_OPTIONS)[number]) => {
-    setElectric(e);
-    setUtility(programsForElectric(e)[0]);
+  const pickUtility = (u: UtilityName) => {
+    setUtilityName(u);
+    setUtility(packetsForUtility(u)[0]);
   };
 
   const scanBill = async (file: File) => {
@@ -100,14 +101,11 @@ export function NewLeadForm({
       if (data.address && !address) setAddress(data.address);
       if (data.city && !city) setCity(data.city);
       if (data.zip && !zip) setZip(data.zip);
-      if (data.utility) {
-        if (data.utility === "Washington Gas") {
-          pickElectric("None (gas only)");
-        } else if (
-          (ELECTRIC_OPTIONS as readonly string[]).includes(data.utility)
-        ) {
-          pickElectric(data.utility as (typeof ELECTRIC_OPTIONS)[number]);
-        }
+      if (
+        data.utility &&
+        (UTILITIES as readonly string[]).includes(data.utility)
+      ) {
+        pickUtility(data.utility as UtilityName);
       }
       setScanState("done");
     } catch {
@@ -127,6 +125,7 @@ export function NewLeadForm({
         body: JSON.stringify({
           businessName,
           contactName,
+          title,
           email,
           phone,
           address,
@@ -308,9 +307,15 @@ export function NewLeadForm({
           <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(410) 555-0100" className={input} />
         </div>
       </div>
-      <div>
-        <span className={label}>Email</span>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@business.com" className={input} />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <span className={label}>Title</span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Owner / Manager" className={input} />
+        </div>
+        <div>
+          <span className={label}>Email</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@business.com" className={input} />
+        </div>
       </div>
       <div>
         <span className={label}>Street address</span>
@@ -327,49 +332,51 @@ export function NewLeadForm({
         </div>
       </div>
 
-      {/* Two-step utility picker → exact agreement template */}
+      {/* Utility → agreement packet */}
       <div>
-        <span className={label}>Electric utility</span>
+        <span className={label}>Utility</span>
         <div className="flex flex-wrap gap-1.5">
-          {ELECTRIC_OPTIONS.map((e) => (
+          {UTILITIES.map((u) => (
             <button
-              key={e}
+              key={u}
               type="button"
-              onClick={() => pickElectric(e)}
+              onClick={() => pickUtility(u)}
               className={cn(
                 "px-3 py-2 rounded-lg text-xs font-bold border-2 active:scale-95",
-                electric === e
+                utilityName === u
                   ? "border-mse-navy bg-mse-navy text-white"
                   : "border-mse-light text-mse-muted hover:text-mse-navy"
               )}
             >
-              {e}
+              {u}
             </button>
           ))}
         </div>
       </div>
-      <div>
-        <span className={label}>Program / agreement</span>
-        <div className="space-y-1">
-          {programs.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setUtility(p)}
-              aria-pressed={utility === p}
-              className={cn(
-                "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left text-sm font-semibold active:scale-[0.99]",
-                utility === p
-                  ? "border-mse-navy bg-mse-navy/5 text-mse-navy"
-                  : "border-mse-light text-mse-navy hover:border-mse-navy/30"
-              )}
-            >
-              {UTILITY_PROGRAM_LABELS[p]}
-              {utility === p && <Check className="w-4 h-4 shrink-0" />}
-            </button>
-          ))}
+      {programs.length > 1 && (
+        <div>
+          <span className={label}>Program size</span>
+          <div className="space-y-1">
+            {programs.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setUtility(p)}
+                aria-pressed={utility === p}
+                className={cn(
+                  "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left text-sm font-semibold active:scale-[0.99]",
+                  utility === p
+                    ? "border-mse-navy bg-mse-navy/5 text-mse-navy"
+                    : "border-mse-light text-mse-navy hover:border-mse-navy/30"
+                )}
+              >
+                {UTILITY_PROGRAM_LABELS[p]}
+                {utility === p && <Check className="w-4 h-4 shrink-0" />}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <div>
