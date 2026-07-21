@@ -314,7 +314,8 @@ function makeHourFilter(
 function binTemps(
   hours: HourRec[],
   binWidthF: number,
-  included: (hourOfYear: number) => boolean
+  included: (hourOfYear: number) => boolean,
+  maxBinF?: number
 ): BinRow[] {
   if (binWidthF <= 0) throw new Error("binWidthF must be positive");
   // Compute range across ALL temps so bin boundaries don't shift when
@@ -322,7 +323,14 @@ function binTemps(
   const rawMin = hours.reduce((a, b) => Math.min(a, b.dbF), Infinity);
   const rawMax = hours.reduce((a, b) => Math.max(a, b.dbF), -Infinity);
   const startF = Math.floor(rawMin / binWidthF) * binWidthF;
-  const endF = Math.ceil(rawMax / binWidthF) * binWidthF;
+  // Top of the range: the engineer's design high (maxBinF) when set,
+  // rounded up to a whole bin, otherwise the station's actual annual
+  // max. Setting it above the data adds empty design-cooling bins;
+  // setting it below folds the hotter hours into the top bin. Never
+  // collapses below one bin above the start.
+  const topRaw = maxBinF != null && Number.isFinite(maxBinF) ? maxBinF : rawMax;
+  let endF = Math.ceil(topRaw / binWidthF) * binWidthF;
+  if (endF <= startF) endF = startF + binWidthF;
   const bins: BinRow[] = [];
   const wbSums: number[] = [];
   const wbCounts: number[] = [];
@@ -416,6 +424,9 @@ export async function computeBinData(opts: {
   cddBaseF: number;
   schedule?: ScheduleMask;
   months?: MonthMask;
+  /** Design high — forces the top of the bin range (default: station
+   *  annual max when omitted). */
+  maxBinF?: number;
 }): Promise<BinResult> {
   const station = COMMON_STATIONS.find((s) => s.usaf === opts.usaf);
   if (!station) {

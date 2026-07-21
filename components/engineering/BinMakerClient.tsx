@@ -170,6 +170,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
   const [binWidth, setBinWidth] = useState<number>(5);
   const [hddBase, setHddBase] = useState<number>(65);
   const [cddBase, setCddBase] = useState<number>(65);
+  const [maxBin, setMaxBin] = useState<number>(97);
   const [schedule, setSchedule] = useState<ScheduleMask>(() => PRESETS[0].build());
   const [months, setMonths] = useState<MonthMask>(() => SEASONS[0].build());
   const [data, setData] = useState<BinResult | null>(null);
@@ -200,6 +201,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
         binWidth: String(binWidth),
         hddBase: String(hddBase),
         cddBase: String(cddBase),
+        maxBin: String(maxBin),
         schedule: scheduleEnc,
         months: monthsEnc,
       });
@@ -230,7 +232,7 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stationUsaf, binWidth, hddBase, cddBase, scheduleEnc, monthsEnc]);
+  }, [stationUsaf, binWidth, hddBase, cddBase, maxBin, scheduleEnc, monthsEnc]);
 
   function toggleSlot(day: number, hour: number) {
     const idx = day * 24 + hour;
@@ -372,6 +374,21 @@ export function BinMakerClient({ stations }: { stations: Station[] }) {
               onChange={(e) => setCddBase(Number(e.target.value))}
               className={baseInput}
             />
+          </Field>
+          <Field label="Max bin temp (°F)">
+            <input
+              type="number"
+              min={70}
+              max={120}
+              step={1}
+              value={maxBin}
+              onChange={(e) => setMaxBin(Number(e.target.value))}
+              className={baseInput}
+            />
+            <div className="text-[11px] text-mse-muted mt-1">
+              Design high — bins run up to here (default 97°F), even past
+              the station&apos;s typical-year max.
+            </div>
           </Field>
         </div>
 

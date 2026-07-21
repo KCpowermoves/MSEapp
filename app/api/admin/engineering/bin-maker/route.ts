@@ -30,6 +30,10 @@ export async function GET(req: NextRequest) {
   const binWidthF = clampNum(url.searchParams.get("binWidth"), 5, 1, 20);
   const hddBaseF = clampNum(url.searchParams.get("hddBase"), 65, 40, 80);
   const cddBaseF = clampNum(url.searchParams.get("cddBase"), 65, 40, 90);
+  // Design high — top of the bin range. Defaults to 97 °F so the table
+  // always reaches a design-cooling bin even when the typical year tops
+  // out lower. Blank/invalid falls back to the default.
+  const maxBinF = clampNum(url.searchParams.get("maxBin"), 97, 70, 120);
   // 168-char binary string: one slot per hour of the week (Sun 00 ..
   // Sat 23). Missing/invalid → 24/7 default.
   const schedule = decodeSchedule(url.searchParams.get("schedule"));
@@ -44,6 +48,7 @@ export async function GET(req: NextRequest) {
       cddBaseF,
       schedule,
       months,
+      maxBinF,
     });
     // Schedule param is part of the URL, so the edge cache keys off it
     // naturally — different schedules → different cached responses.
