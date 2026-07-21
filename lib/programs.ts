@@ -48,7 +48,7 @@ export const UTILITY_PROGRAM_LABELS: Record<UtilityProgram, string> = {
   "PEPCO": "HVAC/Building Tune-up",
   "DELMARVA": "HVAC/Building Tune-up",
   "SMECO-LARGE": "Building/Enhanced Tune-up (Large)",
-  "SMECO-SMALL": "Small Business Tune-up",
+  "SMECO-SMALL": "HVAC and Building Tune-Up (small)",
 };
 
 /** Full display label, e.g. "BGE — HVAC/Building Tune-up". */
