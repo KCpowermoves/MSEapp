@@ -128,6 +128,9 @@ export interface Prospect {
   hvacUnits: string;
   notes: string;
   usedByLeadId: string;
+  /** Which uploaded batch/list this prospect belongs to, so a rep can
+   *  be pointed at the right list (e.g. "Baltimore — July"). */
+  listName: string;
 }
 
 export interface Lead {

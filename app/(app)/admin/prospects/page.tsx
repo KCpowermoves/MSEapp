@@ -4,6 +4,8 @@ import { ArrowLeft, Handshake, Users } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listAllProspects } from "@/lib/data/prospects";
 import { ProspectUploader } from "@/components/admin/ProspectUploader";
+import { ClearListButton } from "@/components/admin/ClearListButton";
+import type { Prospect } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -44,45 +46,80 @@ export default async function AdminProspectsPage() {
         <ProspectUploader available={available.length} used={used} />
       </section>
 
-      {available.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-mse-muted uppercase tracking-wide mb-2 flex items-center gap-1.5">
-            <Handshake className="w-4 h-4" />
-            Available now ({available.length})
-          </h2>
-          <div className="bg-white rounded-2xl border border-mse-light shadow-card divide-y divide-mse-light">
-            {available.slice(0, 50).map((p) => (
-              <div key={p.prospectId} className="p-3 flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-bold text-mse-navy truncate">
-                    {p.businessName || p.contactName || p.prospectId}
+      {available.length > 0 &&
+        groupByList(available).map(([listName, rows]) => (
+          <section key={listName || "__none__"}>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-mse-muted uppercase tracking-wide flex items-center gap-1.5">
+                <Handshake className="w-4 h-4" />
+                {listName || "Unsorted"} ({rows.length})
+              </h2>
+              <ClearListButton listName={listName} count={rows.length} />
+            </div>
+            <div className="bg-white rounded-2xl border border-mse-light shadow-card divide-y divide-mse-light">
+              {rows.slice(0, 50).map((p) => (
+                <div key={p.prospectId} className="p-3 flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-mse-navy truncate">
+                      {p.address || p.businessName || p.contactName || p.prospectId}
+                    </div>
+                    <div className="text-xs text-mse-muted truncate">
+                      {[
+                        p.businessName,
+                        [p.city, p.zip].filter(Boolean).join(" "),
+                        p.phone,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
                   </div>
-                  <div className="text-xs text-mse-muted truncate">
-                    {[p.contactName, p.phone, [p.city, p.zip].filter(Boolean).join(" ")]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
+                  {p.utility && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-mse-muted shrink-0">
+                      {p.utility}
+                    </span>
+                  )}
+                  {p.agent && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-mse-light text-mse-muted rounded-full px-2 py-0.5 shrink-0">
+                      {p.agent}
+                    </span>
+                  )}
                 </div>
-                {p.utility && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-mse-muted shrink-0">
-                    {p.utility}
-                  </span>
-                )}
-                {p.agent && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-mse-light text-mse-muted rounded-full px-2 py-0.5 shrink-0">
-                    {p.agent}
-                  </span>
-                )}
-              </div>
-            ))}
-            {available.length > 50 && (
-              <div className="p-3 text-center text-xs text-mse-muted">
-                + {available.length - 50} more
-              </div>
-            )}
-          </div>
-        </section>
-      )}
+              ))}
+              {rows.length > 50 && (
+                <div className="p-3 text-center text-xs text-mse-muted">
+                  + {rows.length - 50} more
+                </div>
+              )}
+            </div>
+          </section>
+        ))}
     </div>
   );
+}
+
+/** Group available prospects by list name, newest-imported list first. */
+function groupByList(rows: Prospect[]): Array<[string, Prospect[]]> {
+  const map = new Map<string, Prospect[]>();
+  const order: string[] = [];
+  // Preserve most-recent-import order across lists.
+  const byRecent = [...rows].sort((a, b) =>
+    (b.importedAt || "").localeCompare(a.importedAt || "")
+  );
+  for (const p of byRecent) {
+    if (!map.has(p.listName)) {
+      map.set(p.listName, []);
+      order.push(p.listName);
+    }
+    map.get(p.listName)!.push(p);
+  }
+  // Within each list, sort by address for easy scanning.
+  for (const name of order) {
+    map.get(name)!.sort((a: Prospect, b: Prospect) =>
+      (a.address || "~").localeCompare(b.address || "~", undefined, {
+        numeric: true,
+        sensitivity: "base",
+      })
+    );
+  }
+  return order.map((name) => [name, map.get(name)!]);
 }

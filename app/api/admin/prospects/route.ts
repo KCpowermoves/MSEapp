@@ -45,13 +45,16 @@ export async function POST(request: Request) {
   }
 
   let csv = "";
+  let listName = "";
   const contentType = request.headers.get("content-type") ?? "";
   try {
     if (contentType.includes("application/json")) {
-      const body = (await request.json()) as { csv?: unknown };
+      const body = (await request.json()) as { csv?: unknown; listName?: unknown };
       csv = String(body.csv ?? "");
+      listName = String(body.listName ?? "");
     } else {
       const form = await request.formData();
+      listName = String(form.get("listName") ?? "");
       const file = form.get("file");
       if (file instanceof File) {
         if (file.size > 5 * 1024 * 1024) {
@@ -68,6 +71,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Could not read upload" }, { status: 400 });
   }
+  listName = listName.trim().slice(0, 60);
 
   if (!csv.trim()) {
     return NextResponse.json({ error: "Empty file" }, { status: 400 });
@@ -85,10 +89,15 @@ export async function POST(request: Request) {
     );
   }
 
+  // Default the list name to a dated label if the admin didn't set one.
+  const finalListName =
+    listName || `Imported ${new Date().toISOString().slice(0, 10)}`;
+
   try {
     const added = await addProspects(
       result.prospects,
-      guard.session.name ?? guard.session.techId
+      guard.session.name ?? guard.session.techId,
+      finalListName
     );
     revalidatePath("/admin/prospects");
     return NextResponse.json({
@@ -96,6 +105,7 @@ export async function POST(request: Request) {
       added,
       skipped: result.skipped,
       matchedColumns: result.matchedColumns,
+      listName: finalListName,
     });
   } catch (e) {
     console.error("[prospects import] failed:", e);
@@ -106,12 +116,15 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const guard = await requireAdmin();
   if ("error" in guard) {
     return NextResponse.json({ error: guard.error }, { status: guard.status });
   }
-  const cleared = await clearProspects();
+  // ?list=<name> clears one batch; omit to clear all.
+  const url = new URL(request.url);
+  const list = url.searchParams.get("list");
+  const cleared = await clearProspects(list ?? undefined);
   revalidatePath("/admin/prospects");
   return NextResponse.json({ ok: true, cleared });
 }

@@ -98,6 +98,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
 
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [prospectId, setProspectId] = useState("");
+  const [selectedList, setSelectedList] = useState<string | null>(null);
 
   const [scanState, setScanState] = useState<
     "idle" | "scanning" | "done" | "unreadable" | "busy"
@@ -140,7 +141,12 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     fetch("/api/prospects")
       .then((r) => (r.ok ? r.json() : { prospects: [] }))
       .then((d: { prospects?: Prospect[] }) => {
-        if (!cancelled) setProspects(d.prospects ?? []);
+        if (cancelled) return;
+        const ps = d.prospects ?? [];
+        setProspects(ps);
+        // Default to the most-recently-imported list.
+        const firstList = ps.length > 0 ? ps[0].listName : null;
+        setSelectedList(firstList);
       })
       .catch(() => {});
     return () => {
@@ -171,6 +177,13 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
 
   const programs = utilityName ? packetsForUtility(utilityName) : [];
   const isSmecoSmall = utility === "SMECO-SMALL";
+
+  // Distinct prospect lists (batches), and the rows in the chosen one.
+  const prospectLists = Array.from(new Set(prospects.map((p) => p.listName)));
+  const visibleProspects =
+    selectedList == null
+      ? prospects
+      : prospects.filter((p) => p.listName === selectedList);
 
   const scanBill = async (file: File) => {
     setScanState("scanning");
@@ -441,28 +454,65 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     <div className="space-y-4">
       {/* ── Quick-pick from the admin-uploaded prospect list ── */}
       {prospects.length > 0 && (
-        <div className="bg-white rounded-2xl border border-mse-light shadow-card p-5 space-y-2">
+        <div className="bg-white rounded-2xl border border-mse-light shadow-card p-5 space-y-3">
           <span className={cn(labelCls, "flex items-center gap-1.5")}>
             <ListChecks className="w-3.5 h-3.5" />
             Start from a saved prospect
           </span>
-          <select
-            value={prospectId}
-            onChange={(e) => pickProspect(e.target.value)}
-            className={input}
-          >
-            <option value="">Choose a prospect to prefill…</option>
-            {prospects.map((p) => (
-              <option key={p.prospectId} value={p.prospectId}>
-                {[p.businessName || p.contactName, p.address, p.city]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </option>
-            ))}
-          </select>
+
+          {/* List / batch picker — only when there's more than one. */}
+          {prospectLists.length > 1 && (
+            <label className="block">
+              <span className="text-[11px] font-semibold text-mse-muted mb-1 block">
+                Prospect list
+              </span>
+              <select
+                value={selectedList ?? ""}
+                onChange={(e) => {
+                  setSelectedList(e.target.value);
+                  setProspectId("");
+                }}
+                className={input}
+              >
+                {prospectLists.map((name) => (
+                  <option key={name || "__none__"} value={name}>
+                    {(name || "Unsorted") +
+                      ` (${prospects.filter((p) => p.listName === name).length})`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <label className="block">
+            {prospectLists.length > 1 && (
+              <span className="text-[11px] font-semibold text-mse-muted mb-1 block">
+                Prospect (sorted by address)
+              </span>
+            )}
+            <select
+              value={prospectId}
+              onChange={(e) => pickProspect(e.target.value)}
+              className={input}
+            >
+              <option value="">Choose a prospect to prefill…</option>
+              {visibleProspects.map((p) => (
+                <option key={p.prospectId} value={p.prospectId}>
+                  {[p.address, p.businessName || p.contactName, p.city]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <p className="text-[11px] text-mse-muted">
-            {prospects.length} prospect{prospects.length === 1 ? "" : "s"} loaded
-            by your admin. Picking one fills the form below.
+            {visibleProspects.length} prospect
+            {visibleProspects.length === 1 ? "" : "s"}
+            {prospectLists.length > 1 && selectedList
+              ? ` in "${selectedList || "Unsorted"}"`
+              : ""}{" "}
+            — picking one fills the form below.
           </p>
         </div>
       )}

@@ -26,9 +26,11 @@ export function ProspectUploader({
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listName, setListName] = useState("");
   const [result, setResult] = useState<{
     added: number;
     skipped: number;
+    listName: string;
     matchedColumns: Record<string, string>;
   } | null>(null);
 
@@ -39,6 +41,7 @@ export function ProspectUploader({
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("listName", listName.trim());
       const res = await fetch("/api/admin/prospects", {
         method: "POST",
         body: fd,
@@ -47,14 +50,17 @@ export function ProspectUploader({
         error?: string;
         added?: number;
         skipped?: number;
+        listName?: string;
         matchedColumns?: Record<string, string>;
       };
       if (!res.ok) throw new Error(data.error ?? `Server error ${res.status}`);
       setResult({
         added: data.added ?? 0,
         skipped: data.skipped ?? 0,
+        listName: data.listName ?? "",
         matchedColumns: data.matchedColumns ?? {},
       });
+      setListName("");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -101,6 +107,22 @@ export function ProspectUploader({
           e.target.value = "";
         }}
       />
+      <label className="block">
+        <span className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1 block">
+          List name
+        </span>
+        <input
+          value={listName}
+          onChange={(e) => setListName(e.target.value)}
+          placeholder='e.g. "Baltimore — July" or "Dundalk batch 2"'
+          className="w-full px-3 py-2.5 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
+        />
+        <span className="text-[11px] text-mse-muted mt-1 block">
+          Name this batch so you can tell a rep which list to work — e.g. by
+          city or drop. Blank = today&apos;s date.
+        </span>
+      </label>
+
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
@@ -133,6 +155,7 @@ export function ProspectUploader({
           <div className="text-sm font-bold text-mse-navy inline-flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-700" />
             Imported {result.added} prospect{result.added === 1 ? "" : "s"}
+            {result.listName && ` into "${result.listName}"`}
             {result.skipped > 0 && ` (skipped ${result.skipped} with no name)`}.
           </div>
           {Object.keys(result.matchedColumns).length > 0 && (
