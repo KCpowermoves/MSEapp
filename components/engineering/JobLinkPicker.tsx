@@ -89,7 +89,12 @@ export function JobLinkPicker({ projectId, linkedJobId }: Props) {
         } for specs.`;
       setNotice(msg);
       setOpen(false);
-      router.refresh();
+      // Full reload, not router.refresh(): the form seeds every field
+      // from props with useState, so a soft refresh re-fetches the data
+      // but the open form keeps its stale (empty) equipment state — and
+      // a later Save would overwrite the just-linked data. A hard reload
+      // re-seeds the whole form from the persisted project.
+      window.location.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Link failed");
     } finally {
