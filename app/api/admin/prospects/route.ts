@@ -57,9 +57,9 @@ export async function POST(request: Request) {
       listName = String(form.get("listName") ?? "");
       const file = form.get("file");
       if (file instanceof File) {
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size > 25 * 1024 * 1024) {
           return NextResponse.json(
-            { error: "File too large (5 MB max)." },
+            { error: "File too large (25 MB max)." },
             { status: 400 }
           );
         }
@@ -79,12 +79,12 @@ export async function POST(request: Request) {
 
   const result = importProspectsCsv(csv);
   if (result.prospects.length === 0) {
+    const hasName = result.matchedColumns.businessName || result.matchedColumns.contactName;
+    const error = hasName
+      ? "No rows found under the header row. Make sure the file has data and is saved as CSV."
+      : `Couldn't find a business/customer name column. Your headers were: ${result.headers.slice(0, 20).join(", ")}. Rename the customer column to something like "Business", "Company", or "Customer" (or keep "Primary Customer"), save as CSV, and re-upload.`;
     return NextResponse.json(
-      {
-        error:
-          "No prospects found. Make sure the first row is column headers (Business name, Contact, Phone, Email, Address…) and it's saved as CSV.",
-        matchedColumns: result.matchedColumns,
-      },
+      { error, matchedColumns: result.matchedColumns },
       { status: 400 }
     );
   }

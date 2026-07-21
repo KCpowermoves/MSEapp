@@ -147,7 +147,12 @@ export async function addProspects(
       p.notes, "", listName,
     ];
   });
-  await appendRows(TABS.prospects, rows);
+  // Chunk large imports (e.g. 11k rows) so no single Sheets request is
+  // oversized; each chunk auto-expands the grid.
+  const CHUNK = 2000;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await appendRows(TABS.prospects, rows.slice(i, i + CHUNK));
+  }
   return rows.length;
 }
 

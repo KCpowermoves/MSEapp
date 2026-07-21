@@ -55,10 +55,28 @@ export function parseCsv(text: string): string[][] {
 const norm = (h: string) =>
   h.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+// Real lists prefix headers ("Service City", "Primary Customer",
+// "Phone 1"). Generate match candidates by stripping common leading
+// qualifiers and trailing digits so those still map. "Mailing"/"Billing"
+// are NOT stripped so the SERVICE address wins over the mailing address.
+const STRIP_PREFIXES = ["service", "primary", "svc", "site", "premise"];
+
+function headerVariants(base: string): string[] {
+  const out = new Set<string>([base]);
+  for (const p of STRIP_PREFIXES) {
+    if (base.startsWith(p) && base.length > p.length + 1) out.add(base.slice(p.length));
+  }
+  for (const v of Array.from(out)) {
+    const noDigits = v.replace(/\d+$/, "");
+    if (noDigits && noDigits !== v) out.add(noDigits);
+  }
+  return Array.from(out);
+}
+
 // Header synonyms → canonical field. Order matters only for the
 // first-match win when a header could map two ways.
 const SYNONYMS: Record<keyof ProspectInput | "firstName" | "lastName", string[]> = {
-  businessName: ["business", "businessname", "company", "companyname", "dba", "accountname", "customer", "customername", "name"],
+  businessName: ["business", "businessname", "company", "companyname", "dba", "accountname", "customer", "customername", "primarycustomer", "name", "accountholder"],
   contactName: ["contact", "contactname", "contactperson", "owner", "ownername", "representative", "fullname"],
   firstName: ["firstname", "first"],
   lastName: ["lastname", "last"],
@@ -90,25 +108,32 @@ export interface ImportResult {
   matchedColumns: Record<string, string>; // canonical -> original header
   skipped: number; // rows with no business/contact name
   total: number;
+  headers: string[]; // the header row, for diagnostics on a bad match
 }
 
 /** Parse a prospect CSV into ProspectInput rows via header matching. */
 export function importProspectsCsv(text: string): ImportResult {
   const rows = parseCsv(text).filter((r) => r.some((c) => c.trim() !== ""));
   if (rows.length < 2) {
-    return { prospects: [], matchedColumns: {}, skipped: 0, total: 0 };
+    return { prospects: [], matchedColumns: {}, skipped: 0, total: 0, headers: [] };
   }
   const header = rows[0].map((h) => h.trim());
-  const normHeader = header.map(norm);
+  const variantHeader = header.map((h) => new Set(headerVariants(norm(h))));
 
-  // Build canonical -> column index.
+  // Build canonical -> column index. A header matches a field if any of
+  // its variants (prefix/digit-stripped) equals one of the synonyms.
   const colFor: Partial<Record<string, number>> = {};
   const matchedColumns: Record<string, string> = {};
+  const usedCols = new Set<number>();
   for (const [canonical, syns] of Object.entries(SYNONYMS)) {
-    const idx = normHeader.findIndex((h) => syns.includes(h));
+    const idx = variantHeader.findIndex((vs, i) => {
+      if (usedCols.has(i)) return false;
+      return syns.some((s) => vs.has(s));
+    });
     if (idx >= 0) {
       colFor[canonical] = idx;
       matchedColumns[canonical] = header[idx];
+      usedCols.add(idx);
     }
   }
 
@@ -151,5 +176,5 @@ export function importProspectsCsv(text: string): ImportResult {
     });
   }
 
-  return { prospects, matchedColumns, skipped, total: rows.length - 1 };
+  return { prospects, matchedColumns, skipped, total: rows.length - 1, headers: header };
 }
