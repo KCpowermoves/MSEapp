@@ -52,7 +52,6 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
   const [primaryUse, setPrimaryUse] = useState(lead.primaryUse);
   const [customerType, setCustomerType] = useState(lead.customerType);
   const [fieldsOpen, setFieldsOpen] = useState(true);
-  const [signedName, setSignedName] = useState(lead.contactName);
   const [consent, setConsent] = useState(false);
   const [sigDataUrl, setSigDataUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -92,7 +91,6 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
         "Please fill in the highlighted fields before signing — everything except the account number is required."
       );
     }
-    if (!signedName.trim()) return setError("Please type the signer's full name.");
     if (!consent) return setError("Please check the e-sign consent box.");
     if (!sigDataUrl) return setError("Please sign in the signature box.");
 
@@ -105,7 +103,7 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
           fields,
           primaryUse,
           customerType,
-          signedName: signedName.trim(),
+          signedName: fields.contactName.trim(),
           consent: true,
           signatureDataUrl: sigDataUrl,
         }),
@@ -242,8 +240,7 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
       <div className="bg-white rounded-2xl border border-mse-light shadow-card p-5 space-y-4">
         <div className="font-bold text-mse-navy text-sm">3 · Sign</div>
         <SignaturePad
-          signedName={signedName}
-          onSignedName={setSignedName}
+          signerName={fields.contactName}
           consent={consent}
           onConsent={setConsent}
           sigDataUrl={sigDataUrl}

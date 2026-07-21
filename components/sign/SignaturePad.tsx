@@ -4,21 +4,20 @@ import { useRef } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { Eraser, PenLine } from "lucide-react";
 
-// Signer name + signature canvas + e-sign consent. Controlled: the
-// parent holds the values and receives the drawn PNG via
-// onSignatureChange so it can both overlay it on the preview and submit
-// it. Shared by the New Lead workspace and the remote signing page.
+// Signature canvas + e-sign consent. The signer is the Contact name
+// entered above (no separate name field), so it's only typed once.
+// Controlled: the parent holds the values and receives the drawn PNG
+// via onSignatureChange so it can both overlay it on the preview and
+// submit it. Shared by the New Lead workspace and the remote page.
 
 export function SignaturePad({
-  signedName,
-  onSignedName,
+  signerName,
   consent,
   onConsent,
   sigDataUrl,
   onSignatureChange,
 }: {
-  signedName: string;
-  onSignedName: (v: string) => void;
+  signerName: string;
   consent: boolean;
   onConsent: (v: boolean) => void;
   sigDataUrl: string | null;
@@ -28,17 +27,12 @@ export function SignaturePad({
 
   return (
     <div className="space-y-4">
-      <label className="block">
-        <span className="text-[11px] uppercase tracking-wider font-semibold text-mse-muted mb-1 block">
-          Signer&apos;s full name
+      <div className="text-xs text-mse-muted">
+        Signing as{" "}
+        <span className="font-bold text-mse-navy">
+          {signerName.trim() || "the contact named above"}
         </span>
-        <input
-          value={signedName}
-          onChange={(e) => onSignedName(e.target.value)}
-          placeholder="Type your name"
-          className="w-full px-3 py-2.5 rounded-lg border border-mse-light bg-white text-sm focus:outline-none focus:border-mse-navy"
-        />
-      </label>
+      </div>
 
       <div>
         <div className="flex items-center justify-between mb-1">

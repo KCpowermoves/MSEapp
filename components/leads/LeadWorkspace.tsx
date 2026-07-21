@@ -93,7 +93,6 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
   const [assignDate, setAssignDate] = useState("");
 
   const [finishMode, setFinishMode] = useState<FinishMode>("sign");
-  const [signedName, setSignedName] = useState("");
   const [consent, setConsent] = useState(false);
   const [sigDataUrl, setSigDataUrl] = useState<string | null>(null);
 
@@ -282,7 +281,6 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
         "Fill in the highlighted fields before signing — everything except the account number is required."
       );
     }
-    if (!signedName.trim()) return setError("Type the signer's full name.");
     if (!consent) return setError("Check the e-sign consent box.");
     if (!sigDataUrl) return setError("Sign in the signature box.");
 
@@ -296,7 +294,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
           fields,
           primaryUse,
           customerType,
-          signedName: signedName.trim(),
+          signedName: fields.contactName.trim(),
           consent: true,
           signatureDataUrl: sigDataUrl,
         }),
@@ -799,8 +797,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
                   every &quot;Sign here&quot; spot above.
                 </p>
                 <SignaturePad
-                  signedName={signedName}
-                  onSignedName={setSignedName}
+                  signerName={fields.contactName}
                   consent={consent}
                   onConsent={setConsent}
                   sigDataUrl={sigDataUrl}
