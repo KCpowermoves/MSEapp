@@ -82,7 +82,9 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
 
   const [utilityName, setUtilityName] = useState<UtilityName | null>(null);
   const [utility, setUtility] = useState<UtilityProgram | null>(null);
-  const [fields, setFields] = useState<PreviewFields>(EMPTY);
+  // Title defaults to "Manager" (a safe, required-field-friendly
+  // default) — the rep can change it.
+  const [fields, setFields] = useState<PreviewFields>({ ...EMPTY, title: "Manager" });
   const [primaryUse, setPrimaryUse] = useState("");
   const [customerType, setCustomerType] = useState("");
   const [choiceServiceId, setChoiceServiceId] = useState("");
@@ -161,7 +163,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     setFields({
       businessName: p.businessName,
       contactName: p.contactName,
-      title: p.title,
+      title: p.title || "Manager",
       email: p.email,
       phone: p.phone,
       address: p.address,

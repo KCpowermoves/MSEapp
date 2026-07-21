@@ -40,7 +40,7 @@ export function ClipboardSign({ token, lead }: { token: string; lead: Lead }) {
   const [fields, setFields] = useState<PreviewFields>({
     businessName: lead.businessName,
     contactName: lead.contactName,
-    title: lead.title,
+    title: lead.title || "Manager",
     email: lead.email,
     phone: lead.phone,
     address: lead.address,
