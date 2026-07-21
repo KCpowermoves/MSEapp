@@ -10,6 +10,7 @@ import {
   listUnitsForDispatch,
   unitHasAllRequiredPhotos,
 } from "@/lib/data/units";
+import { getAuditForJob } from "@/lib/data/audits";
 import type { UnitServiced } from "@/lib/types";
 import {
   getOrCreateFolder,
@@ -71,8 +72,17 @@ export async function tryRenderPdfIfReady(
     const job = await getJob(dispatch.jobId);
     if (!job) return { rendered: false, reason: "job not found" };
 
+    // Front-of-building hero shot from the job's audit (best-effort —
+    // no audit or no front photo just omits it).
+    const audit = await getAuditForJob(dispatch.jobId);
+
     try {
-      const pdfBuffer = await buildJobPdf({ job, dispatch, units });
+      const pdfBuffer = await buildJobPdf({
+        job,
+        dispatch,
+        units,
+        frontPhotoUrl: audit?.frontPhotoUrl || undefined,
+      });
       const folderId =
         job.driveFolderId ||
         (

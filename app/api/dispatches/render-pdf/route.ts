@@ -7,6 +7,7 @@ import {
   setDispatchReportPdf,
 } from "@/lib/data/dispatches";
 import { listUnitsForDispatch } from "@/lib/data/units";
+import { getAuditForJob } from "@/lib/data/audits";
 import { uploadFile, jobFolderName, getOrCreateFolder, getRootFolderId } from "@/lib/google/drive";
 import { buildJobPdf } from "@/lib/pdf-report";
 
@@ -44,8 +45,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
     const units = await listUnitsForDispatch(dispatchId);
+    const audit = await getAuditForJob(dispatch.jobId);
 
-    const pdfBuffer = await buildJobPdf({ job, dispatch, units });
+    const pdfBuffer = await buildJobPdf({
+      job,
+      dispatch,
+      units,
+      frontPhotoUrl: audit?.frontPhotoUrl || undefined,
+    });
 
     const folderId =
       job.driveFolderId ||

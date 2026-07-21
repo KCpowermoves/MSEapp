@@ -21,6 +21,10 @@ interface BuildPdfInput {
   job: Job;
   dispatch: Dispatch;
   units: UnitServiced[];
+  /** Front-of-building photo from the job's audit, shown as a hero shot
+   *  under the report header. Optional — omitted when there's no audit
+   *  or no front photo. */
+  frontPhotoUrl?: string;
 }
 
 // PDFKit page geometry — letter, 48pt margins.
@@ -142,10 +146,11 @@ function pairsForUnit(u: UnitServiced): {
  * HTML error page (which would silently break the embed).
  */
 export async function buildJobPdf(input: BuildPdfInput): Promise<Buffer> {
-  const { job, dispatch, units } = input;
+  const { job, dispatch, units, frontPhotoUrl } = input;
 
   // ── Pre-fetch every unique photo URL we'll need.
   const urls = new Set<string>();
+  if (frontPhotoUrl) urls.add(frontPhotoUrl);
   for (const u of units) {
     if (u.nameplateUrl) urls.add(u.nameplateUrl);
     if (u.inNameplateUrl) urls.add(u.inNameplateUrl);
@@ -181,7 +186,8 @@ export async function buildJobPdf(input: BuildPdfInput): Promise<Buffer> {
     doc.on("data", (c: Buffer) => chunks.push(c));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
 
-    renderHeader(doc, job, dispatch);
+    const frontBuf = frontPhotoUrl ? photoMap.get(frontPhotoUrl) : undefined;
+    renderHeader(doc, job, dispatch, frontBuf);
 
     if (units.length === 0) {
       doc
@@ -207,7 +213,12 @@ export async function buildJobPdf(input: BuildPdfInput): Promise<Buffer> {
 
 // ── Section renderers ───────────────────────────────────────────────
 
-function renderHeader(doc: Doc, job: Job, dispatch: Dispatch) {
+function renderHeader(
+  doc: Doc,
+  job: Job,
+  dispatch: Dispatch,
+  frontBuf?: Buffer
+) {
   doc
     .fillColor(NAVY)
     .fontSize(22)
@@ -253,6 +264,16 @@ function renderHeader(doc: Doc, job: Job, dispatch: Dispatch) {
     .lineWidth(1.5)
     .stroke();
   doc.moveDown(0.7);
+
+  // Hero shot: front of the building from the audit, when we have it.
+  // Skipped entirely (no empty frame) when there's no front photo.
+  if (frontBuf) {
+    const heroH = 180;
+    const y = doc.y;
+    drawCaptionedPhoto(doc, frontBuf, "Front of building", MARGIN, y, CONTENT_W, heroH);
+    doc.y = y + heroH + 20;
+    doc.moveDown(0.3);
+  }
 }
 
 function renderUnitSection(doc: Doc, u: UnitServiced, photos: Map<string, Buffer>) {
