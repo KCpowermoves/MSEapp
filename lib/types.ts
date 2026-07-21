@@ -537,6 +537,9 @@ export interface HvacUnitInput {
   controls: string;
   proposedSchedule: string;
   notes: string;
+  /** Optional link to the manufacturer's spec / cut sheet (PDF or web
+   *  page) for this unit — pasted by the engineer for quick reference. */
+  specSheetUrl?: string;
 }
 
 export type WalkInKind = "Cooler" | "Freezer";
