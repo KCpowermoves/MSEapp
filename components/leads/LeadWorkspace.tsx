@@ -98,6 +98,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [prospectId, setProspectId] = useState("");
   const [selectedList, setSelectedList] = useState<string | null>(null);
+  const [prospectSearch, setProspectSearch] = useState("");
 
   const [scanState, setScanState] = useState<
     "idle" | "scanning" | "done" | "unreadable" | "busy"
@@ -179,10 +180,23 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
 
   // Distinct prospect lists (batches), and the rows in the chosen one.
   const prospectLists = Array.from(new Set(prospects.map((p) => p.listName)));
-  const visibleProspects =
+  const listProspects =
     selectedList == null
       ? prospects
       : prospects.filter((p) => p.listName === selectedList);
+  // Filter by the search box (address or business) and cap how many
+  // options render — a list can be 11k+ rows, too many for one <select>.
+  const PROSPECT_CAP = 300;
+  const q = prospectSearch.trim().toLowerCase();
+  const filteredProspects = q
+    ? listProspects.filter(
+        (p) =>
+          p.address.toLowerCase().includes(q) ||
+          p.businessName.toLowerCase().includes(q) ||
+          p.city.toLowerCase().includes(q)
+      )
+    : listProspects;
+  const shownProspects = filteredProspects.slice(0, PROSPECT_CAP);
 
   const scanBill = async (file: File) => {
     setScanState("scanning");
@@ -482,19 +496,24 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
             </label>
           )}
 
+          <input
+            value={prospectSearch}
+            onChange={(e) => setProspectSearch(e.target.value)}
+            placeholder="Search by address, business, or city…"
+            className={input}
+          />
+
           <label className="block">
-            {prospectLists.length > 1 && (
-              <span className="text-[11px] font-semibold text-mse-muted mb-1 block">
-                Prospect (sorted by address)
-              </span>
-            )}
+            <span className="text-[11px] font-semibold text-mse-muted mb-1 block">
+              Prospect (sorted by address)
+            </span>
             <select
               value={prospectId}
               onChange={(e) => pickProspect(e.target.value)}
               className={input}
             >
               <option value="">Choose a prospect to prefill…</option>
-              {visibleProspects.map((p) => (
+              {shownProspects.map((p) => (
                 <option key={p.prospectId} value={p.prospectId}>
                   {[p.address, p.businessName || p.contactName, p.city]
                     .filter(Boolean)
@@ -505,12 +524,12 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
           </label>
 
           <p className="text-[11px] text-mse-muted">
-            {visibleProspects.length} prospect
-            {visibleProspects.length === 1 ? "" : "s"}
-            {prospectLists.length > 1 && selectedList
-              ? ` in "${selectedList || "Unsorted"}"`
-              : ""}{" "}
-            — picking one fills the form below.
+            {filteredProspects.length.toLocaleString()} prospect
+            {filteredProspects.length === 1 ? "" : "s"}
+            {selectedList ? ` in "${selectedList || "Unsorted"}"` : ""}
+            {filteredProspects.length > PROSPECT_CAP
+              ? ` — showing first ${PROSPECT_CAP}, keep typing to narrow.`
+              : " — picking one fills the form below."}
           </p>
         </div>
       )}

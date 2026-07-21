@@ -76,7 +76,7 @@ function headerVariants(base: string): string[] {
 // Header synonyms → canonical field. Order matters only for the
 // first-match win when a header could map two ways.
 const SYNONYMS: Record<keyof ProspectInput | "firstName" | "lastName", string[]> = {
-  businessName: ["business", "businessname", "company", "companyname", "dba", "accountname", "customer", "customername", "primarycustomer", "name", "accountholder"],
+  businessName: ["business", "businessname", "company", "companyname", "dba", "accountname", "customer", "customername", "customerfullname", "primarycustomer", "primarycustomerfullname", "name", "accountholder"],
   contactName: ["contact", "contactname", "contactperson", "owner", "ownername", "representative", "fullname"],
   firstName: ["firstname", "first"],
   lastName: ["lastname", "last"],
