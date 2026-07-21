@@ -440,7 +440,7 @@ export async function computeBinData(opts: {
     opts.schedule ?? scheduleAllHours(),
     opts.months ?? monthsAll()
   );
-  const bins = binTemps(hours, opts.binWidthF, included);
+  const bins = binTemps(hours, opts.binWidthF, included, opts.maxBinF);
   const hddAnnual = computeDegreeDays(hours, opts.hddBaseF, "hdd", included);
   const cddAnnual = computeDegreeDays(hours, opts.cddBaseF, "cdd", included);
   const hddMonthly = computeDegreeDaysMonthly(hours, opts.hddBaseF, "hdd", included);
