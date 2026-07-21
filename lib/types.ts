@@ -147,11 +147,11 @@ export interface Lead {
   zip: string;
   utility: UtilityProgram;
   accountNumber: string;
-  /** Utility enrollment identifiers captured from the bill — Choice ID
-   *  and Service ID (needed for PEPCO/BGE program enrollment). Stored
-   *  for the office; not printed on the agreement forms. */
-  choiceId: string;
-  serviceId: string;
+  /** Utility enrollment identifier from the bill — the Choice ID or
+   *  Service ID (never both on one bill), so they share one field
+   *  (slash-joined if both are ever present). Stored for the office;
+   *  not printed on the agreement forms. */
+  choiceServiceId: string;
   hvacUnits: string;
   notes: string;
   /** Unguessable token for the public /sign/[token] page — the

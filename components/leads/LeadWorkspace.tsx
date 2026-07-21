@@ -85,8 +85,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
   const [fields, setFields] = useState<PreviewFields>(EMPTY);
   const [primaryUse, setPrimaryUse] = useState("");
   const [customerType, setCustomerType] = useState("");
-  const [choiceId, setChoiceId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [choiceServiceId, setChoiceServiceId] = useState("");
   const [notes, setNotes] = useState("");
   const [assignTech, setAssignTech] = useState("");
   const [assignDate, setAssignDate] = useState("");
@@ -202,8 +201,8 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
         city: prev.city || data.city,
         zip: prev.zip || data.zip,
       }));
-      if (data.choiceId) setChoiceId((v) => v || data.choiceId);
-      if (data.serviceId) setServiceId((v) => v || data.serviceId);
+      const combined = [data.choiceId, data.serviceId].filter(Boolean).join(" / ");
+      if (combined) setChoiceServiceId((v) => v || combined);
       setScanState("done");
     } catch {
       setScanState("unreadable");
@@ -224,8 +223,7 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
     hvacUnits: fields.hvacUnits,
     primaryUse,
     customerType,
-    choiceId,
-    serviceId,
+    choiceServiceId,
     notes,
     assignTech,
     assignDate,
@@ -683,28 +681,17 @@ export function LeadWorkspace({ crewTechs }: { crewTechs: string[] }) {
               )}
             </div>
 
-            {/* Utility enrollment IDs — captured from the bill (esp.
-                PEPCO/BGE), stored for the office. Optional. */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <label className="block">
-                <span className={labelCls}>Choice ID</span>
-                <input
-                  value={choiceId}
-                  onChange={(e) => setChoiceId(e.target.value)}
-                  placeholder="From the bill (optional)"
-                  className={input}
-                />
-              </label>
-              <label className="block">
-                <span className={labelCls}>Service ID</span>
-                <input
-                  value={serviceId}
-                  onChange={(e) => setServiceId(e.target.value)}
-                  placeholder="From the bill (optional)"
-                  className={input}
-                />
-              </label>
-            </div>
+            {/* Utility enrollment ID from the bill (Choice ID or Service
+                ID — never both). Stored for the office. Optional. */}
+            <label className="block">
+              <span className={labelCls}>Choice ID / Service ID</span>
+              <input
+                value={choiceServiceId}
+                onChange={(e) => setChoiceServiceId(e.target.value)}
+                placeholder="From the bill — whichever the utility shows (optional)"
+                className={input}
+              />
+            </label>
 
             <label className="block">
               <span className={labelCls}>Notes (customer won&apos;t see this)</span>
