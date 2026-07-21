@@ -288,7 +288,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
     status === "Paid"
       ? "bg-emerald-500 text-white"
       : "bg-mse-gold text-mse-navy";
-  const label = status === "Approved" ? "Invoice Approved" : status;
+  const label = status === "Approved" ? "Week approved" : status;
   return (
     <span
       className={cn(

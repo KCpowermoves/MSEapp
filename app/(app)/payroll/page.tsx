@@ -229,7 +229,7 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       : status === "Closed"
       ? "bg-slate-700 text-white"
       : "bg-mse-light text-mse-muted";
-  const label = status === "Approved" ? "Invoice Approved" : status;
+  const label = status === "Approved" ? "Week approved" : status;
   return (
     <span
       className={cn(

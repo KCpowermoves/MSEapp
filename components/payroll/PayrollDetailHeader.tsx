@@ -341,10 +341,10 @@ function StatusPill({ status }: { status: PayrollStatus }) {
 }
 
 // User-facing status label. The data model uses "Approved" / "Paid"
-// for transition logic; we render "Invoice Approved" / "Paid" so the
+// for transition logic; we render "Week approved" / "Paid" so the
 // commission report reads like a billing artifact rather than HR jargon.
 function displayStatus(status: PayrollStatus): string {
-  if (status === "Approved") return "Invoice Approved";
+  if (status === "Approved") return "Week approved";
   return status;
 }
 

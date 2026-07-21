@@ -222,7 +222,7 @@ export default async function PayrollListPage({
               ) : (
                 <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-600/10 border border-emerald-600/20 rounded-xl px-3 py-2.5">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Week is {closeWeek.status === "Approved" ? "Invoice Approved" : closeWeek.status}
+                  Week is {closeWeek.status === "Approved" ? "Week approved" : closeWeek.status}
                   {closeWeek.approvedBy ? ` by ${closeWeek.approvedBy}` : ""}.
                 </div>
               )}
@@ -418,9 +418,9 @@ function StatusPill({ status }: { status: PayrollStatus }) {
       ? "bg-slate-700 text-white"
       : "bg-mse-light text-mse-muted";
   // Commission reports surface the lifecycle as billing language —
-  // "Invoice Approved" beats the bare HR-y "Approved" on a sheet
+  // "Week approved" beats the bare HR-y "Approved" on a sheet
   // people are about to cut checks against.
-  const label = status === "Approved" ? "Invoice Approved" : status;
+  const label = status === "Approved" ? "Week approved" : status;
   return (
     <span
       className={cn(
