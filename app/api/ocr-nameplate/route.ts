@@ -8,28 +8,44 @@ export const maxDuration = 30; // seconds — Vercel hobby cap is 60
 
 const SYSTEM_PROMPT = `You read HVAC unit data plates (nameplates).
 
-Given a photo of an HVAC unit's nameplate (PTAC, RTU, mini-split, package unit, air handler, etc.), extract the manufacturer, model number, and serial number.
+Given a photo of an HVAC unit's nameplate (PTAC, RTU, mini-split, package unit, air handler, etc.), extract the identity fields (make/model/serial) AND the engineering specs an energy audit needs. All specs come from this same photo — the tech only cares about make/model/serial, but read the engineering fields too so they're captured once and never need a second scan.
 
 Return ONLY a single JSON object with this exact shape:
-{ "make": "...", "model": "...", "serial": "...", "confidence": 0 }
+{ "make": "...", "model": "...", "serial": "...", "tons": 0, "seer": 0, "supplyFanHp": 0, "heatPump": "No", "electricHeatKw": 0, "confidence": 0 }
 
 Rules:
 - "make" is the manufacturer brand (e.g., "Carrier", "Trane", "Lennox", "Goodman", "Mitsubishi", "Daikin", "York", "Rheem", "Bryant", "Amana", "American Standard"). Use the canonical brand name as it appears on the plate.
 - "model" is the model number, often labeled MOD, MODEL, MODEL NO, MODEL NUMBER, M/N, or similar. Strip the label, keep only the number/code.
 - "serial" is the serial number, often labeled SER, SERIAL, SERIAL NO, S/N, SERIAL NUMBER, or similar. Strip the label, keep only the number/code.
-- If a field can't be read with reasonable confidence, set it to "" (empty string) rather than guessing.
-- "confidence" is an integer 0-100 reflecting your overall confidence:
-  * 90+ when all three fields are crystal clear
+- "tons" is the cooling capacity in tons. If labeled BTU/h, divide by 12000; if labeled MBH, divide by 12. 0 if not readable.
+- "seer" is the SEER rating if printed. 0 if absent.
+- "supplyFanHp" is supply/indoor fan motor horsepower if printed. 0 if absent.
+- "heatPump" is "Yes" if the unit is a heat pump, else "No".
+- "electricHeatKw" is any auxiliary electric heat in kW if listed. 0 if absent.
+- If a field can't be read with reasonable confidence, use "" or 0 rather than guessing. The engineering specs are frequently absent on a nameplate — leaving them 0 is expected and fine.
+- "confidence" is an integer 0-100 reflecting confidence in the make/model/serial specifically:
+  * 90+ when all three identity fields are crystal clear
   * 70-89 when most are clear but one is partial or you're unsure of one character
   * 50-69 when you can read some fields but not others
   * Below 50 when the image is too blurry, glare-obscured, or not actually an HVAC nameplate
 - Output JSON ONLY. No prose, no explanation, no markdown code fences.`;
+
+interface NameplateSpecs {
+  tons: number;
+  seer: number;
+  supplyFanHp: number;
+  heatPump: string;
+  electricHeatKw: number;
+}
 
 interface OcrResult {
   make: string;
   model: string;
   serial: string;
   confidence: number;
+  /** Hidden engineering specs read from the same plate — passed straight
+   *  through to the client, which stores them behind the scenes. */
+  specs?: NameplateSpecs;
   /** "ok" = real read; "disabled" = OCR not configured; "error" = read failed */
   status: "ok" | "disabled" | "error";
   error?: string;
@@ -45,7 +61,9 @@ const EMPTY: OcrResult = {
 
 /** Permissive parser — Claude usually returns clean JSON, but occasionally
  *  wraps it in ```json fences or adds a trailing period. Strip and try. */
-function parseOcrJson(raw: string): Pick<OcrResult, "make" | "model" | "serial" | "confidence"> | null {
+function parseOcrJson(
+  raw: string
+): Pick<OcrResult, "make" | "model" | "serial" | "confidence" | "specs"> | null {
   if (!raw) return null;
   let text = raw.trim();
   // Strip markdown fences if present
@@ -63,7 +81,18 @@ function parseOcrJson(raw: string): Pick<OcrResult, "make" | "model" | "serial" 
     let confidence = Number(parsed.confidence ?? 0);
     if (!Number.isFinite(confidence)) confidence = 0;
     confidence = Math.max(0, Math.min(100, Math.round(confidence)));
-    return { make, model, serial, confidence };
+    const numOr0 = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const specs: NameplateSpecs = {
+      tons: numOr0(parsed.tons),
+      seer: numOr0(parsed.seer),
+      supplyFanHp: numOr0(parsed.supplyFanHp),
+      heatPump: String(parsed.heatPump ?? "No").trim() || "No",
+      electricHeatKw: numOr0(parsed.electricHeatKw),
+    };
+    return { make, model, serial, confidence, specs };
   } catch {
     return null;
   }
@@ -115,7 +144,7 @@ export async function POST(request: Request) {
     const client = new Anthropic({ apiKey, maxRetries: 4 });
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 200,
+      max_tokens: 400,
       system: SYSTEM_PROMPT,
       messages: [
         {

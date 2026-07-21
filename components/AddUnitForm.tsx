@@ -365,6 +365,10 @@ export function AddUnitForm({
     const submittingSerial = serial;
     const submittingNotes = notes;
     const submittingSlots = slots;
+    // Hidden engineering specs read off the same nameplate scan — rides
+    // along so a building tune-up can carry them with no re-scan. Only
+    // present when an online scan actually ran.
+    const submittingSpecs = ocr.result?.specs;
 
     try {
       // ── Phase 1: Try online API. Distinguish network error from HTTP error.
@@ -394,6 +398,7 @@ export function AddUnitForm({
               model: submittingModel,
               serial: submittingSerial,
               notes: submittingNotes,
+              engineeringSpecs: submittingSpecs,
             }),
             signal: ctrl.signal,
           });

@@ -262,6 +262,22 @@ export interface Dispatch {
   marketingConsent: boolean;
 }
 
+/** Engineering specs read off the HVAC nameplate at capture time and
+ *  stored behind the scenes (col AA) — the tech never sees or enters
+ *  these. Captured once from the same nameplate photo used for
+ *  make/model/serial, so a building tune-up can carry them across with
+ *  no second OCR call. Absent on units captured before this shipped. */
+export interface UnitEngineeringSpecs {
+  /** Cooling tonnage */
+  tons: number;
+  seer: number;
+  supplyFanHp: number;
+  /** "Yes" / "No" */
+  heatPump: string;
+  /** Auxiliary electric heating in kW */
+  electricHeatKw: number;
+}
+
 export interface UnitServiced {
   unitId: string;
   dispatchId: string;
@@ -292,6 +308,8 @@ export interface UnitServiced {
   notes: string;
   loggedBy: string;
   loggedAt: string;
+  /** Hidden nameplate specs for the engineering side (col AA). */
+  engineeringSpecs?: UnitEngineeringSpecs;
 }
 
 export interface AdditionalService {

@@ -1,10 +1,22 @@
 "use client";
 
+/** Hidden engineering specs read off the same nameplate photo. Not shown
+ *  to the tech — the form stores them behind the scenes so a building
+ *  tune-up can carry them across without a second scan. */
+export interface NameplateSpecs {
+  tons: number;
+  seer: number;
+  supplyFanHp: number;
+  heatPump: string;
+  electricHeatKw: number;
+}
+
 export interface OcrResult {
   make: string;
   model: string;
   serial: string;
   confidence: number;
+  specs?: NameplateSpecs;
   status: "ok" | "disabled" | "error" | "rate_limited";
   error?: string;
 }

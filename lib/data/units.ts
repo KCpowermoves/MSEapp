@@ -10,7 +10,12 @@ import {
 import { nextUnitId } from "@/lib/id-generators";
 import { bumpLastActivity } from "@/lib/data/jobs";
 import { nowIso } from "@/lib/utils";
-import type { PhotoSlot, UnitServiced, UnitType } from "@/lib/types";
+import type {
+  PhotoSlot,
+  UnitEngineeringSpecs,
+  UnitServiced,
+  UnitType,
+} from "@/lib/types";
 
 // Units Serviced columns:
 // A=UnitID  B=DispID  C=JobID  D=UnitNum  E=Type  F=(legacy, empty)
@@ -21,6 +26,8 @@ import type { PhotoSlot, UnitServiced, UnitType } from "@/lib/types";
 // V=InPre  W=InPost  X=InNameplate  (Split System indoor AH only)
 // Y=Label (optional zone/location label, e.g. "Rooftop East", "Suite 201")
 // Z=Deleted ("TRUE" = soft-deleted, hidden from app reads)
+// AA=EngineeringSpecs JSON (hidden nameplate specs: tons/seer/fanHp/
+//    heatPump/electricHeatKw — captured at scan, never shown to techs)
 const PHOTO_COL: Record<Exclude<PhotoSlot, "additional">, string> = {
   // Simple types (PTAC, Ductless, Water-Source HP, VRV-VRF)
   pre: "G", post: "H",
@@ -38,6 +45,40 @@ const PHOTO_COL: Record<Exclude<PhotoSlot, "additional">, string> = {
   nameplate: "M", filter: "N",
 };
 const ADDITIONAL_COL = "O";
+// Col AA (index 26) — hidden engineering nameplate specs, JSON blob.
+const ENG_SPECS_COL = "AA";
+
+function parseEngineeringSpecs(
+  raw: string
+): UnitEngineeringSpecs | undefined {
+  const text = (raw ?? "").trim();
+  if (!text) return undefined;
+  try {
+    const o = JSON.parse(text) as Partial<UnitEngineeringSpecs>;
+    return {
+      tons: Number(o.tons ?? 0),
+      seer: Number(o.seer ?? 0),
+      supplyFanHp: Number(o.supplyFanHp ?? 0),
+      heatPump: String(o.heatPump ?? "No"),
+      electricHeatKw: Number(o.electricHeatKw ?? 0),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeEngineeringSpecs(
+  specs: UnitEngineeringSpecs | undefined
+): string {
+  if (!specs) return "";
+  return JSON.stringify({
+    tons: Number(specs.tons ?? 0),
+    seer: Number(specs.seer ?? 0),
+    supplyFanHp: Number(specs.supplyFanHp ?? 0),
+    heatPump: String(specs.heatPump ?? "No"),
+    electricHeatKw: Number(specs.electricHeatKw ?? 0),
+  });
+}
 
 function rowToUnit(row: string[]): UnitServiced {
   return {
@@ -67,6 +108,7 @@ function rowToUnit(row: string[]): UnitServiced {
     inNameplateUrl: String(row[23] ?? ""),
     label: String(row[24] ?? ""),
     deleted: String(row[25] ?? "").toUpperCase() === "TRUE",
+    engineeringSpecs: parseEngineeringSpecs(String(row[26] ?? "")),
   };
 }
 
@@ -111,6 +153,8 @@ export async function createUnit(opts: {
   serial: string;
   notes: string;
   loggedBy: string;
+  /** Hidden nameplate specs captured at scan time (col AA). */
+  engineeringSpecs?: UnitEngineeringSpecs;
 }): Promise<UnitServiced> {
   const unitId = await nextUnitId();
   const isoNow = nowIso();
@@ -135,6 +179,7 @@ export async function createUnit(opts: {
     "", "", "",        // V W X: Split System indoor AH photos
     opts.label,        // Y: location/zone label
     "",                // Z: deleted flag (empty = not deleted)
+    serializeEngineeringSpecs(opts.engineeringSpecs), // AA: hidden specs
   ]);
   await bumpLastActivity(opts.jobId);
   return {
@@ -155,6 +200,7 @@ export async function createUnit(opts: {
     notes: opts.notes,
     loggedBy: opts.loggedBy,
     loggedAt: isoNow,
+    engineeringSpecs: opts.engineeringSpecs,
   };
 }
 
@@ -177,6 +223,7 @@ export async function updateUnit(opts: {
   model?: string;
   serial?: string;
   notes?: string;
+  engineeringSpecs?: UnitEngineeringSpecs;
 }): Promise<void> {
   const rowIndex = await findRowIndex(TABS.unitsServiced, "A", opts.unitId);
   if (!rowIndex) throw new Error(`Unit not found: ${opts.unitId}`);
@@ -193,6 +240,13 @@ export async function updateUnit(opts: {
     updates.push(updateCell(`${TABS.unitsServiced}!R${rowIndex}`, opts.serial));
   if (opts.notes !== undefined)
     updates.push(updateCell(`${TABS.unitsServiced}!S${rowIndex}`, opts.notes));
+  if (opts.engineeringSpecs !== undefined)
+    updates.push(
+      updateCell(
+        `${TABS.unitsServiced}!${ENG_SPECS_COL}${rowIndex}`,
+        serializeEngineeringSpecs(opts.engineeringSpecs)
+      )
+    );
   await Promise.all(updates);
 }
 

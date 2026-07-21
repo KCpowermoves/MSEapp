@@ -53,20 +53,23 @@ function tonsFromUnitType(unitType: string): number {
 }
 
 // make / model / serial are already captured on the tech side, so we
-// carry them straight across (no re-OCR). Engineering-only specs
-// (tons/SEER/fan HP/heat pump) are filled by the nameplate OCR below.
+// carry them straight across (no re-OCR). Engineering specs
+// (tons/SEER/fan HP/heat pump) come from the hidden nameplate specs
+// captured at scan time when present; only units captured before that
+// shipped fall back to the link-time nameplate OCR below.
 function unitToHvacInput(unit: UnitServiced): HvacUnitInput {
+  const s = unit.engineeringSpecs;
   return {
     tag: unit.label || `Unit ${unit.unitNumberOnJob}`,
     serves: "",
     tstat: "",
-    tons: tonsFromUnitType(unit.unitType),
+    tons: s?.tons ? s.tons : tonsFromUnitType(unit.unitType),
     ouModel: [unit.make, unit.model].filter(Boolean).join(" "),
     qty: 1,
-    seer: 0,
-    supplyFanHp: 0,
-    heatPump: "No",
-    electricHeatKw: 0,
+    seer: s?.seer ?? 0,
+    supplyFanHp: s?.supplyFanHp ?? 0,
+    heatPump: s?.heatPump ?? "No",
+    electricHeatKw: s?.electricHeatKw ?? 0,
     controls: "",
     proposedSchedule: "",
     notes: unit.serial ? `Serial: ${unit.serial}` : unit.notes || "",
@@ -165,7 +168,8 @@ export async function POST(
     name: string,
     ocrKind: PlateDoc["ocrKind"],
     rowIndex: number,
-    primary: boolean
+    primary: boolean,
+    ocrStatus: EngineeringDocument["ocrStatus"]
   ) {
     const fileId = extractDriveFileId(url);
     if (!fileId || seenFileIds.has(fileId)) return;
@@ -178,7 +182,7 @@ export async function POST(
         kind: ocrKind,
         uploadedAt: now,
         uploadedBy: by,
-        ocrStatus: "pending",
+        ocrStatus,
       },
       ocrKind,
       rowIndex,
@@ -187,13 +191,17 @@ export async function POST(
   }
 
   units.forEach((unit, i) => {
+    // Specs already captured at scan time → carry them, no OCR. Only
+    // legacy units (no stored specs) get the primary plate auto-OCR'd.
+    const hasSpecs = Boolean(unit.engineeringSpecs);
     unitNameplateUrls(unit).forEach((url, j) =>
       pushPlate(
         url,
         `${hvacUnits[i].tag} nameplate`,
         "hvac-nameplate",
         i,
-        j === 0
+        j === 0 && !hasSpecs,
+        hasSpecs ? "skip" : "pending"
       )
     );
   });
@@ -204,7 +212,8 @@ export async function POST(
         `${walkInUnits[i].tag} nameplate`,
         "walkin-nameplate",
         i,
-        j === 0
+        j === 0,
+        "pending"
       )
     );
   });

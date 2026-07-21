@@ -150,6 +150,9 @@ export function EditUnitForm({ job, unit }: { job: Job; unit: UnitServiced }) {
           model,
           serial,
           notes,
+          // Only present when a fresh nameplate scan ran this session —
+          // carries the hidden engineering specs across on a re-scan.
+          engineeringSpecs: ocr.result?.specs,
         }),
       });
       if (!res.ok) {

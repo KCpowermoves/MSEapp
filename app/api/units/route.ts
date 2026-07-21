@@ -9,7 +9,35 @@ import {
   softDeleteUnit,
   updateUnit,
 } from "@/lib/data/units";
-import type { UnitType } from "@/lib/types";
+import type { UnitEngineeringSpecs, UnitType } from "@/lib/types";
+
+// Sanitize the hidden nameplate specs the client passes through from the
+// OCR scan. Returns undefined when nothing usable was sent so we don't
+// stamp an empty blob over a unit that never got scanned.
+function parseSpecs(raw: unknown): UnitEngineeringSpecs | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const specs: UnitEngineeringSpecs = {
+    tons: num(o.tons),
+    seer: num(o.seer),
+    supplyFanHp: num(o.supplyFanHp),
+    heatPump: String(o.heatPump ?? "No").trim() || "No",
+    electricHeatKw: num(o.electricHeatKw),
+  };
+  // All-zero / all-default means the scan read no engineering fields —
+  // skip so a later re-scan or link-time OCR can still fill them.
+  const hasData =
+    specs.tons > 0 ||
+    specs.seer > 0 ||
+    specs.supplyFanHp > 0 ||
+    specs.electricHeatKw > 0 ||
+    specs.heatPump.toLowerCase() === "yes";
+  return hasData ? specs : undefined;
+}
 
 const UNIT_TYPES: UnitType[] = [
   "PTAC / Ductless",
@@ -71,6 +99,7 @@ export async function POST(request: Request) {
       serial,
       notes,
       loggedBy: session.name,
+      engineeringSpecs: parseSpecs(body.engineeringSpecs),
     });
     revalidatePath(`/jobs/${jobId}`);
     revalidatePath(`/jobs/${jobId}/service`);
@@ -117,6 +146,10 @@ export async function PATCH(request: Request) {
   }
   if (body.serial !== undefined) patch.serial = String(body.serial).trim();
   if (body.notes !== undefined) patch.notes = String(body.notes).trim();
+  if (body.engineeringSpecs !== undefined) {
+    const specs = parseSpecs(body.engineeringSpecs);
+    if (specs) patch.engineeringSpecs = specs;
+  }
 
   try {
     await updateUnit(patch);
