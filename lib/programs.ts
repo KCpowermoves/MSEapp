@@ -30,7 +30,8 @@ export function packetsForUtility(u: UtilityName): UtilityProgram[] {
     case "BGE": return ["BGE"];
     case "PEPCO": return ["PEPCO"];
     case "Delmarva": return ["DELMARVA"];
-    case "SMECO": return ["SMECO-LARGE", "SMECO-SMALL"];
+    // Small Business first — it's the default and most common; Large below.
+    case "SMECO": return ["SMECO-SMALL", "SMECO-LARGE"];
   }
 }
 
