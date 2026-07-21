@@ -1,6 +1,10 @@
 import "server-only";
 import { loadAllTechs } from "@/lib/auth";
-import { weeklyDeferralAmount } from "@/lib/payroll/deferrals";
+import {
+  weeklyDeferralAmount,
+  isJobPayAdjustment,
+  round2,
+} from "@/lib/payroll/deferrals";
 import { listAllAttributions } from "@/lib/data/pay-attribution";
 import {
   getPayrollPeriod,
@@ -377,6 +381,15 @@ export async function computePayrollReport(
       adjustments: 0,
       earned: 0,
     };
+    // Job-pay adjustments (re-attribution, split changes, and unit
+    // overrides/ineligibility) are corrections to what a tech actually
+    // earned on a job, so they belong in the 50/50-or-draw split base —
+    // not just tacked on after the hold-back is computed. Without this,
+    // marking a unit ineligible claws the whole amount off the Thursday
+    // check while still holding half of it, and reattributed pay skips
+    // the split entirely. Bonuses, reimbursements, deductions, and
+    // free-form manual lines stay full-pay (never split).
+    let jobPayAdjustments = 0;
     for (const it of sorted) {
       if (it.source === "attribution") {
         // bucketKey reads the already-display-translated lineType, but
@@ -397,6 +410,9 @@ export async function computePayrollReport(
         // adjustments bucket — they're a "manual line we added,"
         // not an auto-attribution.
         subtotals.adjustments += it.amount;
+        if (isJobPayAdjustment(it.adjustmentType, it.dispatchId)) {
+          jobPayAdjustments += it.amount;
+        }
       }
     }
     subtotals.earned =
@@ -413,7 +429,10 @@ export async function computePayrollReport(
     if (period?.periodType === "weekly") {
       const plan = planByName?.get(techName);
       if (plan && plan.planType !== "full-upfront") {
-        const deferred = weeklyDeferralAmount(plan, subtotals.earned);
+        // Split on the corrected job earnings, so overrides/ineligibility
+        // and reattributions move through both halves cleanly.
+        const deferralBase = round2(subtotals.earned + jobPayAdjustments);
+        const deferred = weeklyDeferralAmount(plan, deferralBase);
         if (Math.abs(deferred) >= 0.01) {
           subtotals.deferral = -deferred; // positive deferred → negative line
           const isTopUp = deferred < 0;

@@ -36,8 +36,34 @@ export const JOB_MARKER = (jobId: string) => `[job:${jobId}]`;
 // join on the ASCII unit separator instead.
 const SEP = "";
 
-function round2(n: number): number {
+export function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Is this adjustment a correction to what a tech earned ON A JOB (so it
+ * belongs in the 50/50-or-draw split base), versus a full-pay line that
+ * is never split?
+ *
+ * Job-pay: re-attributions and crew-split changes (they move real job
+ * commission between techs), plus unit overrides / ineligibility — those
+ * are written as "manual" adjustments but carry the dispatch they
+ * correct. Everything else — bonuses, reimbursements, deductions,
+ * standalone lines, and free-form manual adjustments with no dispatch —
+ * is paid or deducted in full and stays out of the split.
+ */
+export function isJobPayAdjustment(
+  type: string,
+  relatedDispatchId: string
+): boolean {
+  if (
+    type === "reattribute_from" ||
+    type === "reattribute_to" ||
+    type === "split_change"
+  ) {
+    return true;
+  }
+  return type === "manual" && !!relatedDispatchId.trim();
 }
 
 export interface DeferralEntry {
@@ -123,6 +149,28 @@ export async function computeDeferralLedger(): Promise<DeferralLedger> {
     const plan = planByName.get(a.techName);
     if (!plan || plan.planType === "full-upfront") continue;
     const dispatch = dispatchById.get(a.dispatchId);
+    const jobId = dispatch?.jobId ?? "";
+    if (!jobId) continue;
+    const k = [a.techName, week.periodId, jobId].join(SEP);
+    cell.set(k, (cell.get(k) ?? 0) + a.amount);
+    const wk = [a.techName, week.periodId].join(SEP);
+    weekTechTotals.set(wk, (weekTechTotals.get(wk) ?? 0) + a.amount);
+  }
+
+  // Fold job-pay adjustments (overrides/ineligibility, re-attributions,
+  // split changes) into the same (tech, week, job) cells so the held
+  // amount here matches the Thursday report's deferral line exactly. A
+  // reattributed unit lands on the RECEIVER's cell (creating one where
+  // they had no attribution), so their held half moves with the pay;
+  // the giver's cell shrinks. Full-pay lines are skipped.
+  for (const a of adjustments) {
+    if (!isJobPayAdjustment(a.type, a.relatedDispatchId)) continue;
+    if ((a.note ?? "").trim().toUpperCase().startsWith("VOIDED")) continue;
+    const week = weeklyPeriods.find((p) => p.periodId === a.periodId);
+    if (!week) continue;
+    const plan = planByName.get(a.techName);
+    if (!plan || plan.planType === "full-upfront") continue;
+    const dispatch = dispatchById.get(a.relatedDispatchId);
     const jobId = dispatch?.jobId ?? "";
     if (!jobId) continue;
     const k = [a.techName, week.periodId, jobId].join(SEP);
