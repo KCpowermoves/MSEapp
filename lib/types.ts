@@ -167,6 +167,9 @@ export interface Lead {
   assignTech: string;
   assignDate: string;
   updatedAt: string;
+  /** Prospect this lead came from (if picked from an imported list),
+   *  so the prospect is retired only when the lead converts to a job. */
+  prospectId: string;
   /** Contact person's title (Owner, Manager…) — on every agreement. */
   title: string;
   /** SMECO Small Business participation agreement picks. */

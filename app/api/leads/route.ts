@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createLead, listAllLeads, listLeadsForAgent } from "@/lib/data/leads";
-import { markProspectUsed } from "@/lib/data/prospects";
 import { UTILITY_PROGRAM_LABELS } from "@/lib/programs";
 import type { UtilityProgram } from "@/lib/types";
 
@@ -87,17 +86,12 @@ export async function POST(request: Request) {
       primaryUse: s("primaryUse"),
       customerType: s("customerType"),
       deliveryMethod: s("deliveryMethod"),
+      // Remembered on the lead; the prospect is retired only when the
+      // lead is actually signed (converts to a job), not now.
+      prospectId: s("prospectId"),
       assignTech: s("assignTech") || undefined,
       assignDate: s("assignDate") || undefined,
     });
-    // If this lead came from an imported prospect, retire it from the
-    // picker. Best-effort — a failure here must not fail the lead.
-    const prospectId = s("prospectId");
-    if (prospectId) {
-      markProspectUsed(prospectId, lead.leadId).catch((e) =>
-        console.warn("[leads POST] markProspectUsed failed:", e)
-      );
-    }
     return NextResponse.json({ lead });
   } catch (e) {
     console.error("[leads POST] failed:", e);

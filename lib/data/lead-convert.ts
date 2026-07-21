@@ -2,6 +2,7 @@ import "server-only";
 import { createJob } from "@/lib/data/jobs";
 import { createVisit } from "@/lib/data/schedule";
 import { getLead, updateLead } from "@/lib/data/leads";
+import { markProspectUsed } from "@/lib/data/prospects";
 import { territoryForProgram } from "@/lib/programs";
 import { nowIso } from "@/lib/utils";
 import type { Job, Lead } from "@/lib/types";
@@ -73,6 +74,14 @@ export async function convertLeadToJob(opts: {
     signedAt,
     jobId: job.jobId,
   });
+
+  // Retire the source prospect now that it's actually signed (not at
+  // lead creation). Best-effort — never fail the conversion over this.
+  if (lead.prospectId) {
+    markProspectUsed(lead.prospectId, lead.leadId).catch((e) =>
+      console.warn("[lead-convert] markProspectUsed failed:", e)
+    );
+  }
 
   return {
     lead: { ...lead, status: "Converted", signedAt, jobId: job.jobId },

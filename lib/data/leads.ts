@@ -19,7 +19,7 @@ import type { Lead, LeadStatus, UtilityProgram } from "@/lib/types";
 // N: HvacUnits | O: Notes | P: SignToken | Q: SignedPdfUrl
 // R: SignedAt | S: JobId | T: AssignTech | U: AssignDate | V: UpdatedAt
 // W: Title | X: PrimaryUse | Y: CustomerType | Z: DeliveryMethod
-// AA: ChoiceServiceId
+// AA: ChoiceServiceId | AB: ProspectId
 
 const LEADS_HEADERS = [
   "LeadId",
@@ -49,6 +49,7 @@ const LEADS_HEADERS = [
   "CustomerType",
   "DeliveryMethod",
   "ChoiceServiceId",
+  "ProspectId",
 ];
 
 async function ensureLeadsTab(): Promise<void> {
@@ -84,6 +85,7 @@ function rowToLead(row: string[]): Lead {
     customerType: String(row[24] ?? ""),
     deliveryMethod: String(row[25] ?? ""),
     choiceServiceId: String(row[26] ?? ""),
+    prospectId: String(row[27] ?? ""),
   };
 }
 
@@ -141,6 +143,7 @@ export async function createLead(input: {
   customerType?: string;
   deliveryMethod?: string;
   choiceServiceId?: string;
+  prospectId?: string;
   assignTech?: string;
   assignDate?: string;
 }): Promise<Lead> {
@@ -178,6 +181,7 @@ export async function createLead(input: {
     input.customerType ?? "",
     input.deliveryMethod ?? "",
     input.choiceServiceId ?? "",
+    input.prospectId ?? "",
   ]);
   return {
     leadId,
@@ -207,6 +211,7 @@ export async function createLead(input: {
     customerType: input.customerType ?? "",
     deliveryMethod: input.deliveryMethod ?? "",
     choiceServiceId: input.choiceServiceId ?? "",
+    prospectId: input.prospectId ?? "",
   };
 }
 
