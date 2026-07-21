@@ -25,6 +25,7 @@ export function JobLinkPicker({ projectId, linkedJobId }: Props) {
   const [searching, setSearching] = useState(false);
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -67,8 +68,26 @@ export function JobLinkPicker({ projectId, linkedJobId }: Props) {
         ok?: boolean;
         error?: string;
         unitsAdded?: number;
+        walkInsAdded?: number;
+        nameplatesAdded?: number;
+        ocrFilled?: number;
       };
       if (!res.ok) throw new Error(body.error ?? "Link failed");
+      const parts = [
+        `${body.unitsAdded ?? 0} HVAC unit${body.unitsAdded === 1 ? "" : "s"}`,
+      ];
+      if (body.walkInsAdded)
+        parts.push(
+          `${body.walkInsAdded} walk-in${body.walkInsAdded === 1 ? "" : "s"}`
+        );
+      if (body.nameplatesAdded)
+        parts.push(`${body.nameplatesAdded} nameplate photos`);
+      let msg = `Pulled ${parts.join(", ")}.`;
+      if (body.ocrFilled)
+        msg += ` Scanned ${body.ocrFilled} nameplate${
+          body.ocrFilled === 1 ? "" : "s"
+        } for specs.`;
+      setNotice(msg);
       setOpen(false);
       router.refresh();
     } catch (e) {
@@ -109,6 +128,11 @@ export function JobLinkPicker({ projectId, linkedJobId }: Props) {
 
   return (
     <div className="space-y-2">
+      {notice && (
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-[11px] text-emerald-900 font-semibold">
+          {notice}
+        </div>
+      )}
       {linkedJobId ? (
         <div className="flex items-center gap-2 flex-wrap rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
           <Link2 className="w-4 h-4 text-emerald-700 shrink-0" />
