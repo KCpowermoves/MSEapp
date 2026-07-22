@@ -24,20 +24,14 @@ function appUrl(pathAndQuery: string): string {
   return `${base}${pathAndQuery.startsWith("/") ? "" : "/"}${pathAndQuery}`;
 }
 
-async function sendNotification(opts: {
+async function sendViaResend(opts: {
   subject: string;
   html: string;
-  to?: string;
+  to: string;
 }): Promise<{ sent: boolean; reason?: string }> {
   const apiKey = env.resendApiKey();
   const from = env.notifyEmailFrom();
-  const to = opts.to || env.notifyEmailTo() || DEFAULT_TO;
-  if (!apiKey || !from) {
-    console.warn(
-      `[notify] Resend not configured — skipping "${opts.subject}" to ${to}`
-    );
-    return { sent: false, reason: "not configured" };
-  }
+  if (!apiKey || !from) return { sent: false, reason: "not configured" };
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -47,7 +41,7 @@ async function sendNotification(opts: {
       },
       body: JSON.stringify({
         from,
-        to: [to],
+        to: [opts.to],
         subject: opts.subject,
         html: opts.html,
       }),
@@ -66,6 +60,112 @@ async function sendNotification(opts: {
       reason: e instanceof Error ? e.message : "resend failed",
     };
   }
+}
+
+/**
+ * Fallback path: HighLevel conversations email (same two-call contract
+ * as lib/email/send-report.ts). Trade-off: the recipient is upserted as
+ * a HighLevel contact — acceptable for the single internal ops mailbox,
+ * wrong for anything broader. Resend is preferred whenever configured.
+ */
+async function sendViaHighLevel(opts: {
+  subject: string;
+  html: string;
+  to: string;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const token = env.highlevelApiToken();
+  const locationId = env.highlevelLocationId();
+  if (!token || !locationId) return { sent: false, reason: "not configured" };
+  try {
+    const upsert = await fetch(
+      "https://services.leadconnectorhq.com/contacts/upsert",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Version: "2021-07-28",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ locationId, email: opts.to }),
+      }
+    );
+    if (!upsert.ok) {
+      const text = await upsert.text().catch(() => "");
+      return {
+        sent: false,
+        reason: `highlevel upsert ${upsert.status}: ${text.slice(0, 200)}`,
+      };
+    }
+    const upsertData = (await upsert.json().catch(() => ({}))) as {
+      contact?: { id?: string };
+    };
+    const contactId = upsertData.contact?.id ?? "";
+    if (!contactId) return { sent: false, reason: "highlevel: no contactId" };
+
+    const res = await fetch(
+      "https://services.leadconnectorhq.com/conversations/messages",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Version: "2021-04-15",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          type: "Email",
+          contactId,
+          subject: opts.subject,
+          html: opts.html,
+        }),
+      }
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return {
+        sent: false,
+        reason: `highlevel send ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
+    return { sent: true };
+  } catch (e) {
+    return {
+      sent: false,
+      reason: e instanceof Error ? e.message : "highlevel failed",
+    };
+  }
+}
+
+async function sendNotification(opts: {
+  subject: string;
+  html: string;
+  to?: string;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const to = opts.to || env.notifyEmailTo() || DEFAULT_TO;
+  const payload = { subject: opts.subject, html: opts.html, to };
+
+  // Resend first (when configured), HighLevel as the fallback so
+  // notifications still deliver while the Resend account/domain is
+  // pending. Whichever succeeds first wins.
+  const viaResend = await sendViaResend(payload);
+  if (viaResend.sent) return viaResend;
+  if (viaResend.reason !== "not configured") {
+    console.warn(`[notify] resend failed (${viaResend.reason}) — trying HighLevel`);
+  }
+  const viaHl = await sendViaHighLevel(payload);
+  if (viaHl.sent) return viaHl;
+
+  if (viaResend.reason === "not configured" && viaHl.reason === "not configured") {
+    console.warn(
+      `[notify] no email provider configured — skipping "${opts.subject}" to ${to}`
+    );
+    return { sent: false, reason: "not configured" };
+  }
+  return {
+    sent: false,
+    reason: `resend: ${viaResend.reason}; highlevel: ${viaHl.reason}`,
+  };
 }
 
 /**
