@@ -20,6 +20,7 @@ import {
 } from "@/lib/google/drive";
 import { buildJobPdf } from "@/lib/pdf-report";
 import { sendReportEmail } from "@/lib/email/send-report";
+import { notifyReportReady } from "@/lib/email/notify";
 import { nowIso } from "@/lib/utils";
 
 /**
@@ -106,6 +107,9 @@ export async function tryRenderPdfIfReady(
       await setDispatchReportPdf(dispatchId, uploaded.url);
       pdfUrl = uploaded.url;
       rendered = true;
+      // Notify the team the report is ready (fires once — gated by the
+      // reportPdfUrl check above, so re-renders don't re-notify).
+      void notifyReportReady({ job, dispatch, pdfUrl });
     } catch (e) {
       console.error("[pdf] tryRenderPdfIfReady failed:", e);
       return {

@@ -5,6 +5,7 @@ import {
   createEngineeringProject,
   listAllEngineeringProjects,
 } from "@/lib/data/engineering-projects";
+import { notifyEngineeringCreated } from "@/lib/email/notify";
 import type {
   EngineeringLocation,
   EngineeringUtility,
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
       location,
       createdBy: session.name ?? "",
     });
+    void notifyEngineeringCreated({ project, createdBy: session.name });
     revalidatePath("/admin/engineering");
     return NextResponse.json({ project });
   } catch (e) {

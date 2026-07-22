@@ -36,4 +36,16 @@ export const env = {
   highlevelApiToken: () => optional("HIGHLEVEL_API_TOKEN"),
   highlevelLocationId: () => optional("HIGHLEVEL_LOCATION_ID"),
   highlevelReportTemplateId: () => optional("HIGHLEVEL_REPORT_TEMPLATE_ID"),
+  // Resend — internal ops notifications (new lead, report ready, payroll
+  // ready, engineering project). Kept separate from HighLevel so team
+  // notifications don't create CRM contacts. Absent = notifications are
+  // logged but not delivered (safe no-op in dev / pre-config).
+  resendApiKey: () => optional("RESEND_API_KEY"),
+  // Verified Resend sender, e.g. "MSE Field <notifications@mdsmartenergy.com>".
+  notifyEmailFrom: () => optional("NOTIFY_EMAIL_FROM"),
+  // Where internal notifications land. Defaults in code to
+  // admin@mdsmartenergy.com when unset.
+  notifyEmailTo: () => optional("NOTIFY_EMAIL_TO"),
+  // Base URL for building links inside notification emails.
+  appBaseUrl: () => optional("NEXT_PUBLIC_APP_URL"),
 };

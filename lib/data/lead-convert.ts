@@ -4,6 +4,7 @@ import { createVisit } from "@/lib/data/schedule";
 import { getLead, updateLead } from "@/lib/data/leads";
 import { markProspectUsed } from "@/lib/data/prospects";
 import { territoryForProgram } from "@/lib/programs";
+import { notifyLeadSigned } from "@/lib/email/notify";
 import { nowIso } from "@/lib/utils";
 import type { Job, Lead } from "@/lib/types";
 
@@ -82,6 +83,9 @@ export async function convertLeadToJob(opts: {
       console.warn("[lead-convert] markProspectUsed failed:", e)
     );
   }
+
+  // Notify the team a signed job just landed. Fire-and-forget.
+  void notifyLeadSigned({ job, agentName: lead.agentName });
 
   return {
     lead: { ...lead, status: "Converted", signedAt, jobId: job.jobId },

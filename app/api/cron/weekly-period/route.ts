@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { ensureWeeklyPeriod, mondayOf } from "@/lib/data/payroll-periods";
 import { logPayrollAction } from "@/lib/data/payroll-log";
+import { notifyPayrollReady } from "@/lib/email/notify";
 import { todayIsoEastern } from "@/lib/utils";
+import type { PayrollPeriod } from "@/lib/types";
 
 // GET /api/cron/weekly-period
 //
@@ -56,6 +58,8 @@ export async function GET(request: Request) {
     // any gaps from failed Mondays. Existing weeks are no-ops.
     const created: string[] = [];
     let primaryPeriodId = "";
+    let primaryPeriod: PayrollPeriod | null = null;
+    let primaryIsNew = false;
     for (let weeksBack = 0; weeksBack < 8; weeksBack++) {
       const weekAnchor = addDaysIso(anchor, -7 * weeksBack);
       if (mondayOf(weekAnchor) < SPLIT_PAY_EPOCH) break;
@@ -63,7 +67,11 @@ export async function GET(request: Request) {
         anchorIso: weekAnchor,
         createdBy: "auto (Monday cron)",
       });
-      if (weeksBack === 0) primaryPeriodId = period.periodId;
+      if (weeksBack === 0) {
+        primaryPeriodId = period.periodId;
+        primaryPeriod = period;
+        primaryIsNew = isNew;
+      }
       if (isNew) {
         created.push(period.periodId);
         await logPayrollAction({
@@ -73,6 +81,13 @@ export async function GET(request: Request) {
           detail: `auto-created weekly period ${period.startDate} to ${period.endDate} (${period.note})${weeksBack > 0 ? " [gap backfill]" : ""}`,
         });
       }
+    }
+
+    // Notify that the just-closed week is ready to review — only when
+    // this week's period was newly created (once per week; skips manual
+    // backfill re-runs of an existing period).
+    if (primaryPeriod && primaryIsNew) {
+      await notifyPayrollReady({ period: primaryPeriod });
     }
 
     return NextResponse.json({
