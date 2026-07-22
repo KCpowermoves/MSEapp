@@ -309,7 +309,9 @@ export function notifyPayrollReady(opts: {
         ["Dates", `${period.startDate} to ${period.endDate}`],
       ],
       ctaLabel: "Open payroll",
-      ctaHref: appUrl(`/payroll/${encodeURIComponent(period.periodId)}`),
+      // Admin review screen — the tech-facing /payroll/[periodId] page
+      // redirects Draft periods away, and a just-created week is Draft.
+      ctaHref: appUrl(`/admin/payroll/${encodeURIComponent(period.periodId)}`),
     }),
   });
 }

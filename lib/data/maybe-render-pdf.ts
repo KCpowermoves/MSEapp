@@ -109,7 +109,9 @@ export async function tryRenderPdfIfReady(
       rendered = true;
       // Notify the team the report is ready (fires once — gated by the
       // reportPdfUrl check above, so re-renders don't re-notify).
-      void notifyReportReady({ job, dispatch, pdfUrl });
+      // Awaited so the send isn't a dangling promise the runtime can
+      // drop; notify() never throws.
+      await notifyReportReady({ job, dispatch, pdfUrl });
     } catch (e) {
       console.error("[pdf] tryRenderPdfIfReady failed:", e);
       return {

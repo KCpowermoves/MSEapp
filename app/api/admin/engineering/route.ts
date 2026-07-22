@@ -62,7 +62,9 @@ export async function POST(request: Request) {
       location,
       createdBy: session.name ?? "",
     });
-    void notifyEngineeringCreated({ project, createdBy: session.name });
+    // Awaited — a dangling promise can be dropped when the handler
+    // returns; notify() never throws, so this can't fail the create.
+    await notifyEngineeringCreated({ project, createdBy: session.name });
     revalidatePath("/admin/engineering");
     return NextResponse.json({ project });
   } catch (e) {

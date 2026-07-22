@@ -84,8 +84,10 @@ export async function convertLeadToJob(opts: {
     );
   }
 
-  // Notify the team a signed job just landed. Fire-and-forget.
-  void notifyLeadSigned({ job, agentName: lead.agentName });
+  // Notify the team a signed job just landed. Awaited because a
+  // dangling promise here can be dropped when the serverless handler
+  // returns; notify() never throws, so this can't fail the conversion.
+  await notifyLeadSigned({ job, agentName: lead.agentName });
 
   return {
     lead: { ...lead, status: "Converted", signedAt, jobId: job.jobId },

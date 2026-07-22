@@ -46,6 +46,8 @@ export const env = {
   // Where internal notifications land. Defaults in code to
   // admin@mdsmartenergy.com when unset.
   notifyEmailTo: () => optional("NOTIFY_EMAIL_TO"),
-  // Base URL for building links inside notification emails.
-  appBaseUrl: () => optional("NEXT_PUBLIC_APP_URL"),
+  // Base URL for building links inside notification emails. Reads the
+  // same APP_URL the rest of the deploy documents/configures; notify.ts
+  // falls back to the production host (never localhost) when unset.
+  appBaseUrl: () => optional("APP_URL"),
 };
