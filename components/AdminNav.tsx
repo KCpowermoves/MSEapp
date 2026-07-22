@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   CalendarDays,
+  Calculator,
   DollarSign,
   Image as ImageIcon,
   LayoutDashboard,
+  UserCog,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -61,6 +63,18 @@ const TABS: Tab[] = [
     label: "Commission Report",
     icon: <DollarSign className="w-3.5 h-3.5" />,
     match: (p) => p.startsWith("/admin/payroll"),
+  },
+  {
+    href: "/admin/engineering",
+    label: "Engineering",
+    icon: <Calculator className="w-3.5 h-3.5" />,
+    match: (p) => p.startsWith("/admin/engineering"),
+  },
+  {
+    href: "/admin/techs",
+    label: "Techs",
+    icon: <UserCog className="w-3.5 h-3.5" />,
+    match: (p) => p.startsWith("/admin/techs"),
   },
 ];
 
