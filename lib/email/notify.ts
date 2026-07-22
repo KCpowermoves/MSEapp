@@ -171,20 +171,22 @@ async function sendNotification(opts: {
 /**
  * Fire-and-forget wrapper — never throws, logs the outcome. Call sites
  * use `void notify(...)` so a notification failure can't break the flow
- * that triggered it.
+ * that triggered it. Returns the outcome for callers that care (tests).
  */
 export async function notify(opts: {
   subject: string;
   html: string;
   to?: string;
-}): Promise<void> {
+}): Promise<{ sent: boolean; reason?: string }> {
   try {
     const r = await sendNotification(opts);
     if (!r.sent && r.reason !== "not configured") {
       console.warn(`[notify] "${opts.subject}" not sent: ${r.reason}`);
     }
+    return r;
   } catch (e) {
     console.warn("[notify] unexpected error:", e);
+    return { sent: false, reason: e instanceof Error ? e.message : "error" };
   }
 }
 

@@ -49,3 +49,4 @@ next-env.d.ts
 # EXCEPTION: the runtime templates ship with the deploy.
 !/engineering/template-BWI.xlsx
 !/engineering/template-Andrews.xlsx
+.env*
