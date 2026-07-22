@@ -249,7 +249,7 @@ function shell(opts: {
 export function notifyLeadSigned(opts: {
   job: Job;
   agentName?: string;
-}): Promise<void> {
+}): Promise<{ sent: boolean; reason?: string }> {
   const { job } = opts;
   return notify({
     subject: `New signed lead — ${job.customerName}`,
@@ -274,7 +274,7 @@ export function notifyReportReady(opts: {
   job: Job;
   dispatch: Dispatch;
   pdfUrl?: string;
-}): Promise<void> {
+}): Promise<{ sent: boolean; reason?: string }> {
   const { job, dispatch } = opts;
   return notify({
     subject: `Service report ready — ${job.customerName}`,
@@ -297,7 +297,7 @@ export function notifyReportReady(opts: {
 /** A weekly payroll period is ready for review/approval. */
 export function notifyPayrollReady(opts: {
   period: PayrollPeriod;
-}): Promise<void> {
+}): Promise<{ sent: boolean; reason?: string }> {
   const { period } = opts;
   return notify({
     subject: `Payroll ready to review — ${period.label || period.periodId}`,
@@ -318,7 +318,7 @@ export function notifyPayrollReady(opts: {
 export function notifyEngineeringCreated(opts: {
   project: EngineeringProject;
   createdBy?: string;
-}): Promise<void> {
+}): Promise<{ sent: boolean; reason?: string }> {
   const { project } = opts;
   return notify({
     subject: `New building tune-up — ${project.customerName}`,
