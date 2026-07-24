@@ -122,6 +122,10 @@ export async function PATCH(request: Request) {
   // PATCH. Historical rows keep whatever values they had; edit
   // directly in the sheet if you need to fix one.
   if (body.notes !== undefined) patch.notes = String(body.notes).trim();
+  // Assign / reassign the job's tech after the sale. Empty string
+  // clears the assignment.
+  if (body.projectLead !== undefined)
+    patch.projectLead = String(body.projectLead).trim();
 
   try {
     await updateJob(patch);

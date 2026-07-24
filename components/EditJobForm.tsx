@@ -8,12 +8,20 @@ import type { Job, UtilityTerritory } from "@/lib/types";
 
 const TERRITORIES: UtilityTerritory[] = ["BGE", "PEPCO", "Delmarva", "SMECO"];
 
-export function EditJobForm({ job }: { job: Job }) {
+export function EditJobForm({
+  job,
+  techNames = [],
+}: {
+  job: Job;
+  /** Active tech names for the assigned-tech picker. */
+  techNames?: string[];
+}) {
   const router = useRouter();
   const [customerName, setCustomerName] = useState(job.customerName);
   const [siteAddress, setSiteAddress] = useState(job.siteAddress);
   const [territory, setTerritory] = useState<UtilityTerritory>(job.utilityTerritory);
   const [status, setStatus] = useState<"Active" | "Closed">(job.status);
+  const [projectLead, setProjectLead] = useState(job.projectLead ?? "");
   const [notes, setNotes] = useState(job.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +42,7 @@ export function EditJobForm({ job }: { job: Job }) {
           siteAddress: siteAddress.trim(),
           utilityTerritory: territory,
           status,
+          projectLead,
           notes,
         }),
       });
@@ -133,6 +142,28 @@ export function EditJobForm({ job }: { job: Job }) {
             );
           })}
         </div>
+      </Field>
+
+      <Field
+        label="Assigned tech"
+        hint="Who owns this job. Assigning here makes the job show up in that tech's Jobs list right away."
+      >
+        <select
+          value={projectLead}
+          onChange={(e) => setProjectLead(e.target.value)}
+          className="w-full px-4 py-3 rounded-xl border border-mse-light bg-white text-base focus:outline-none focus:border-mse-navy"
+        >
+          <option value="">Unassigned</option>
+          {techNames.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+          {/* Keep a historical assignee selectable even if no longer active */}
+          {job.projectLead && !techNames.includes(job.projectLead) && (
+            <option value={job.projectLead}>{job.projectLead}</option>
+          )}
+        </select>
       </Field>
 
       <Field label="Notes">

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getSession, loadActiveTechs } from "@/lib/auth";
 import { getJob, techCanAccessJob } from "@/lib/data/jobs";
 import { EditJobForm } from "@/components/EditJobForm";
 
@@ -22,5 +22,11 @@ export default async function EditJobPage({
   });
   if (!canAccess) notFound();
 
-  return <EditJobForm job={job} />;
+  const techs = await loadActiveTechs();
+  const techNames = techs
+    .filter((t) => !t.isSales)
+    .map((t) => t.name)
+    .sort();
+
+  return <EditJobForm job={job} techNames={techNames} />;
 }
