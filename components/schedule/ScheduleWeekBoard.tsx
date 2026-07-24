@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MiniMap } from "@/components/schedule/MiniMap";
 import type { ScheduledVisit } from "@/lib/data/schedule";
 
 interface JobLite {
@@ -281,6 +282,9 @@ export function ScheduleWeekBoard({
                             <div className="text-[11px] text-mse-muted italic mt-0.5 truncate">
                               {v.notes}
                             </div>
+                          )}
+                          {!cancelled && (
+                            <MiniMap address={job?.siteAddress ?? ""} />
                           )}
                           {cancelled && (
                             <span className="text-[10px] font-bold text-mse-red uppercase">

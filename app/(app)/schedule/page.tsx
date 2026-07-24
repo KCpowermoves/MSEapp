@@ -6,6 +6,7 @@ import { listAllJobs } from "@/lib/data/jobs";
 import { todayIsoEastern } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { ScopeBadges } from "@/components/schedule/ScheduleWeekBoard";
+import { MiniMap } from "@/components/schedule/MiniMap";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -132,6 +133,7 @@ export default async function MySchedulePage() {
                             {v.notes}
                           </div>
                         )}
+                        <MiniMap address={job?.siteAddress ?? ""} />
                       </div>
                       <div className="shrink-0 text-right">
                         <div className="inline-flex items-center gap-1 font-bold text-mse-navy tabular-nums">
