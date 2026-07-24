@@ -108,14 +108,25 @@ export async function listJobsForTech(opts: {
   if (opts.isAdmin) return active;
   if (!opts.techName) return [];
 
-  // Defer the dispatches import to avoid a top-level circular import
-  // between jobs.ts and dispatches.ts.
+  // Defer the dispatches/schedule imports to avoid top-level circular
+  // imports with jobs.ts.
   const { listAllDispatches } = await import("@/lib/data/dispatches");
-  const dispatches = await listAllDispatches();
-  const jobIdsFromDispatches = new Set<string>();
+  const { listAllVisits } = await import("@/lib/data/schedule");
+  const [dispatches, visits] = await Promise.all([
+    listAllDispatches(),
+    listAllVisits(),
+  ]);
+  const connectedJobIds = new Set<string>();
   for (const d of dispatches) {
     if (d.techsOnSite.some((t) => t === opts.techName)) {
-      jobIdsFromDispatches.add(d.jobId);
+      connectedJobIds.add(d.jobId);
+    }
+  }
+  // Assigned-at-sale / scheduled work counts too — a tech must see a
+  // job the moment it's assigned to them, not only after they start it.
+  for (const v of visits) {
+    if (v.techs.some((t) => t === opts.techName)) {
+      connectedJobIds.add(v.jobId);
     }
   }
 
@@ -123,13 +134,15 @@ export async function listJobsForTech(opts: {
     (j) =>
       j.createdBy === opts.techName ||
       (j.selfSold && j.soldBy === opts.techName) ||
-      jobIdsFromDispatches.has(j.jobId)
+      j.projectLead === opts.techName ||
+      connectedJobIds.has(j.jobId)
   );
 }
 
 /**
- * True if the tech is connected to this job (created it, sold it, or
- * was on a dispatch). Admins always pass.
+ * True if the tech is connected to this job (created it, sold it, is
+ * the assigned project lead, was on a dispatch, or is on a scheduled
+ * visit). Admins always pass.
  */
 export async function techCanAccessJob(opts: {
   job: Job;
@@ -141,12 +154,24 @@ export async function techCanAccessJob(opts: {
   if (opts.job.createdBy === opts.techName) return true;
   if (opts.job.selfSold && opts.job.soldBy === opts.techName) return true;
 
+  if (opts.job.projectLead === opts.techName) return true;
   const { listAllDispatches } = await import("@/lib/data/dispatches");
-  const dispatches = await listAllDispatches();
-  return dispatches.some(
-    (d) =>
-      d.jobId === opts.job.jobId &&
-      d.techsOnSite.some((t) => t === opts.techName)
+  const { listAllVisits } = await import("@/lib/data/schedule");
+  const [dispatches, visits] = await Promise.all([
+    listAllDispatches(),
+    listAllVisits(),
+  ]);
+  return (
+    dispatches.some(
+      (d) =>
+        d.jobId === opts.job.jobId &&
+        d.techsOnSite.some((t) => t === opts.techName)
+    ) ||
+    visits.some(
+      (v) =>
+        v.jobId === opts.job.jobId &&
+        v.techs.some((t) => t === opts.techName)
+    )
   );
 }
 
