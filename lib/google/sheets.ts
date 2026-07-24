@@ -1,5 +1,12 @@
 import { env } from "@/lib/env";
 import { getSheetsClient } from "@/lib/google/auth";
+import {
+  kvBumpVersion,
+  kvConfigured,
+  kvGetJson,
+  kvGetVersion,
+  kvSetJson,
+} from "@/lib/kv";
 
 export const TABS = {
   techs: "Techs",
@@ -56,25 +63,71 @@ interface CacheEntry {
   inflight?: Promise<string[][]>;
 }
 const readCache = new Map<string, CacheEntry>();
-// Rolled back to 30s 2026-06-08 after a tech report of photos "not
-// loading" and "slots clearing when I open the job today." Diagnosis:
-// `invalidateCacheForTab` only clears the LOCAL Vercel serverless
-// instance's cache. When request A handles a photo upload, instance
-// A's cache is fresh; instances B/C/D keep serving stale reads from
-// their own caches until each independently expires. The 30s window
-// limits how stale that can get. A proper fix needs a distributed
-// cache (Vercel KV or similar) — until then, keep TTL short.
-const CACHE_TTL_MS = 30_000;
+
+// Two-layer cache.
+//
+// L1 (this Map) is per serverless instance and only dedupes reads
+// within a request or a rapid burst. L2 (Redis) is shared by every
+// instance, so a write on instance A is seen by B/C/D immediately.
+//
+// History: L1 alone was capped at 30s because `invalidateCacheForTab`
+// could only clear the LOCAL instance — a photo upload on instance A
+// left B/C/D serving stale rows until each independently expired
+// (techs saw photos "not loading" / slots "clearing"). With L2 doing
+// versioned invalidation that hole is closed, so L1 can be short: a
+// miss now costs a ~10ms Redis hit instead of a ~500ms Sheets read.
+// Without Redis configured we keep the old 30s to avoid hammering the
+// Sheets quota (60 reads/min).
+const L1_TTL_MS = kvConfigured() ? 10_000 : 30_000;
+// Bounds how long an orphaned entry (cached by a read that raced an
+// invalidation) can linger under a superseded version key.
+const L2_TTL_SECONDS = 300;
 
 function tabFromRange(range: string): string | null {
   const m = range.match(/^['"]?([^'!"]+)['"]?!/);
   return m ? m[1] : null;
 }
 
-export function invalidateCacheForTab(tabName: string): void {
+const versionKey = (tab: string) => `sheetver:${tab}`;
+const dataKey = (tab: string, version: number, range: string) =>
+  `sheet:${tab}:v${version}:${range}`;
+
+// Per-instance memo of each tab's L2 version so a warm instance doesn't
+// pay a Redis round trip for the version on every L1 miss. Short TTL —
+// this is the only delay between an invalidation and other instances
+// seeing it.
+const versionCache = new Map<string, { version: number; expires: number }>();
+const VERSION_TTL_MS = 5_000;
+
+async function currentVersion(tab: string): Promise<number> {
+  const hit = versionCache.get(tab);
+  const now = Date.now();
+  if (hit && hit.expires > now) return hit.version;
+  const version = await kvGetVersion(versionKey(tab));
+  versionCache.set(tab, { version, expires: now + VERSION_TTL_MS });
+  return version;
+}
+
+/**
+ * Drop every cached read for a tab, on this instance AND on all others.
+ *
+ * Local entries are deleted outright; shared entries are retired by
+ * bumping the tab's version counter, which makes every key stamped with
+ * the old version unreachable at once (no key enumeration needed). Call
+ * this after any write — it is awaited so the next read cannot race
+ * ahead of the invalidation.
+ */
+export async function invalidateCacheForTab(tabName: string): Promise<void> {
+  // Bump the shared counter FIRST, then clear local state: if a
+  // concurrent read on this instance re-memoizes the version while the
+  // bump is in flight, the clears below still wipe it.
+  if (kvConfigured()) {
+    await kvBumpVersion(versionKey(tabName));
+  }
   for (const key of Array.from(readCache.keys())) {
     if (tabFromRange(key) === tabName) readCache.delete(key);
   }
+  versionCache.delete(tabName);
 }
 
 /** Retry transient Sheets failures (429 quota, 5xx) with backoff.
@@ -122,24 +175,51 @@ export async function readRange(
     // don't mask the staleness for concurrent callers either.
     readCache.delete(range);
   }
-  const sheets = getSheetsClient();
-  const inflight = withReadRetry(() =>
-    sheets.spreadsheets.values.get({
-      spreadsheetId: env.googleSheetId(),
-      range,
-      valueRenderOption: "UNFORMATTED_VALUE",
-      dateTimeRenderOption: "FORMATTED_STRING",
-    })
-  )
-    .then((res) => {
-      const data = (res.data.values ?? []) as string[][];
-      readCache.set(range, { data, expires: Date.now() + CACHE_TTL_MS });
-      return data;
-    })
-    .catch((e) => {
-      readCache.delete(range);
-      throw e;
-    });
+  const tab = tabFromRange(range);
+  const useShared = kvConfigured() && Boolean(tab);
+
+  const inflight = (async () => {
+    // L2: another instance may already have paid for this read.
+    // Version-stamped, so an invalidation elsewhere is picked up here.
+    let version = 0;
+    if (useShared && !opts.fresh) {
+      version = await currentVersion(tab!);
+      const shared = await kvGetJson<string[][]>(dataKey(tab!, version, range));
+      if (shared) {
+        readCache.set(range, {
+          data: shared,
+          expires: Date.now() + L1_TTL_MS,
+        });
+        return shared;
+      }
+    } else if (useShared) {
+      version = await currentVersion(tab!);
+    }
+
+    const sheets = getSheetsClient();
+    const res = await withReadRetry(() =>
+      sheets.spreadsheets.values.get({
+        spreadsheetId: env.googleSheetId(),
+        range,
+        valueRenderOption: "UNFORMATTED_VALUE",
+        dateTimeRenderOption: "FORMATTED_STRING",
+      })
+    );
+    const data = (res.data.values ?? []) as string[][];
+    readCache.set(range, { data, expires: Date.now() + L1_TTL_MS });
+    if (useShared) {
+      // Stamped with the version read BEFORE the fetch: if an
+      // invalidation landed meanwhile the counter has moved on and this
+      // entry is written to a key nobody will read, rather than
+      // publishing stale rows under the current version.
+      await kvSetJson(dataKey(tab!, version, range), data, L2_TTL_SECONDS);
+    }
+    return data;
+  })().catch((e) => {
+    readCache.delete(range);
+    throw e;
+  });
+
   readCache.set(range, { data: [], expires: 0, inflight });
   return inflight;
 }
@@ -206,7 +286,7 @@ export async function appendRow(
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   });
-  invalidateCacheForTab(tabName);
+  await invalidateCacheForTab(tabName);
 }
 
 /** Append many rows in a single API call — for bulk imports. */
@@ -224,7 +304,7 @@ export async function appendRows(
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: rows },
   });
-  invalidateCacheForTab(tabName);
+  await invalidateCacheForTab(tabName);
 }
 
 export async function updateCell(
@@ -240,7 +320,7 @@ export async function updateCell(
     requestBody: { values: [[value]] },
   });
   const tab = tabFromRange(range);
-  if (tab) invalidateCacheForTab(tab);
+  if (tab) await invalidateCacheForTab(tab);
 }
 
 // === Concurrency-safe CSV-cell append ======================================

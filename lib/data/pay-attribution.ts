@@ -391,5 +391,5 @@ export async function deletePayAttributionRowsForDispatch(
   // Invalidate the read cache for this tab so subsequent reads reflect
   // the deletions (the cache key used by readTab is `${tabName}!A2:ZZ`).
   const { invalidateCacheForTab } = await import("@/lib/google/sheets");
-  invalidateCacheForTab(TABS.payAttribution);
+  await invalidateCacheForTab(TABS.payAttribution);
 }
